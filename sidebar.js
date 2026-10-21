@@ -2929,9 +2929,11 @@ async function createTabElement(tab, isPinned = false, isBookmarkOnly = false) {
 
 
     // Handle mousedown events (left-click to open, middle-click to close)
+    // Middle-click never deletes a favorite that has no live tab.
     tabElement.addEventListener('auxclick', event => {
         if (event.button === MOUSE_BUTTON.MIDDLE) {
             event.preventDefault();
+            if (isBookmarkOnly) return;
             closeTab(tabElement, tab, isPinned, isBookmarkOnly);
         }
     });
@@ -2939,6 +2941,7 @@ async function createTabElement(tab, isPinned = false, isBookmarkOnly = false) {
     tabElement.addEventListener('click', async (event) => {
         if (event.button === MOUSE_BUTTON.MIDDLE) {
             event.preventDefault(); // Prevent default middle-click actions (like autoscroll)
+            if (isBookmarkOnly) return;
             closeTab(tabElement, tab, isPinned, isBookmarkOnly);
         } else if (event.button === MOUSE_BUTTON.LEFT) {
             // Don't activate tab when clicking close button
