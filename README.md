@@ -253,7 +253,9 @@ Pinned tabs are backed by bookmarks in **Arcify → space name**, regardless of 
 tab-group sync setting. Startup and opening the sidebar discover existing space
 folders, including folders synced by Chrome, and display their bookmarks as saved
 pins. Pinning adds a bookmark; unpinning removes its saved bookmark even if the tab
-has navigated to another URL. Nested bookmark folders remain nested in the space.
+has navigated to another URL. After removing a favorite, the brief Undo prompt can
+restore its bookmark in the same folder and position, and an unpinned tab that is still
+open becomes that favorite's tab again. Nested bookmark folders remain nested in the space.
 
 Space chips follow the order of the space folders under **Arcify**: moving a folder
 in Chrome's bookmark manager reorders the chips, and dragging a chip moves its
