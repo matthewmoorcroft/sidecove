@@ -32,6 +32,50 @@ async function showSpaceOptionsDropdown(page) {
   await delay(300);
 }
 
+async function dragSpaceChip(page, sourceIndex, targetIndex) {
+  return page.evaluate(async (sourceIndex, targetIndex) => {
+    const buttons = [...document.querySelectorAll('.space-switcher button[data-space-id]')];
+    const source = buttons[sourceIndex];
+    const target = buttons[targetIndex];
+    const targetRect = target.getBoundingClientRect();
+    const clientX = targetRect.left + targetRect.width / 4;
+    const clientY = targetRect.top + targetRect.height / 2;
+    const dataTransfer = new DataTransfer();
+
+    source.dispatchEvent(new DragEvent('dragstart', {
+      bubbles: true,
+      cancelable: true,
+      dataTransfer,
+    }));
+
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    const startedAt = performance.now();
+    while (performance.now() - startedAt < 500) {
+      document.elementFromPoint(clientX, clientY).dispatchEvent(new DragEvent('dragover', {
+        bubbles: true,
+        cancelable: true,
+        clientX,
+        clientY,
+        dataTransfer,
+      }));
+      await new Promise(resolve => setTimeout(resolve, 25));
+    }
+
+    const dropTarget = document.elementFromPoint(clientX, clientY);
+    dropTarget.dispatchEvent(new DragEvent('drop', {
+      bubbles: true,
+      cancelable: true,
+      clientX,
+      clientY,
+      dataTransfer,
+    }));
+
+    await new Promise(resolve => setTimeout(resolve, 500));
+    return source.textContent.trim();
+  }, sourceIndex, targetIndex);
+}
+
 describe('Space Management', () => {
   let browser;
   let extensionId;
@@ -990,6 +1034,33 @@ describe('Space Management', () => {
         throw error;
       }
     }, 60000);
+  });
+
+  describe('Space Reordering', () => {
+    test('should drop space chips where the open gap indicates', async () => {
+      try {
+        const switcherButtons = await sidebarPage.$$('.space-switcher button[data-space-id]');
+        for (let i = switcherButtons.length; i < 11; i++) {
+          await sidebarPage.close();
+          sidebarPage = await createSpace(browser, extensionId, `Drag ${i}`);
+        }
+
+        const movedFirst = await dragSpaceChip(sidebarPage, 4, 0);
+        let order = await sidebarPage.$$eval('.space-switcher button[data-space-id]', buttons => {
+          return buttons.map(button => button.textContent.trim());
+        });
+        expect(order[0]).toBe(movedFirst);
+
+        const movedMiddle = await dragSpaceChip(sidebarPage, order.length - 1, 5);
+        order = await sidebarPage.$$eval('.space-switcher button[data-space-id]', buttons => {
+          return buttons.map(button => button.textContent.trim());
+        });
+        expect(order[5]).toBe(movedMiddle);
+      } catch (error) {
+        await takeScreenshotOnFailure(sidebarPage, 'space-switcher-reorder-failure');
+        throw error;
+      }
+    }, 120000);
   });
 
   describe('Space Persistence', () => {

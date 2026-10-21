@@ -66,6 +66,7 @@ let previousSpaceId = null;
 let isCreatingSpace = false;
 let isOpeningBookmark = false;
 let isDraggingTab = false;
+let draggedSpaceSwitcherButton = null;
 let pendingMutationCount = 0;
 let currentWindow = null;
 let defaultSpaceName = 'Home';
@@ -1046,130 +1047,71 @@ async function moveSpaceFolderBefore(space, nextSpace) {
     }
 }
 
+function clearSpaceSwitcherDropPlaceholders() {
+    const buttons = spaceSwitcher.querySelectorAll('button');
+    buttons.forEach(button => {
+        button.classList.remove('drag-over-placeholder-before', 'drag-over-placeholder-after');
+    });
+}
+
+function handleSpaceSwitcherDragOver(e) {
+    e.preventDefault();
+    if (!document.querySelector('.dragging-switcher')) return;
+
+    const afterElement = getDragAfterElementSwitcher(spaceSwitcher, e.clientX);
+    clearSpaceSwitcherDropPlaceholders();
+
+    if (afterElement) {
+        afterElement.classList.add('drag-over-placeholder-before');
+    } else {
+        const lastElement = spaceSwitcher.querySelector('button:not(.dragging-switcher):last-of-type');
+        if (lastElement) {
+            lastElement.classList.add('drag-over-placeholder-after');
+        }
+    }
+}
+
+function handleSpaceSwitcherDragLeave(e) {
+    if (e.target === spaceSwitcher) {
+        clearSpaceSwitcherDropPlaceholders();
+    }
+}
+
+async function handleSpaceSwitcherDrop(e) {
+    e.preventDefault();
+    const afterElement = getDragAfterElementSwitcher(spaceSwitcher, e.clientX);
+    clearSpaceSwitcherDropPlaceholders();
+
+    if (draggedSpaceSwitcherButton) {
+        const draggedSpaceId = draggedSpaceSwitcherButton.dataset.spaceId;
+        const targetSpaceId = afterElement?.dataset.spaceId;
+        const originalIndex = spaces.findIndex(space => space.id === draggedSpaceId);
+        if (originalIndex === -1) return;
+
+        const [draggedSpace] = spaces.splice(originalIndex, 1);
+        const targetIndex = targetSpaceId
+            ? spaces.findIndex(space => space.id === targetSpaceId)
+            : -1;
+        const newIndex = targetIndex >= 0 ? targetIndex : spaces.length;
+
+        spaces.splice(newIndex, 0, draggedSpace);
+
+        // Move the space folder too: discovery orders spaces by their folders under Arcify.
+        await moveSpaceFolderBefore(draggedSpace, spaces[newIndex + 1]);
+
+        saveSpaces();
+        await updateSpaceSwitcher();
+    }
+    draggedSpaceSwitcherButton = null;
+}
+
+spaceSwitcher.addEventListener('dragover', handleSpaceSwitcherDragOver);
+spaceSwitcher.addEventListener('dragleave', handleSpaceSwitcherDragLeave);
+spaceSwitcher.addEventListener('drop', handleSpaceSwitcherDrop);
+
 async function updateSpaceSwitcher() {
     Logger.log('Updating space switcher...');
     spaceSwitcher.innerHTML = '';
-
-    // --- Drag and Drop State ---
-    let draggedButton = null;
-
-    // --- Add listeners to the container ---
-    spaceSwitcher.addEventListener('dragover', (e) => {
-        e.preventDefault(); // Necessary to allow dropping
-        const currentlyDragged = document.querySelector('.dragging-switcher');
-        if (!currentlyDragged) return; // Don't do anything if not dragging a switcher button
-
-        const afterElement = getDragAfterElementSwitcher(spaceSwitcher, e.clientX);
-
-        // Remove placeholder classes from all buttons first
-        const buttons = spaceSwitcher.querySelectorAll('button');
-        buttons.forEach(button => {
-            button.classList.remove('drag-over-placeholder-before', 'drag-over-placeholder-after');
-        });
-
-        // Add placeholder class to the appropriate element
-        if (afterElement) {
-            // Add margin *before* the element we'd insert before
-            afterElement.classList.add('drag-over-placeholder-before');
-        } else {
-            // If afterElement is null, we are dropping at the end.
-            // Add margin *after* the last non-dragging element.
-            const lastElement = spaceSwitcher.querySelector('button:not(.dragging-switcher):last-of-type');
-            if (lastElement) {
-                lastElement.classList.add('drag-over-placeholder-after');
-            }
-        }
-
-        // --- Remove this block ---
-        // We no longer move the element during dragover, rely on CSS placeholders
-        /*
-        if (currentlyDragged) {
-            if (afterElement == null) {
-                spaceSwitcher.appendChild(currentlyDragged);
-            } else {
-                spaceSwitcher.insertBefore(currentlyDragged, afterElement);
-            }
-        }
-        */
-        // --- End of removed block ---
-    });
-
-    spaceSwitcher.addEventListener('dragleave', (e) => {
-        // Simple cleanup: remove placeholders if the mouse leaves the container area
-        // More robust check might involve relatedTarget, but this is often sufficient
-        if (e.target === spaceSwitcher) {
-            const buttons = spaceSwitcher.querySelectorAll('button');
-            buttons.forEach(button => {
-                button.classList.remove('drag-over-placeholder-before', 'drag-over-placeholder-after');
-            });
-        }
-    });
-
-    spaceSwitcher.addEventListener('drop', async (e) => {
-        e.preventDefault();
-
-        // Ensure placeholders are removed after drop
-        const buttons = spaceSwitcher.querySelectorAll('button');
-        buttons.forEach(button => {
-            button.classList.remove('drag-over-placeholder-before', 'drag-over-placeholder-after');
-        });
-
-        if (draggedButton) {
-            const targetElement = e.target.closest('button'); // Find the button dropped onto or near
-            const draggedSpaceId = draggedButton.dataset.spaceId;
-            let targetSpaceId = targetElement ? targetElement.dataset.spaceId : null;
-            if (targetSpaceId === draggedSpaceId) return;
-
-            // Find original index
-            const originalIndex = spaces.findIndex(s => s.id === draggedSpaceId);
-            if (originalIndex === -1) return; // Should not happen
-
-            const draggedSpace = spaces[originalIndex];
-
-            // Remove from original position
-            spaces.splice(originalIndex, 1);
-
-            // Find new index
-            let newIndex;
-            if (targetSpaceId) {
-                const targetIndex = spaces.findIndex(s => s.id === targetSpaceId);
-                // Determine if dropping before or after the target based on drop position relative to target center
-                const targetRect = targetElement.getBoundingClientRect();
-                const dropX = e.clientX; // *** Use clientX ***
-                if (dropX < targetRect.left + targetRect.width / 2) { // *** Use left and width ***
-                    newIndex = targetIndex; // Insert before target
-                } else {
-                    newIndex = targetIndex + 1; // Insert after target
-                }
-
-            } else {
-                // If dropped not on a specific button (e.g., empty area), append to end
-                newIndex = spaces.length;
-            }
-
-            // Insert at new position
-            // Ensure newIndex is within bounds (can happen if calculation is slightly off at edges)
-            // newIndex = Math.max(0, Math.min(newIndex, spaces.length));
-            Logger.log("droppedat", newIndex);
-
-            if (newIndex < 0) {
-                newIndex = 0;
-            } else if (newIndex > spaces.length) {
-                newIndex = spaces.length;
-            }
-            Logger.log("set", newIndex);
-
-            spaces.splice(newIndex, 0, draggedSpace);
-
-            // Move the space folder too: discovery orders spaces by their folders under Arcify.
-            await moveSpaceFolderBefore(draggedSpace, spaces[newIndex + 1]);
-
-            // Save and re-render
-            saveSpaces();
-            await updateSpaceSwitcher(); // Re-render to reflect new order and clean up listeners
-        }
-        draggedButton = null; // Reset dragged item
-    });
 
 
     spaces.forEach(space => {
@@ -1188,7 +1130,7 @@ async function updateSpaceSwitcher() {
 
         // --- Drag Event Listeners for Buttons ---
         button.addEventListener('dragstart', (e) => {
-            draggedButton = button; // Store the button being dragged
+            draggedSpaceSwitcherButton = button;
             // Use a specific class to avoid conflicts with tab dragging
             setTimeout(() => button.classList.add('dragging-switcher'), 0);
             e.dataTransfer.effectAllowed = 'move';
@@ -1202,10 +1144,10 @@ async function updateSpaceSwitcher() {
             buttons.forEach(btn => {
                 btn.classList.remove('drag-over-placeholder-before', 'drag-over-placeholder-after');
             });
-            if (draggedButton) { // Check if draggedButton is still set
-                draggedButton.classList.remove('dragging-switcher');
+            if (draggedSpaceSwitcherButton) {
+                draggedSpaceSwitcherButton.classList.remove('dragging-switcher');
             }
-            draggedButton = null; // Ensure reset here too
+            draggedSpaceSwitcherButton = null;
         });
 
         spaceSwitcher.appendChild(button);
