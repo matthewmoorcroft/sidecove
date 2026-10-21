@@ -257,6 +257,7 @@ has navigated to another URL. After removing a favorite, the brief Undo prompt c
 restore its bookmark in the same folder and position, and an unpinned tab that is still
 open becomes that favorite's tab again. **Move to Space** on a pinned tab, open or unloaded,
 moves its bookmark into the target space's folder and keeps it pinned. Nested bookmark folders remain nested in the space.
+Deleting a space also deletes its bookmark folder and all bookmarks inside it.
 
 Space chips follow the order of the space folders under **Arcify**: moving a folder
 in Chrome's bookmark manager reorders the chips, and dragging a chip moves its
