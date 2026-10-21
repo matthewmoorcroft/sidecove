@@ -255,7 +255,8 @@ folders, including folders synced by Chrome, and display their bookmarks as save
 pins. Pinning adds a bookmark; unpinning removes its saved bookmark even if the tab
 has navigated to another URL. After removing a favorite, the brief Undo prompt can
 restore its bookmark in the same folder and position, and an unpinned tab that is still
-open becomes that favorite's tab again. Nested bookmark folders remain nested in the space.
+open becomes that favorite's tab again. **Move to Space** on a pinned tab, open or unloaded,
+moves its bookmark into the target space's folder and keeps it pinned. Nested bookmark folders remain nested in the space.
 
 Space chips follow the order of the space folders under **Arcify**: moving a folder
 in Chrome's bookmark manager reorders the chips, and dragging a chip moves its
