@@ -938,7 +938,8 @@ describe('Space Management', () => {
       const buttons = [...document.querySelectorAll('.space-switcher button')];
       const source = buttons.at(from);
       const target = to === null ? document.getElementById('spaceSwitcher') : buttons.at(to);
-      const rect = target.getBoundingClientRect();
+      // Drops land where the gap indicator points, so an end drop aims past the last chip, which may be scrolled out of view.
+      const rect = (to === null ? buttons.at(-1) : target).getBoundingClientRect();
       source.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: new DataTransfer() }));
       await new Promise(resolve => setTimeout(resolve, 0));
       target.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, clientX: edge === 'left' ? rect.left + 1 : rect.right - 1 }));

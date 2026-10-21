@@ -1700,8 +1700,7 @@ async function handleBookmarkOperations(event, draggingElement, container, targe
             sourceContent: dropIntent.bookmarkSourceContent,
             targetContent: dropIntent.bookmarkTargetContent,
             draggingElement,
-            rootId: spaceFolder.id,
-            inverted: dropIntent.inverted
+            rootId: spaceFolder.id
         }));
         for (const [id, order] of Object.entries(result.orders || {})) bookmarkOrderBaselines.set(String(id), order.map(String));
         return { orderHandled: true };
@@ -3741,8 +3740,8 @@ function setupFolderContextMenu(folderElement, space, item = null) {
             return { id: siblings[Math.max(folderIndex, neighborIndex)].id, index: Math.min(folderIndex, neighborIndex) };
         };
         const siblings = await chrome.bookmarks.getChildren(parentId);
-        const invertTabOrder = await Utils.getInvertTabOrder();
-        for (const [label, offset] of [['Move Up', invertTabOrder ? 1 : -1], ['Move Down', invertTabOrder ? -1 : 1]]) {
+        // Folders render in bookmark order whatever the invert setting.
+        for (const [label, offset] of [['Move Up', -1], ['Move Down', 1]]) {
             if (!findSwap(siblings, offset)) continue;
 
             const moveOption = document.createElement('div');

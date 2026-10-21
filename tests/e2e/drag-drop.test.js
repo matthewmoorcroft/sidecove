@@ -1242,7 +1242,6 @@ describe('Drag and Drop', () => {
           const { spaces } = await chrome.runtime.sendMessage({ type: 'spaceStore', action: 'get' });
           const parentId = spaces[0].bookmarkFolderId;
           const make = async title => (await chrome.bookmarks.create({ parentId, title })).id;
-          const { invertTabOrder = true } = await chrome.storage.sync.get({ invertTabOrder: true });
           const a = await make('Drag A'), b = await make('Drag B');
           // Pin an open tab between B and C, and one inside C, so moving C changes the saved pinned order.
           const pinIn = async (folderId, url) => {
@@ -1257,7 +1256,7 @@ describe('Drag and Drop', () => {
           const tabX = await pinIn(parentId, 'https://www.example.com/?drag-x');
           const c = await make('Drag C');
           const tabC = await pinIn(c, 'https://www.example.com/?drag-c');
-          return { parentId, inverted: invertTabOrder, a, b, c, tabX, tabC };
+          return { parentId, a, b, c, tabX, tabC };
         });
         const folder = id => `.space.active .folder[data-bookmark-id="${id}"]`;
         await sidebarPage.reload({ waitUntil: 'domcontentloaded' });
@@ -1275,9 +1274,9 @@ describe('Drag and Drop', () => {
         const reorderedA = await bookmarkPosition(ids.a);
         const reorderedC = await bookmarkPosition(ids.c);
         expect(reorderedC.parentId).toBe(ids.parentId);
-        // Display order is the reverse of bookmark order when tab order is inverted.
-        expect(reorderedC.index).toBe(ids.inverted ? reorderedA.index + 1 : reorderedA.index - 1);
-        expect(reorderedA.index).toBe(ids.inverted ? before.index : before.index + 1);
+        // Folders render in bookmark order whatever the invert setting.
+        expect(reorderedC.index).toBe(reorderedA.index - 1);
+        expect(reorderedA.index).toBe(before.index + 1);
         await waitForSavedPinnedOrder([ids.tabC, ids.tabX]);
 
         await sidebarPage.reload({ waitUntil: 'domcontentloaded' });
