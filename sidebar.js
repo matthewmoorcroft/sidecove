@@ -1727,7 +1727,7 @@ async function handleBookmarkOperations(event, draggingElement, container, targe
         if (!spaceFolder || !folderId) throw new Error('Folder creation is not complete.');
         const parentId = bookmarkParentIdForContent(dropIntent.bookmarkTargetContent, spaceFolder.id);
         if (!await canMoveFolder(spaceFolder.id, folderId, parentId)) {
-            throw new Error('A folder cannot move into itself, and nested folders require tab group sync to be off and support two folder levels.');
+            throw new Error('A folder cannot move into itself, and nested folders require tab group sync to be off and support up to four folder levels.');
         }
         const result = await saveBookmarkOperation(makeBookmarkDropOperation({
             sourceContent: dropIntent.bookmarkSourceContent,

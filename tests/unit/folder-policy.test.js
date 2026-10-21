@@ -10,6 +10,9 @@ beforeEach(() => {
         parent: { id: 'parent', parentId: 'space' },
         child: { id: 'child', parentId: 'parent' },
         deep: { id: 'deep', parentId: 'child' },
+        grandchild: { id: 'grandchild', parentId: 'child' },
+        level4: { id: 'level4', parentId: 'grandchild' },
+        inBookmark: { id: 'inBookmark', parentId: 'bookmark' },
         foreign: { id: 'foreign', parentId: 'other-space' },
         bookmark: { id: 'bookmark', parentId: 'space', url: 'https://example.com' },
         sibling: { id: 'sibling', parentId: 'space' }
@@ -35,8 +38,15 @@ test('independent mode creates a second-level folder under its exact parent', as
     assert.equal(result.parentId, 'parent');
     assert.deepEqual(created, [{ parentId: 'parent', title: 'Child' }]);
 });
-test('third-level and foreign-parent creation do not mutate bookmarks', async () => {
-    for (const id of ['child', 'foreign', 'bookmark']) {
+test('independent mode creates folders at levels 1 to 4', async () => {
+    for (const id of ['space', 'parent', 'child', 'grandchild']) {
+        assert.equal(await canCreateFolder('space', id), true);
+        await createFolder('space', id, 'New');
+    }
+    assert.deepEqual(created.map(c => c.parentId), ['space', 'parent', 'child', 'grandchild']);
+});
+test('fifth-level and foreign-parent creation do not mutate bookmarks', async () => {
+    for (const id of ['level4', 'foreign', 'bookmark', 'inBookmark', 'missing']) {
         await assert.rejects(createFolder('space', id, 'Invalid'));
     }
     assert.deepEqual(created, []);
@@ -44,7 +54,9 @@ test('third-level and foreign-parent creation do not mutate bookmarks', async ()
 test('sync mode allows top-level folders but prevents nested creation', async () => {
     syncTabGroups = true;
     await createFolder('space', 'space', 'Top');
-    await assert.rejects(createFolder('space', 'parent', 'Child'));
+    for (const id of ['parent', 'child', 'grandchild']) {
+        await assert.rejects(createFolder('space', id, 'Child'));
+    }
     assert.deepEqual(created, [{ parentId: 'space', title: 'Top' }]);
 });
 test('enabling sync after opening the menu is rechecked at creation', async () => {
@@ -63,10 +75,11 @@ test('folders cannot move into themselves or their descendants', async () => {
     for (const target of ['parent', 'child']) assert.equal(await canMoveFolder('space', 'parent', target), false);
     assert.equal(await canMoveFolder('space', 'child', 'child'), false);
 });
-test('folders move to the space root or into a top-level folder within two levels', async () => {
+test('folders move to the space root or into a folder within four levels', async () => {
     assert.equal(await canMoveFolder('space', 'child', 'space'), true);
     assert.equal(await canMoveFolder('space', 'sibling', 'parent'), true);
-    assert.equal(await canMoveFolder('space', 'sibling', 'child'), false);
+    assert.equal(await canMoveFolder('space', 'sibling', 'child'), true);
+    assert.equal(await canMoveFolder('space', 'sibling', 'level4'), false);
     assert.equal(await canMoveFolder('space', 'parent', 'sibling'), false);
     assert.equal(await canMoveFolder('space', 'bookmark', 'space'), false);
     syncTabGroups = true;
@@ -79,5 +92,5 @@ test('nested folders reorder within their current parent whatever the sync setti
     assert.equal(await canMoveFolder('space', 'sibling', 'parent'), false);
     syncTabGroups = false;
     assert.equal(await canMoveFolder('space', 'deep', 'child'), true);
-    assert.equal(await canMoveFolder('space', 'sibling', 'child'), false);
+    assert.equal(await canMoveFolder('space', 'sibling', 'level4'), false);
 });
