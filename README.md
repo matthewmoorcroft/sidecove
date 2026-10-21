@@ -260,3 +260,5 @@ coverage lives in `tests/e2e/independent-spaces.test.js` alongside the space, ta
 bookmark, and drag-and-drop suites.
 
 With **Sync spaces to Chrome tab groups** off, right-click a top-level folder and choose **New Folder** to create a child folder. Spaces support two folder levels (parent → child). Turning sync on disables new nested-folder creation and preserves existing folders.
+
+Right-click a folder and choose **Move Up** or **Move Down** to swap it with the item shown above or below it within its space or parent folder. Each option is hidden when the folder has no neighbor in that direction.
