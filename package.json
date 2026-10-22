@@ -1,7 +1,7 @@
 {
-  "name": "arcify",
-  "version": "5.1.0",
-  "description": "A sidebar extension that replicates Arc browser's tab management system",
+  "name": "sidecove",
+  "version": "1.0.0",
+  "description": "Vertical tabs in Chrome's side panel: switch between spaces, keep pinned tabs and favourites, auto-archive idle tabs. Free and open.",
   "type": "module",
   "scripts": {
     "dev": "vite build --config vite.config.dev.js --watch",
@@ -37,9 +37,15 @@
   "keywords": [
     "chrome-extension",
     "tabs",
-    "arc-browser",
     "productivity"
   ],
   "author": "Nisarg Kolhe",
-  "license": "GPL-3.0"
+  "license": "GPL-3.0",
+  "contributors": [
+    "Matthew Moorcroft"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/matthewmoorcroft/sidecove.git"
+  }
 }

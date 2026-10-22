@@ -6,7 +6,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 async function displayBuildInfo() {
-  console.log('🚀 Arcify Extension Build Information\n');
+  console.log('🚀 Sidecove Extension Build Information\n');
   
   // Check package.json
   const packagePath = path.resolve(__dirname, '../package.json');

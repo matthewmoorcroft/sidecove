@@ -1,3 +1,4 @@
+import { ROOT_FOLDER_TITLE } from './constants.js';
 const COALESCE_MS = 100;
 let rootId = null;
 let timer = null;
@@ -8,7 +9,7 @@ async function getRootId() {
         if (node) return rootId;
         rootId = null;
     }
-    const nodes = await chrome.bookmarks.search({ title: 'Arcify' }).catch(() => []);
+    const nodes = await chrome.bookmarks.search({ title: ROOT_FOLDER_TITLE }).catch(() => []);
     rootId = nodes.find(node => !node.url)?.id || null;
     return rootId;
 }

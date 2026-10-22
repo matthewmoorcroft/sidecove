@@ -45,11 +45,11 @@ function render(next) {
         const finished = state?.status === 'completed';
         const skipped = state?.status === 'skipped';
         $('handoff-title').textContent = finished || skipped ? 'Make yourself at home.' : 'Continue the tutorial in your sidebar.';
-        $('handoff-copy').textContent = finished || skipped ? 'Your sidebar is ready. Replay the tutorial anytime from Arcify Settings.' : 'Follow the highlights in Arcify. Everything you need, including practice tabs, is waiting there.';
+        $('handoff-copy').textContent = finished || skipped ? 'Your sidebar is ready. Replay the tutorial anytime from Sidecove Settings.' : 'Follow the highlights in Sidecove. Everything you need, including practice tabs, is waiting there.';
     }
     updateMotion();
 }
-function showError(error) { $('error').hidden = false; $('error').textContent = `${error.message}. Try again, or open Arcify from its toolbar icon.`; }
+function showError(error) { $('error').hidden = false; $('error').textContent = `${error.message}. Try again, or open Sidecove from its toolbar icon.`; }
 $('setup-next').addEventListener('click', () => showSetupStep(setupStep + 1));
 $('setup-back').addEventListener('click', () => showSetupStep(setupStep - 1));
 stepButtons.forEach((button, index) => button.addEventListener('click', () => showSetupStep(index)));
@@ -114,17 +114,17 @@ async function loadBookmarkSpaces() {
             ? `We found ${names.length === 1 ? 'an existing space' : `${names.length} existing spaces`}.`
             : 'Bring your bookmarks along.';
         $('bookmark-copy').textContent = names.length
-            ? "The folders in your Arcify bookmarks are ready to become spaces, with their bookmarks as pinned tabs. Copy more folders into Arcify anytime."
-            : "In Chrome's bookmark manager, copy folders into the Arcify folder. Each folder becomes a space, and the bookmarks inside become pinned tabs.";
-        if (!folderId) $('bookmark-copy').textContent += ' Create a folder named Arcify first if it is missing.';
+            ? "The folders in your Sidecove bookmarks are ready to become spaces, with their bookmarks as pinned tabs. Copy more folders into Sidecove anytime."
+            : "In Chrome's bookmark manager, copy folders into the Sidecove folder. Each folder becomes a space, and the bookmarks inside become pinned tabs.";
+        if (!folderId) $('bookmark-copy').textContent += ' Create a folder named Sidecove first if it is missing.';
         $('bookmark-detected').hidden = !names.length;
         $('bookmark-detected').textContent = names.slice(0, 3).join(' · ') + (names.length > 3 ? ` · and ${names.length - 3} more` : '');
-        $('bookmarks').textContent = folderId ? 'Open Arcify bookmarks ↗' : 'Open bookmark manager ↗';
+        $('bookmarks').textContent = folderId ? 'Open Sidecove bookmarks ↗' : 'Open bookmark manager ↗';
     } catch {
         // Optional discovery must not block setup or claim spaces were detected.
         bookmarkFolderId = undefined;
         $('bookmark-title').textContent = 'Bring your bookmarks along.';
-        $('bookmark-copy').textContent = "Open Chrome's bookmark manager and copy folders into the Arcify folder. Each folder becomes a space, and its bookmarks become pinned tabs. If Arcify isn't there yet, create a folder named Arcify first.";
+        $('bookmark-copy').textContent = "Open Chrome's bookmark manager and copy folders into the Sidecove folder. Each folder becomes a space, and its bookmarks become pinned tabs. If Sidecove isn't there yet, create a folder named Sidecove first.";
         $('bookmark-detected').hidden = true;
         $('bookmarks').textContent = 'Open bookmark manager ↗';
     }

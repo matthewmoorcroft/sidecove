@@ -75,7 +75,7 @@ export async function launchBrowserWithExtension(options = {}) {
       const cards = document.querySelectorAll('extensions-item');
       for (const card of cards) {
         const nameEl = card.shadowRoot.querySelector('#name');
-        if (nameEl && nameEl.textContent.includes('Arcify')) {
+        if (nameEl && nameEl.textContent.includes('Sidecove')) {
           return card.id;
         }
       }

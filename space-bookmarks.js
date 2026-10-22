@@ -1,12 +1,13 @@
+import { ROOT_FOLDER_TITLE } from './constants.js';
 import { Utils } from './utils.js';
 
 export async function getSpaceBookmarkFolder(space) {
     if (!space?.bookmarkFolderId) throw new Error('This space has no bookmark folder association.');
     const [folder] = await chrome.bookmarks.get(space.bookmarkFolderId);
     if (!folder || folder.url) throw new Error('The bookmark folder for this space is unavailable.');
-    const root = (await chrome.bookmarks.search({ title: 'Arcify' })).find(node => !node.url);
+    const root = (await chrome.bookmarks.search({ title: ROOT_FOLDER_TITLE })).find(node => !node.url);
     if (!root || String(folder.parentId) !== String(root.id)) {
-        throw new Error('The bookmark folder is no longer inside the Arcify folder.');
+        throw new Error('The bookmark folder is no longer inside the Sidecove folder.');
     }
     return folder;
 }

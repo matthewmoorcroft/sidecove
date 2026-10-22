@@ -79,7 +79,7 @@ function getExtensionPlugins(isDev = false) {
         }
 
         console.log(`✅ Main extension files built to ${outDir}/`);
-        console.log(`🎉 Arcify extension build complete!`);
+        console.log(`🎉 Sidecove extension build complete!`);
       }
     }
   ];

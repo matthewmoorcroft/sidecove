@@ -37,7 +37,7 @@ jobs:
       - name: Generate SHA256 checksum
         id: checksum
         run: |
-          CHECKSUM=$(sha256sum arcify-extension.zip | cut -d ' ' -f 1)
+          CHECKSUM=$(sha256sum sidecove-extension.zip | cut -d ' ' -f 1)
           echo "checksum=$CHECKSUM" >> $GITHUB_OUTPUT
           echo "SHA256: $CHECKSUM" > checksum.txt
       
@@ -139,7 +139,7 @@ jobs:
             releaseNotes += `### Chrome Web Store\n`;
             releaseNotes += `*Coming soon - extension will be available on the Chrome Web Store*\n\n`;
             releaseNotes += `### Manual Installation\n`;
-            releaseNotes += `1. Download \`arcify-extension.zip\` from the assets below\n`;
+            releaseNotes += `1. Download \`sidecove-extension.zip\` from the assets below\n`;
             releaseNotes += `2. Extract the zip file\n`;
             releaseNotes += `3. Open Chrome and go to \`chrome://extensions/\`\n`;
             releaseNotes += `4. Enable "Developer mode" in the top right\n`;
@@ -149,7 +149,7 @@ jobs:
             releaseNotes += `## 📋 File Information\n\n`;
             releaseNotes += `| File | SHA256 Checksum |\n`;
             releaseNotes += `|------|----------------|\n`;
-            releaseNotes += `| arcify-extension.zip | \`${checksum}\` |\n\n`;
+            releaseNotes += `| sidecove-extension.zip | \`${checksum}\` |\n\n`;
             
             // Add compatibility info
             releaseNotes += `## 🔧 Compatibility\n\n`;
@@ -175,10 +175,10 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ github.ref_name }}
-          name: Arcify v${{ steps.version.outputs.version }}
+          name: Sidecove v${{ steps.version.outputs.version }}
           body: ${{ steps.release_notes.outputs.result }}
           draft: false
           prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'alpha') || contains(github.ref_name, 'rc') }}
           files: |
-            arcify-extension.zip
+            sidecove-extension.zip
             checksum.txt 

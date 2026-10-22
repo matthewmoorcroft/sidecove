@@ -6,12 +6,13 @@
  * Architecture: Static utility object for bookmark-based data persistence
  * 
  * Critical Notes:
- * - Creates and manages "Arcify" bookmark folder for space persistence
+ * - Creates and manages the root ("Sidecove") bookmark folder for space persistence
  * - Provides bookmark-based storage as alternative to chrome.storage
  * - Used for space bookmark functionality (separate from main space data in chrome.storage)
  * - Handles bookmark folder creation and organization automatically
  */
 
+import { ROOT_FOLDER_TITLE } from './constants.js';
 import { Logger } from './logger.js';
 
 const LocalStorage = {
@@ -80,9 +81,9 @@ const LocalStorage = {
     },
 
     getOrCreateArcifyFolder: async function () {
-        let folder = (await chrome.bookmarks.search({ title: 'Arcify' })).find(node => !node.url);
+        let folder = (await chrome.bookmarks.search({ title: ROOT_FOLDER_TITLE })).find(node => !node.url);
         if (!folder) {
-            folder = await chrome.bookmarks.create({ title: 'Arcify' });
+            folder = await chrome.bookmarks.create({ title: ROOT_FOLDER_TITLE });
         }
         return folder;
     },

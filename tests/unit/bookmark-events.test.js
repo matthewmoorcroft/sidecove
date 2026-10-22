@@ -6,7 +6,7 @@ const event = () => ({ listeners: [], addListener(fn) { this.listeners.push(fn);
 test('bookmark listeners ignore unrelated edits and coalesce Arcify subtree changes', async () => {
     const events = { onCreated: event(), onRemoved: event(), onMoved: event(), onChanged: event(), onChildrenReordered: event(), onImportBegan: event(), onImportEnded: event() };
     const nodes = {
-        root: { id: 'root', title: 'Arcify' }, space: { id: 'space', parentId: 'root' }, favorite: { id: 'favorite', parentId: 'space', url: 'https://one.test/' },
+        root: { id: 'root', title: 'Sidecove' }, space: { id: 'space', parentId: 'root' }, favorite: { id: 'favorite', parentId: 'space', url: 'https://one.test/' },
         other: { id: 'other', parentId: 'outside' }
     };
     const messages = [];

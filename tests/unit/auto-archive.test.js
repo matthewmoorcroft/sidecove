@@ -6,6 +6,7 @@ import { SpaceStore, ownerOf } from '../../space-store.js';
 import { isProtectedFavorite } from '../../favorite-safety.js';
 import { Utils } from '../../utils.js';
 import { Logger } from '../../logger.js';
+import { ROOT_FOLDER_TITLE } from '../../constants.js';
 
 const threshold = 360 * 60 * 1000;
 
@@ -43,7 +44,7 @@ function startBackground() {
         chrome, console, setTimeout, clearTimeout,
         registerTourMessages() {}, registerBookmarkListeners() {},
         enqueueBookmarkOperation: async () => ({}), copyCurrentTabUrlWithFallback: async () => {},
-        SpaceStore, ownerOf, isProtectedFavorite, Utils, Logger
+        SpaceStore, ownerOf, isProtectedFavorite, Utils, Logger, ROOT_FOLDER_TITLE
     });
     return () => Promise.all(chrome.alarms.onAlarm.listeners.map(fn => fn({ name: 'autoArchiveTabsAlarm' })));
 }

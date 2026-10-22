@@ -1,3 +1,4 @@
+import { ROOT_FOLDER_TITLE } from './constants.js';
 import { getSpaceTabs, spaceRequest } from './space-client.js';
 /**
  * Bookmark Utils - Consolidated bookmark operations for Arcify Chrome Extension
@@ -26,7 +27,7 @@ export const BookmarkUtils = {
     async findArcifyFolder() {
         try {
             // Method 1: Try the standard search first (most common case)
-            const searchResults = await chrome.bookmarks.search({ title: 'Arcify' });
+            const searchResults = await chrome.bookmarks.search({ title: ROOT_FOLDER_TITLE });
             const arcifyViaSearch = searchResults?.find(result => !result.url);
             if (arcifyViaSearch) {
                 Logger.log('[BookmarkUtils] Found Arcify folder via search:', arcifyViaSearch.id);
@@ -38,7 +39,7 @@ export const BookmarkUtils = {
             for (const rootFolder of rootChildren) {
                 try {
                     const children = await chrome.bookmarks.getChildren(rootFolder.id);
-                    const arcifyFolder = children.find(child => child.title === 'Arcify' && !child.url);
+                    const arcifyFolder = children.find(child => child.title === ROOT_FOLDER_TITLE && !child.url);
                     if (arcifyFolder) {
                         Logger.log('[BookmarkUtils] Found Arcify folder in', rootFolder.title);
                         return arcifyFolder;
@@ -58,7 +59,7 @@ export const BookmarkUtils = {
             if (otherBookmarksFolder) {
                 try {
                     const children = await chrome.bookmarks.getChildren(otherBookmarksFolder.id);
-                    const arcifyFolder = children.find(child => child.title === 'Arcify' && !child.url);
+                    const arcifyFolder = children.find(child => child.title === ROOT_FOLDER_TITLE && !child.url);
                     if (arcifyFolder) {
                         Logger.log('[BookmarkUtils] Found Arcify folder in Other Bookmarks');
                         return arcifyFolder;

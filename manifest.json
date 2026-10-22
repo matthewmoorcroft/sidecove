@@ -1,9 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Arcify (private build)",
-  "version": "5.1.0.1",
-  "version_name": "5.1.0-private.1",
-  "description": "A sidebar extension that replicates Arc browser's tab management system",
+  "name": "Sidecove",
+  "version": "1.0.0",
+  "description": "Vertical tabs in Chrome's side panel: switch between spaces, keep pinned tabs and favourites, auto-archive idle tabs. Free and open.",
   "permissions": [
     "tabs",
     "tabGroups",

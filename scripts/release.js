@@ -11,7 +11,7 @@ async function createRelease() {
   const versionType = args[0]; // major, minor, patch, or specific version
   
   if (!versionType) {
-    console.log('🚀 Arcify Release Script\n');
+    console.log('🚀 Sidecove Release Script\n');
     console.log('Usage: npm run release <version-type>');
     console.log('');
     console.log('Version types:');
@@ -113,7 +113,7 @@ async function createRelease() {
     console.log(`✅ Tag ${tagName} created and pushed`);
     console.log(`✅ GitHub Actions will now build and create the release`);
     console.log('');
-    console.log(`🔗 Check the release at: https://github.com/nisargkolhe/arcify/releases/tag/${tagName}`);
+    console.log(`🔗 Check the release at: https://github.com/matthewmoorcroft/sidecove/releases/tag/${tagName}`);
     console.log('');
     console.log('📋 Next steps:');
     console.log('1. Monitor the GitHub Actions workflow');

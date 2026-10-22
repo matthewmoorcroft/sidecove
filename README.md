@@ -1,8 +1,10 @@
-# Arcify: Arc-like Vertical Tab Spaces
+# Sidecove: vertical tabs, spaces and pinned tabs for Chrome
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
-A Chrome extension that replicates Arc browser's tab management system, providing a vertical sidebar for efficient tab organization and management.
+Sidecove puts your tabs in a vertical sidebar in Chrome's side panel and organises them into spaces, each with its own pinned tabs, folders and colour. Spaces and pinned tabs are stored as ordinary Chrome bookmarks, so they sync with your Google account. Nothing is sent to any server.
+
+Sidecove is based on [Arcify](https://github.com/nisargkolhe/arcify) by Nisarg Kolhe, with a set of fixes on top. It is an independent project, not affiliated with or endorsed by The Browser Company or the Arc browser.
 
 ![Demo](assets/extension.gif)
 
@@ -13,6 +15,10 @@ A Chrome extension that replicates Arc browser's tab management system, providin
 - Keyboard shortcuts for quick access
 - Bookmark integration
 - Clean, minimal interface
+
+## Coming from Arcify
+
+Sidecove keeps its spaces in its own bookmark folder named **Sidecove** and starts with a fresh one. To bring your Arcify spaces along, first export your bookmarks as a backup (Chrome's bookmark manager → ⋮ → Export bookmarks), remove Arcify, then rename its **Arcify** bookmark folder to **Sidecove** before opening Sidecove. Bookmarks sync, so the rename reaches every device signed in to the same Google account, and Arcify will no longer find its folder.
 
 ## Development Setup
 
@@ -28,8 +34,8 @@ A Chrome extension that replicates Arc browser's tab management system, providin
 
 1. **Clone and Install**
    ```bash
-   git clone https://github.com/nisargkolhe/arcify.git
-   cd arcify
+   git clone https://github.com/matthewmoorcroft/sidecove.git
+   cd sidecove
    npm install
    ```
 
@@ -49,7 +55,7 @@ A Chrome extension that replicates Arc browser's tab management system, providin
    ```bash
    npm run build:zip
    ```
-   This builds the extension and creates `arcify-extension.zip` for Chrome Web Store submission.
+   This builds the extension and creates `sidecove-extension.zip` for Chrome Web Store submission.
 
 ### Loading the Extension in Chrome
 
@@ -74,7 +80,7 @@ A Chrome extension that replicates Arc browser's tab management system, providin
 
 2. **Reload Extension**
    - Go to `chrome://extensions/`
-   - Click the refresh icon on the Arcify extension card
+   - Click the refresh icon on the Sidecove extension card
    - Or use Ctrl+R in the extension's popup/sidebar
 
 3. **Debug**
@@ -129,8 +135,8 @@ The project uses automated releases via GitHub Actions. To create a new release:
      - Attaches the zip file and SHA256 checksum
 
 4. **Monitor the release**
-   - Check the [Actions tab](https://github.com/nisargkolhe/arcify/actions) for build status
-   - Review the generated release at [Releases](https://github.com/nisargkolhe/arcify/releases)
+   - Check the [Actions tab](https://github.com/matthewmoorcroft/sidecove/actions) for build status
+   - Review the generated release at [Releases](https://github.com/matthewmoorcroft/sidecove/releases)
 
 ## Issues and Feature Requests
 
@@ -141,7 +147,7 @@ We use GitHub Issues to track bugs and feature requests. Before creating a new i
 
 ### Reporting Bugs 🐛
 
-1. Go to the [Issues](https://github.com/nisargkolhe/arcify/issues) page
+1. Go to the [Issues](https://github.com/matthewmoorcroft/sidecove/issues) page
 2. Click "New Issue"
 3. Choose "Bug Report" template if available
 4. Include:
@@ -153,7 +159,7 @@ We use GitHub Issues to track bugs and feature requests. Before creating a new i
 
 ### Feature Requests 💡
 
-1. Go to the [Issues](https://github.com/nisargkolhe/arcify/issues) page
+1. Go to the [Issues](https://github.com/matthewmoorcroft/sidecove/issues) page
 2. Click "New Issue"
 3. Choose "Feature Request" template if available
 4. Include:
@@ -163,8 +169,6 @@ We use GitHub Issues to track bugs and feature requests. Before creating a new i
    - Mock-ups or examples (if applicable)
 
 ## Contributing
-
-Discord to discuss development: https://discord.gg/D9jQHQnjNb
 
 We welcome contributions! Here's how you can help:
 
@@ -221,10 +225,15 @@ This project is licensed under the GNU General Public License v3.0 - see the [LI
 
 If you have any questions or suggestions, please open an issue on GitHub.
 
+## Privacy
+
+Sidecove reads your tabs' titles and URLs only to show and manage them in the sidebar. Spaces and pinned tabs are kept in Chrome bookmarks and settings in `chrome.storage`, which Chrome may sync through your Google account. Nothing is sent anywhere else: there are no analytics, no tracking and no third parties. See [PRIVACY.md](PRIVACY.md).
+
 ## Acknowledgments
 
-- Inspired by the Arc Browser's innovative tab management system. Huge thanks to the Arc team for coming up with the system we've all grown to love!
-- Thanks to all contributors who help improve this project 
+- Sidecove is a fork of [Arcify](https://github.com/nisargkolhe/arcify) by Nisarg Kolhe and its contributors, licensed under GPL-3.0. The original copyright and licence are kept, and this repository's history records every change made since.
+- The sidebar, spaces and pinned-tab workflow was inspired by the Arc browser. Arc is a trademark of The Browser Company; Sidecove is not affiliated with it.
+- Thanks to all contributors who help improve this project
 
 ### Independent spaces
 
@@ -234,7 +243,7 @@ recoloring, or removing a native group does not change a space. The background
 service worker tracks new and closed tabs even when the sidebar is closed; new
 tabs inherit their opener's space, or the active space for their window.
 
-Existing Arcify spaces migrate automatically to stable IDs. On a fresh setup with
+Existing spaces from earlier versions migrate automatically to stable IDs. On a fresh setup with
 native groups, the sidebar offers an optional **Create spaces** import; declining
 leaves those groups alone. Import copies group names, colors, and current members.
 
@@ -249,7 +258,7 @@ restored tabs and recover space order. Identical URLs in different spaces are
 matched in saved occurrence order because Chrome does not expose a durable tab ID.
 Space definitions and bookmarks remain available even when tabs are not restored.
 
-Pinned tabs are backed by bookmarks in **Arcify → space name**, regardless of the
+Pinned tabs are backed by bookmarks in **Sidecove → space name**, regardless of the
 tab-group sync setting. Startup and opening the sidebar discover existing space
 folders, including folders synced by Chrome, and display their bookmarks as saved
 pins. Pinning adds a bookmark; unpinning removes its saved bookmark even if the tab
@@ -259,7 +268,7 @@ open becomes that favorite's tab again. **Move to Space** on a pinned tab, open 
 moves its bookmark into the target space's folder and keeps it pinned. Nested bookmark folders remain nested in the space.
 Deleting a space also deletes its bookmark folder and all bookmarks inside it.
 
-Space chips follow the order of the space folders under **Arcify**: moving a folder
+Space chips follow the order of the space folders under **Sidecove**: moving a folder
 in Chrome's bookmark manager reorders the chips, and dragging a chip moves its
 folder. On the first load after updating, space order follows the bookmark folder
 order, so a chip order set by dragging before this change resets once; dragging

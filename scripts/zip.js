@@ -8,7 +8,7 @@ const __dirname = path.dirname(__filename);
 
 async function createZip() {
   const distPath = path.resolve(__dirname, '../dist');
-  const zipPath = path.resolve(__dirname, '../arcify-extension.zip');
+  const zipPath = path.resolve(__dirname, '../sidecove-extension.zip');
   
   // Check if dist folder exists
   if (!await fs.pathExists(distPath)) {
@@ -32,7 +32,7 @@ async function createZip() {
   output.on('close', () => {
     const sizeInMB = (archive.pointer() / 1024 / 1024).toFixed(2);
     console.log(`✅ Extension packaged successfully!`);
-    console.log(`📦 File: arcify-extension.zip`);
+    console.log(`📦 File: sidecove-extension.zip`);
     console.log(`📏 Size: ${sizeInMB} MB (${archive.pointer()} bytes)`);
     console.log(`📁 Location: ${zipPath}`);
   });

@@ -40,6 +40,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 import { Utils } from './utils.js';
 import { Logger } from './logger.js';
+import { ROOT_FOLDER_TITLE } from './constants.js';
 import { copyCurrentTabUrlWithFallback } from './url-copy.js';
 
 const AUTO_ARCHIVE_ALARM_NAME = 'autoArchiveTabsAlarm';
@@ -78,7 +79,7 @@ chrome.runtime.onInstalled.addListener(async (details) => {
     if (chrome.contextMenus) {
         chrome.contextMenus.create({
             id: "openArcify",
-            title: "Arcify",
+            title: "Sidecove",
             contexts: ["all"]
         });
     }
@@ -205,7 +206,7 @@ async function runAutoArchiveCheck() {
         // URLs normalized with the same pinned-URL key the renderer uses (origin+path).
         const protectedUrlKeys = new Set();
         try {
-            const arcifyFolder = (await chrome.bookmarks.search({ title: 'Arcify' })).find(node => !node.url);
+            const arcifyFolder = (await chrome.bookmarks.search({ title: ROOT_FOLDER_TITLE })).find(node => !node.url);
             if (arcifyFolder) {
                 const [subTree] = await chrome.bookmarks.getSubTree(arcifyFolder.id);
                 const collectUrls = (node) => {

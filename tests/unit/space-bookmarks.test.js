@@ -11,7 +11,7 @@ function mock() {
     const pins = { 1: { bookmarkId: 'bound', pinnedUrl: 'https://saved.test/' } };
     globalThis.chrome = { storage: { local: { async get() { return { pinnedTabStatesById: pins, spaces: [{ id: 's', spaceBookmarks: [1], temporaryTabs: [2] }] }; } } },
         tabs: { async query() { return [{ id: 1, url: 'https://navigated.test/' }, { id: 2, url: 'https://saved.test/' }]; } },
-        bookmarks: { async search() { return [{ id: 'url-twin', url: 'https://arcify.io' }, { id: 'root', title: 'Arcify' }]; },
+        bookmarks: { async search() { return [{ id: 'url-twin', url: 'https://arcify.io' }, { id: 'root', title: 'Sidecove' }]; },
             async get(id) { return Object.values(tree).flat().filter(node => node.id === id); }, async getChildren(id) { return tree[id] || []; }, async remove(id) { removed.push(id); } } };
     return { removed, tree };
 }
