@@ -6,7 +6,9 @@ Sidecove puts your tabs in a vertical sidebar in Chrome's side panel and organis
 
 Sidecove is based on [Arcify](https://github.com/nisargkolhe/arcify) by Nisarg Kolhe, with a set of fixes on top. It is an independent project, not affiliated with or endorsed by The Browser Company or the Arc browser.
 
-![Demo](assets/extension.gif)
+![Sidecove sidebar](docs/screenshot-sidebar.png)
+
+![Spaces](docs/screenshot-spaces.png)
 
 ## Features
 

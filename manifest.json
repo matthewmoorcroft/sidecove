@@ -10,7 +10,6 @@
     "storage",
     "bookmarks",
     "alarms",
-    "commands",
     "favicon",
     "scripting",
     "clipboardWrite",
@@ -23,28 +22,6 @@
   "background": {
     "service_worker": "background.js",
     "type": "module"
-  },
-  "web_accessible_resources": [
-    {
-      "resources": [
-        "sidebar.js",
-        "onboarding.js",
-        "installation-onboarding.js",
-        "assets/*",
-        "_favicon/*"
-      ],
-      "matches": [
-        "<all_urls>"
-      ],
-      "extension_ids": [
-        "*"
-      ]
-    }
-  ],
-  "externally_connectable": {
-    "ids": [
-      "*"
-    ]
   },
   "icons": {
     "128": "assets/icon.png"
