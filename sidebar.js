@@ -3027,7 +3027,9 @@ async function createTabElement(tab, isPinned = false, isBookmarkOnly = false) {
         if (tab.bookmarkId) tabElement.dataset.bookmarkId = tab.bookmarkId;
     } else {
         tabElement.dataset.tabId = tab.id;
-        tabElement.dataset.url = tab.url;
+        // A tab that is still loading has only a pending URL; its update event may already
+        // have passed by the time this row exists.
+        tabElement.dataset.url = tab.url || tab.pendingUrl || '';
         if (tab.active) {
             tabElement.classList.add('active');
         }
@@ -3061,7 +3063,7 @@ async function createTabElement(tab, isPinned = false, isBookmarkOnly = false) {
     }
 
     // Set up favicon
-    favicon.src = Utils.getFaviconUrl(tab.url);
+    favicon.src = Utils.getFaviconUrl(tab.url || tab.pendingUrl);
     favicon.classList.add('tab-favicon');
     favicon.draggable = false; // Drag the tab, never the favicon image URL.
     favicon.onerror = () => {
