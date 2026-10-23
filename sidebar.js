@@ -1369,8 +1369,11 @@ function fillSpaceChip(button, name, icon) {
 
 // Like Arc, shrink the chips to icons when the names no longer fit.
 function updateSpaceChipDensity() {
+    const overflows = () => spaceSwitcher.scrollWidth > spaceSwitcher.clientWidth + 1;
     spaceSwitcher.classList.remove('compact');
-    if (spaceSwitcher.scrollWidth > spaceSwitcher.clientWidth + 1) spaceSwitcher.classList.add('compact');
+    if (overflows()) spaceSwitcher.classList.add('compact');
+    // Fade the right edge only while chips are still cut off, even after compacting.
+    spaceSwitcher.classList.toggle('overflowing', overflows());
 }
 window.addEventListener('resize', () => {
     updateSpaceChipDensity();
