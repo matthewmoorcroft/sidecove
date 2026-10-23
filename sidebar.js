@@ -1076,9 +1076,31 @@ function clearSpaceSwitcherDropPlaceholders() {
     });
 }
 
+// A tab, favorite or folder dragged onto another space's chip moves to that space, as in Arc.
+// Chrome-pinned favicons have no space, so any space chip accepts them.
+function spaceChipDropTarget(target, item) {
+    const chip = target?.closest?.('#spaceSwitcher button[data-space-id]');
+    if (!chip || !item?.matches('.tab, .folder, .pinned-favicon')) return null;
+    if (item.classList.contains('bookmark-only') && !item.dataset.bookmarkId) return null;
+    const sourceSpaceId = item.closest('.space')?.dataset.spaceId;
+    return chip.dataset.spaceId === sourceSpaceId ? null : chip;
+}
+
+function clearSpaceChipDropTargets(except = null) {
+    spaceSwitcher.querySelectorAll('.space-drop-target').forEach(chip => {
+        if (chip !== except) chip.classList.remove('space-drop-target');
+    });
+}
+
 function handleSpaceSwitcherDragOver(e) {
     e.preventDefault();
-    if (!document.querySelector('.dragging-switcher')) return;
+    if (!document.querySelector('.dragging-switcher')) {
+        const chip = spaceChipDropTarget(e.target, document.querySelector('.dragging'));
+        clearSpaceChipDropTargets(chip);
+        chip?.classList.add('space-drop-target');
+        if (e.dataTransfer) e.dataTransfer.dropEffect = chip ? 'move' : 'none';
+        return;
+    }
 
     const afterElement = getDragAfterElementSwitcher(spaceSwitcher, e.clientX);
     clearSpaceSwitcherDropPlaceholders();
@@ -1097,10 +1119,21 @@ function handleSpaceSwitcherDragLeave(e) {
     if (e.target === spaceSwitcher) {
         clearSpaceSwitcherDropPlaceholders();
     }
+    if (!spaceSwitcher.contains(e.relatedTarget)) clearSpaceChipDropTargets();
 }
 
 async function handleSpaceSwitcherDrop(e) {
     e.preventDefault();
+    if (!draggedSpaceSwitcherButton) {
+        const item = document.querySelector('.dragging');
+        const chip = spaceChipDropTarget(e.target, item);
+        clearSpaceChipDropTargets();
+        if (chip) {
+            await moveItemsToSpace([item], chip.dataset.spaceId);
+            flashSpaceChip(chip.dataset.spaceId);
+        }
+        return;
+    }
     const afterElement = getDragAfterElementSwitcher(spaceSwitcher, e.clientX);
     clearSpaceSwitcherDropPlaceholders();
 
@@ -1198,6 +1231,87 @@ async function updateSpaceSwitcher() {
 
     // const spaceFolder = spaceFolders.find(f => f.title === space.name);
 
+}
+
+// Confirm a drop on a chip without leaving the current space.
+function flashSpaceChip(spaceId) {
+    const chip = spaceSwitcher.querySelector(`button[data-space-id="${spaceId}"]`);
+    if (!chip) return;
+    chip.classList.remove('space-drop-accepted');
+    void chip.offsetWidth;
+    chip.classList.add('space-drop-accepted');
+    chip.addEventListener('animationend', () => chip.classList.remove('space-drop-accepted'), { once: true });
+}
+
+// Move sidebar items (tabs, favorites, folders, Chrome-pinned favicons) into another space.
+// Favorites and folders carry their bookmarks, so they stay favorites in the new space.
+async function moveItemsToSpace(elements, spaceId) {
+    const target = spaces.find(s => s.id === spaceId);
+    if (!target) return;
+    pendingMutationCount++;
+    try {
+        for (const element of elements) {
+            if (element?.isConnected) await moveItemToSpace(element, target);
+        }
+    } catch (error) {
+        Logger.warn('Move to space failed; restoring saved state.', error);
+        alert(error.message);
+    } finally {
+        pendingMutationCount--;
+        await pendingSpaceSaves;
+        await refreshActiveSpaceUI({ force: true });
+        updatePinnedSectionPlaceholders();
+        refreshCoordinator.schedule();
+    }
+}
+
+async function moveItemToSpace(element, target) {
+    if (element.classList.contains('pinned-favicon')) {
+        const tabId = Number(element.dataset.tabId);
+        // Unpinning normally files the tab under the active space; this move picks the space.
+        tabsMovingToChosenSpace.add(tabId);
+        try {
+            await chrome.tabs.update(tabId, { pinned: false });
+            await moveTabToSpace(tabId, target.id, false);
+        } finally {
+            setTimeout(() => tabsMovingToChosenSpace.delete(tabId), 1000);
+        }
+        await updatePinnedFavicons();
+        return;
+    }
+    const source = spaces.find(s => s.id === element.closest('.space')?.dataset.spaceId);
+    if (!source || source.id === target.id) return;
+    if (element.classList.contains('folder')) {
+        await moveFolderToSpace(element, source, target);
+        return;
+    }
+    const tabId = element.dataset.tabId ? Number(element.dataset.tabId) : null;
+    if (element.dataset.bookmarkId && element.closest('[data-tab-type="pinned"]')) {
+        await moveFavoriteToSpace({ id: tabId }, element, target.id);
+    } else if (tabId) {
+        await moveTabToSpace(tabId, target.id, false);
+    }
+}
+
+// A folder moves as one bookmark; every open tab bound to a bookmark inside it follows.
+async function moveFolderToSpace(folderElement, source, target) {
+    const folderId = folderElement.dataset.bookmarkId;
+    if (!folderId) throw new Error('Folder creation is not complete.');
+    const [subtree] = await chrome.bookmarks.getSubTree(folderId);
+    const bookmarkIds = new Set();
+    const collect = node => {
+        if (node.url) bookmarkIds.add(String(node.id));
+        (node.children || []).forEach(collect);
+    };
+    collect(subtree);
+    const bindings = await Utils.getPinnedTabStates();
+    const liveIds = new Set((await chrome.tabs.query({})).map(t => t.id));
+    const boundTabIds = source.spaceBookmarks.filter(id => liveIds.has(id) && bookmarkIds.has(String(bindings[id]?.bookmarkId)));
+    const targetFolder = await getSpaceBookmarkFolder(target);
+    await chrome.bookmarks.move(folderId, { parentId: targetFolder.id });
+    for (const id of boundTabIds) await moveTabToSpace(id, target.id, true);
+    disposeEditorsInElement(folderElement);
+    folderElement.remove();
 }
 
 // Keep the active chip visible when there are more spaces than fit. The right inset
@@ -3376,7 +3490,7 @@ function handleTabUpdate(tabId, changeInfo, tab) {
                     editorSessions.dispose('tab', tabId);
                     disposeEditorsInElement(tabElement);
                     tabElement.remove(); // Remove from space
-                } else {
+                } else if (!tabsMovingToChosenSpace.has(tabId)) {
                     moveTabToSpace(tabId, activeSpaceId, false /* pinned */);
                 }
                 // Update pinned favicons for both pinning and unpinning
@@ -3505,6 +3619,8 @@ async function handleTabRemove(tabId) {
 
 // Prevent overlapping membership changes for the same tab.
 const processingTabMoves = new Set();
+// Chrome-pinned tabs being unpinned straight into a chosen space.
+const tabsMovingToChosenSpace = new Set();
 
 function handleTabActivated(activeInfo) {
     if (isCreatingSpace) {

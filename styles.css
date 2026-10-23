@@ -1661,6 +1661,23 @@ h3 {
     /* Adjust size as needed */
 }
 
+/* A space chip that will receive the dragged tab, favorite or folder. */
+#spaceSwitcher button.space-drop-target {
+    background-color: rgba(255, 255, 255, 0.85);
+    box-shadow: 0 0 0 2px var(--space-bg-color-dark, rgba(0, 0, 0, 0.2)), 0 2px 8px rgba(0, 0, 0, 0.12);
+    transform: translateY(-2px) scale(1.04);
+}
+
+#spaceSwitcher button.space-drop-accepted {
+    animation: space-drop-accepted 0.5s ease;
+}
+
+@keyframes space-drop-accepted {
+    0% { transform: scale(1); }
+    35% { transform: scale(1.12); }
+    100% { transform: scale(1); }
+}
+
 /* Optional: Style for the button being dragged */
 .dragging-switcher {
     opacity: 0.5;
