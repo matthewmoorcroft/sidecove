@@ -26,7 +26,6 @@ export const CSS_CLASSES = {
     DRAG_OVER_PLACEHOLDER_AFTER: 'drag-over-placeholder-after',
 
     // Drop indicator classes
-    DROP_INDICATOR_HORIZONTAL: 'drop-indicator-horizontal',
     DROP_INDICATOR_VERTICAL: 'drop-indicator-vertical',
 
     // Position classes for drop indicators
@@ -128,7 +127,7 @@ export const SELECTORS = {
     PINNED_PLACEHOLDER: '.pinned-placeholder-container',
 
     // Drop indicator selectors
-    DROP_INDICATORS: '.drop-indicator-horizontal, .drop-indicator-vertical',
+    DROP_INDICATORS: '.drop-indicator-vertical, .drop-line.visible',
 };
 
 // Timing constants (in milliseconds unless noted)

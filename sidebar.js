@@ -376,7 +376,7 @@ async function updatePinnedFavicons() {
                 } else {
                     // Show traditional drop indicators for actual favicons
                     const position = getDropPosition(afterElement, e.clientX, e.clientY, true);
-                    showDropIndicator(afterElement, position, true);
+                    showDropIndicator(afterElement, position);
                     // Remove any placeholder drag-over state
                     const placeholder = pinnedFavicons.querySelector('.pinned-placeholder-container');
                     if (placeholder) placeholder.classList.remove('drag-over');
