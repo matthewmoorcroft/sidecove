@@ -30,7 +30,7 @@ test('the root bookmark folder is titled Sidecove', () => {
     assert.equal(ROOT_FOLDER_TITLE, 'Sidecove');
 });
 
-test('a fresh install creates a Sidecove folder and leaves another extension's folder untouched', async () => {
+test('a fresh install creates a Sidecove folder and leaves a folder from another extension untouched', async () => {
     const { writes } = mock();
     const folder = await LocalStorage.getOrCreateSidecoveFolder();
     assert.equal(folder.title, 'Sidecove');
@@ -44,7 +44,7 @@ test('an existing Sidecove folder is reused without writes', async () => {
     assert.deepEqual(writes, []);
 });
 
-test('lookups never adopt another extension's folder', async () => {
+test('lookups never adopt a folder from another extension', async () => {
     mock();
     assert.equal(await BookmarkUtils.findSidecoveFolder(), null);
     assert.deepEqual(await readBookmarkSpaces(), { folderId: null, names: [] });
