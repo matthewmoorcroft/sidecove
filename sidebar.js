@@ -621,7 +621,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     let swipeTimeout = null;
     const swipeThreshold = 25; // Min horizontal movement to trigger a swipe
 
-    spaceSwitcher.addEventListener('mouseup', async (event) => {
+    // Side buttons switch spaces anywhere in the panel, as in Arc.
+    document.addEventListener('mouseup', async (event) => {
         if (event.button !== MOUSE_BUTTON.BACK && event.button !== MOUSE_BUTTON.FORWARD) {
             return;
         }

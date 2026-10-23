@@ -60,6 +60,13 @@ describe('space navigation', () => {
         await page.waitForFunction(() => document.querySelector('.space.active .space-name').value === 'Home', { polling: 100 });
     });
 
+    test('mouse side buttons switch spaces from the tab list, not just the chip bar', async () => {
+        await page.$eval('.space.active [data-tab-type="temporary"]', list => list.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 4 })));
+        await page.waitForFunction(() => document.querySelector('.space.active .space-name').value === 'Work', { polling: 100 });
+        await page.$eval('.space.active .space-header', header => header.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 3 })));
+        await page.waitForFunction(() => document.querySelector('.space.active .space-name').value === 'Home', { polling: 100 });
+    });
+
     test('a keyboard command reaches the sidebar of its window', async () => {
         const helper = await browser.newPage();
         await helper.goto(`chrome-extension://${extensionId}/options.html`);
