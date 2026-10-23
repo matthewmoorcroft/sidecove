@@ -51,6 +51,7 @@ import {
 import { BookmarkUtils } from './bookmark-utils.js';
 import { Logger } from './logger.js';
 import { MOUSE_BUTTON, CSS_CLASSES, TIMING } from './constants.js';
+import { resolveSpaceTarget, spaceRequestFromKey } from './space-navigation.js';
 
 // DOM Elements
 const spacesList = document.getElementById('spacesList');
@@ -79,14 +80,24 @@ const collapsedFolderShownTabs = new WeakMap();
 const bookmarkOrderBaselines = new Map();
 
 async function switchSpaceBy(delta) {
-    const currentIndex = spaces.findIndex(space => space.id === activeSpaceId);
-    if (currentIndex === -1 || spaces.length === 0) {
-        return;
-    }
-
-    const nextIndex = (currentIndex + delta + spaces.length) % spaces.length;
-    await setActiveSpace(spaces[nextIndex].id);
+    await applySpaceRequest({ delta });
 }
+
+// A request is { delta } to step through spaces or { slot } for a numbered shortcut.
+async function applySpaceRequest(request) {
+    const targetId = resolveSpaceTarget(spaces, activeSpaceId, request);
+    if (targetId) await setActiveSpace(targetId);
+}
+
+// Shortcuts from chrome://extensions/shortcuts reach the sidebar of the focused window.
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (message.command !== 'switchSpace' || !sidebarReady || message.windowId !== currentWindow?.id) return false;
+    applySpaceRequest(message.request).then(
+        () => sendResponse({ handled: true }),
+        error => { Logger.error('Could not switch space:', error); sendResponse({ handled: true }); }
+    );
+    return true;
+});
 
 function disposeEditorsInElement(element) {
     if (!element) return;
@@ -617,6 +628,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         event.preventDefault();
         await switchSpaceBy(event.button === MOUSE_BUTTON.BACK ? -1 : 1);
+    });
+
+    // Ctrl+1 to Ctrl+9 and Ctrl+Shift+[ or ] switch spaces while the panel has focus.
+    document.addEventListener('keydown', (event) => {
+        const request = spaceRequestFromKey(event);
+        if (!request) return;
+        event.preventDefault();
+        applySpaceRequest(request).catch(error => Logger.error('Could not switch space:', error));
     });
 
     document.getElementById('sidebar-container').addEventListener('wheel', async (event) => {
