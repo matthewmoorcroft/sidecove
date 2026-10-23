@@ -1237,7 +1237,7 @@ async function handleSpaceSwitcherDrop(e) {
         const chip = spaceChipDropTarget(e.target, item);
         clearSpaceChipDropTargets();
         if (chip) {
-            await moveItemsToSpace(dragItemsFor(item), chip.dataset.spaceId);
+            await moveItemsToSpace(dragItemsFor(item).map(describeItem), chip.dataset.spaceId);
             clearSelection();
             flashSpaceChip(chip.dataset.spaceId);
         }
@@ -1384,14 +1384,12 @@ function flashSpaceChip(spaceId) {
 
 // Move sidebar items (tabs, favorites, folders, Chrome-pinned favicons) into another space.
 // Favorites and folders carry their bookmarks, so they stay favorites in the new space.
-async function moveItemsToSpace(elements, spaceId) {
+async function moveItemsToSpace(items, spaceId) {
     const target = spaces.find(s => s.id === spaceId);
     if (!target) return;
     pendingMutationCount++;
     try {
-        for (const element of elements) {
-            if (element?.isConnected) await moveItemToSpace(element, target);
-        }
+        for (const item of items) await moveItemToSpace(item, target);
     } catch (error) {
         Logger.warn('Move to space failed; restoring saved state.', error);
         alert(error.message);
@@ -1404,9 +1402,9 @@ async function moveItemsToSpace(elements, spaceId) {
     }
 }
 
-async function moveItemToSpace(element, target) {
-    if (element.classList.contains('pinned-favicon')) {
-        const tabId = Number(element.dataset.tabId);
+async function moveItemToSpace(item, target) {
+    if (item.kind === 'pinned') {
+        const tabId = item.tabId;
         // Unpinning normally files the tab under the active space; this move picks the space.
         tabsMovingToChosenSpace.add(tabId);
         try {
@@ -1418,23 +1416,22 @@ async function moveItemToSpace(element, target) {
         await updatePinnedFavicons();
         return;
     }
-    const source = spaces.find(s => s.id === element.closest('.space')?.dataset.spaceId);
+    const source = spaces.find(s => s.id === item.spaceId);
     if (!source || source.id === target.id) return;
-    if (element.classList.contains('folder')) {
-        await moveFolderToSpace(element, source, target);
+    if (item.kind === 'folder') {
+        await moveFolderToSpace(item, source, target);
         return;
     }
-    const tabId = element.dataset.tabId ? Number(element.dataset.tabId) : null;
-    if (element.dataset.bookmarkId && element.closest('[data-tab-type="pinned"]')) {
-        await moveFavoriteToSpace({ id: tabId }, element, target.id);
-    } else if (tabId) {
-        await moveTabToSpace(tabId, target.id, false);
+    if (item.kind === 'favorite') {
+        await moveFavoriteToSpace({ id: item.tabId }, currentItemRow(item), target.id, source.id);
+    } else if (item.tabId) {
+        await moveTabToSpace(item.tabId, target.id, false);
     }
 }
 
 // A folder moves as one bookmark; every open tab bound to a bookmark inside it follows.
-async function moveFolderToSpace(folderElement, source, target) {
-    const folderId = folderElement.dataset.bookmarkId;
+async function moveFolderToSpace(item, source, target) {
+    const folderId = item.bookmarkId;
     if (!folderId) throw new Error('Folder creation is not complete.');
     const [subtree] = await chrome.bookmarks.getSubTree(folderId);
     const bookmarkIds = new Set();
@@ -1449,6 +1446,7 @@ async function moveFolderToSpace(folderElement, source, target) {
     const targetFolder = await getSpaceBookmarkFolder(target);
     await chrome.bookmarks.move(folderId, { parentId: targetFolder.id });
     for (const id of boundTabIds) await moveTabToSpace(id, target.id, true);
+    const folderElement = currentItemRow(item);
     disposeEditorsInElement(folderElement);
     folderElement.remove();
 }
@@ -2394,12 +2392,12 @@ async function setupDragAndDrop(pinnedContainer, tempContainer) {
             mergeHover = null;
             if (draggingElement && mergeTarget?.isConnected) {
                 // Dropping a tab onto a favorite makes a folder holding both.
-                await createFolderFromItems([mergeTarget, ...dragItemsFor(draggingElement).filter(el => el !== mergeTarget)], mergeTarget);
+                await createFolderFromItems([mergeTarget, ...dragItemsFor(draggingElement).filter(el => el !== mergeTarget)].map(describeItem));
                 return;
             }
             const carried = draggingElement ? dragItemsFor(draggingElement) : [];
             if (carried.length > 1) {
-                await dropItemsInSection(carried, container, getDropTargetFolderContent(e.target, draggingElement));
+                await dropItemsInSection(carried.map(describeItem), container, getDropTargetFolderContent(e.target, draggingElement));
                 return;
             }
             if (draggingElement) {
@@ -2495,24 +2493,25 @@ async function setupDragAndDrop(pinnedContainer, tempContainer) {
 }
 
 // A dragged selection lands at the end of the folder or section it is dropped on.
-async function dropItemsInSection(elements, container, targetFolderContent) {
+async function dropItemsInSection(items, container, targetFolderContent) {
+    // Read the drop target now; a refresh may replace these elements during the awaits.
     const space = spaces.find(s => s.id === container.closest('.space')?.dataset.spaceId);
+    const pinned = container.dataset.tabType === 'pinned';
+    const treeUnavailable = container.closest('.space')?.dataset.bookmarkTreeUnavailable === 'true';
+    const folderId = targetFolderContent?.closest('.folder')?.dataset.bookmarkId;
     if (!space) return;
     await runSpaceMutation(async () => {
-        if (container.dataset.tabType === 'pinned') {
-            if (container.closest('.space')?.dataset.bookmarkTreeUnavailable === 'true') {
-                throw new Error('Favorites are unavailable until this space bookmark folder is restored.');
-            }
+        if (pinned) {
+            if (treeUnavailable) throw new Error('Favorites are unavailable until this space bookmark folder is restored.');
             const spaceFolder = await getSpaceBookmarkFolder(space);
-            const folderId = targetFolderContent?.closest('.folder')?.dataset.bookmarkId;
-            await moveItemsIntoBookmarkParent(elements, folderId || spaceFolder.id, space);
+            await moveItemsIntoBookmarkParent(items, folderId || spaceFolder.id, space);
             if (folderId) await saveFolderCollapsed(folderId, false);
             return;
         }
         // Dropped among temporary tabs: open favorites stop being favorites.
-        for (const element of elements) {
-            if (!isFavoriteRow(element) || !element.dataset.tabId) continue;
-            await moveTabToTemp(space, await chrome.tabs.get(Number(element.dataset.tabId)), { refresh: false });
+        for (const item of items) {
+            if (item.kind !== 'favorite' || !item.tabId) continue;
+            await moveTabToTemp(space, await chrome.tabs.get(item.tabId), { refresh: false });
         }
     });
 }
@@ -3701,16 +3700,41 @@ function dragItemsFor(draggingElement) {
 
 const isFavoriteRow = element => Boolean(element.dataset.bookmarkId && element.closest('[data-tab-type="pinned"]'));
 
+// Bulk actions span several awaits, and a refresh can replace the rows meanwhile. They
+// therefore work from what each row was when the action started.
+function describeItem(element) {
+    const kind = element.classList.contains('pinned-favicon') ? 'pinned'
+        : element.classList.contains('folder') ? 'folder'
+        : isFavoriteRow(element) ? 'favorite' : 'tab';
+    return {
+        kind,
+        tabId: element.dataset.tabId ? Number(element.dataset.tabId) : null,
+        bookmarkId: element.dataset.bookmarkId || null,
+        url: element.dataset.url || null,
+        spaceId: element.closest('.space')?.dataset.spaceId ?? null,
+        element
+    };
+}
+
+// The item's row as rendered now, or the original element if it is no longer shown.
+function currentItemRow(item) {
+    if (item.element.isConnected) return item.element;
+    const spaceElement = getSpaceElement(item.spaceId);
+    const selector = item.kind === 'folder' ? `.folder[data-bookmark-id="${item.bookmarkId}"]`
+        : item.tabId ? `.tab[data-tab-id="${item.tabId}"]` : `.tab[data-bookmark-id="${item.bookmarkId}"]`;
+    return spaceElement?.querySelector(selector) || item.element;
+}
+
 // Put tabs and favorites into a bookmark folder (or the space root). Favorites move with
 // their bookmark; temporary tabs become favorites there.
-async function moveItemsIntoBookmarkParent(elements, parentId, space) {
-    for (const element of elements) {
-        if (isFavoriteRow(element)) {
-            await chrome.bookmarks.move(element.dataset.bookmarkId, { parentId });
+async function moveItemsIntoBookmarkParent(items, parentId, space) {
+    for (const item of items) {
+        if (item.kind === 'favorite') {
+            await chrome.bookmarks.move(item.bookmarkId, { parentId });
             continue;
         }
-        const tabId = Number(element.dataset.tabId);
-        if (!tabId) continue;
+        const tabId = item.tabId;
+        if (!tabId || item.kind !== 'tab') continue;
         const tab = await chrome.tabs.get(tabId);
         const bookmark = await chrome.bookmarks.create({ parentId, title: tab.title || tab.url, url: tab.url });
         await Utils.setPinnedTabState(tabId, { bookmarkId: bookmark.id, pinnedUrl: tab.url });
@@ -3740,9 +3764,9 @@ async function runSpaceMutation(operation) {
 
 // A new folder takes the place of its first favorite, or goes last in the space, then opens
 // for naming.
-async function createFolderFromItems(elements, anchor = elements[0]) {
+async function createFolderFromItems(items, anchor = items[0]) {
     const space = spaces.find(s => s.id === activeSpaceId);
-    if (!space || !elements.length) return;
+    if (!space || !items.length) return;
     if (getSpaceElement(space.id)?.dataset.bookmarkTreeUnavailable === 'true') {
         alert('Favorites are unavailable until this space bookmark folder is restored.');
         return;
@@ -3751,15 +3775,15 @@ async function createFolderFromItems(elements, anchor = elements[0]) {
         const spaceFolder = await getSpaceBookmarkFolder(space);
         let parentId = spaceFolder.id;
         let index;
-        if (anchor && isFavoriteRow(anchor)) {
-            const [node] = await chrome.bookmarks.get(anchor.dataset.bookmarkId);
+        if (anchor?.kind === 'favorite') {
+            const [node] = await chrome.bookmarks.get(anchor.bookmarkId);
             parentId = node.parentId;
             index = node.index;
         }
         const created = await createFolder(spaceFolder.id, parentId, 'Untitled');
         if (index !== undefined) await chrome.bookmarks.move(created.id, { parentId, index });
         await saveFolderCollapsed(created.id, false);
-        await moveItemsIntoBookmarkParent(elements, created.id, space);
+        await moveItemsIntoBookmarkParent(items, created.id, space);
         return created;
     });
     if (folder) {
@@ -3768,14 +3792,14 @@ async function createFolderFromItems(elements, anchor = elements[0]) {
     }
 }
 
-async function closeItems(elements) {
+async function closeItems(items) {
     const space = spaces.find(s => s.id === activeSpaceId);
-    const live = elements.filter(el => el.dataset.tabId);
+    const live = items.filter(item => item.tabId && item.kind !== 'pinned');
     if (!space || !live.length) return;
-    const temporary = live.filter(el => !isFavoriteRow(el)).map(el => ({ url: el.dataset.url, spaceId: space.id, addedToArchive: false }));
+    const temporary = live.filter(item => item.kind === 'tab').map(item => ({ url: item.url, spaceId: space.id, addedToArchive: false }));
     const invert = await Utils.getInvertTabOrder();
     clearSelection();
-    await chrome.tabs.remove(live.map(el => Number(el.dataset.tabId)));
+    await chrome.tabs.remove(live.map(item => item.tabId));
     if (!temporary.length) return;
     // Favorites keep their bookmark when closed; Undo reopens the temporary tabs.
     showUndoToast(`Closed ${live.length} ${live.length === 1 ? 'tab' : 'tabs'}.`, async () => {
@@ -3789,15 +3813,15 @@ async function closeItems(elements) {
     });
 }
 
-async function archiveItems(elements) {
-    const temporary = elements.filter(el => el.dataset.tabId && !isFavoriteRow(el));
+async function archiveItems(items) {
+    const temporary = items.filter(item => item.kind === 'tab' && item.tabId);
     clearSelection();
-    for (const el of temporary) await Utils.archiveTab(Number(el.dataset.tabId));
+    for (const item of temporary) await Utils.archiveTab(item.tabId);
 }
 
-async function pinItems(elements) {
+async function pinItems(items) {
     const space = spaces.find(s => s.id === activeSpaceId);
-    const temporary = elements.filter(el => el.dataset.tabId && !isFavoriteRow(el));
+    const temporary = items.filter(item => item.kind === 'tab' && item.tabId);
     if (!space || !temporary.length) return;
     await runSpaceMutation(async () => {
         const spaceFolder = await getSpaceBookmarkFolder(space);
@@ -3806,24 +3830,26 @@ async function pinItems(elements) {
 }
 
 function showBulkMenu(x, y, elements) {
-    const count = elements.length;
-    const temporary = elements.filter(el => el.dataset.tabId && !isFavoriteRow(el)).length;
-    const live = elements.filter(el => el.dataset.tabId).length;
+    // Snapshot now: the menu stays open while the rows may re-render.
+    const items = elements.map(describeItem);
+    const count = items.length;
+    const temporary = items.filter(item => item.kind === 'tab' && item.tabId).length;
+    const live = items.filter(item => item.tabId).length;
     const plural = n => `${n} ${n === 1 ? 'Tab' : 'Tabs'}`;
     showMenu(x, y, [
         { label: `${count} selected`, note: true },
-        { label: `New Folder with ${plural(count)}`, action: () => createFolderFromItems(elements) },
-        ...(temporary ? [{ label: `Pin ${plural(temporary)}`, action: () => pinItems(elements) }] : []),
+        { label: `New Folder with ${plural(count)}`, action: () => createFolderFromItems(items) },
+        ...(temporary ? [{ label: `Pin ${plural(temporary)}`, action: () => pinItems(items) }] : []),
         {
             label: 'Move to Space',
             submenu: spaces.filter(s => s.id !== activeSpaceId).map(space => ({
                 label: space.name,
-                action: async () => { await moveItemsToSpace(elements, space.id); clearSelection(); flashSpaceChip(space.id); }
+                action: async () => { await moveItemsToSpace(items, space.id); clearSelection(); flashSpaceChip(space.id); }
             }))
         },
         'separator',
-        ...(temporary ? [{ label: `Archive ${plural(temporary)}`, action: () => archiveItems(elements) }] : []),
-        ...(live ? [{ label: `Close ${plural(live)}`, action: () => closeItems(elements) }] : [])
+        ...(temporary ? [{ label: `Archive ${plural(temporary)}`, action: () => archiveItems(items) }] : []),
+        ...(live ? [{ label: `Close ${plural(live)}`, action: () => closeItems(items) }] : [])
     ]);
 }
 
@@ -4457,11 +4483,11 @@ async function moveTabToSpace(tabId, spaceId, pinned = false, openerTabId = null
 }
 
 // The bookmark is the durable favorite, so move it before reassigning any live tab that uses it.
-async function moveFavoriteToSpace(tab, tabElement, spaceId) {
+async function moveFavoriteToSpace(tab, tabElement, spaceId, sourceSpaceId = null) {
     const target = spaces.find(s => s.id === spaceId);
     const source = tab.id
         ? ownerOf(spaces, tab.id)
-        : spaces.find(s => s.id === tabElement.closest('.space')?.dataset.spaceId);
+        : spaces.find(s => s.id === (sourceSpaceId ?? tabElement.closest('.space')?.dataset.spaceId));
     if (!target || !source || source.id === target.id) return;
     const binding = tab.id ? await Utils.getPinnedTabState(tab.id) : null;
     const bookmark = await getSpaceBookmarkById(source, tabElement.dataset.bookmarkId || binding?.bookmarkId);
