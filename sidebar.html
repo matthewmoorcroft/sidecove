@@ -33,6 +33,15 @@
                 </div>
             </div>
         </div>
+        <div class="tab-search" id="tabSearch">
+            <svg class="tab-search-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2" />
+                <path d="M15.5 15.5L20 20" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+            </svg>
+            <input type="search" id="tabSearchInput" placeholder="Search tabs" autocomplete="off" spellcheck="false" aria-label="Search tabs and favorites" aria-controls="tabSearchResults">
+            <kbd class="tab-search-hint" id="tabSearchHint"></kbd>
+        </div>
+        <div class="tab-search-results" id="tabSearchResults" role="listbox" aria-label="Search results" hidden></div>
         <div class="spaces-list" id="spacesList">
             <!-- Spaces will be dynamically added here -->
         </div>

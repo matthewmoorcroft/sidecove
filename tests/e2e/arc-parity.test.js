@@ -402,3 +402,51 @@ describe('multi-select and folders', () => {
             document.querySelector(`.space.active [data-tab-type="temporary"] .tab[data-url="${url}"]`)), { polling: 100 }, base);
     });
 });
+
+describe('tab search', () => {
+    const results = () => page.$$eval('#tabSearchResults .search-result', rows => rows.map(r => ({
+        title: r.querySelector('.tab-title-display').textContent, space: r.querySelector('.search-result-space').textContent
+    })));
+    async function search(text) {
+        await page.bringToFront();
+        await page.$eval('#tabSearchInput', input => { input.value = ''; input.focus(); });
+        await page.type('#tabSearchInput', text);
+    }
+
+    test('Cmd+F focuses search, and results cover every space with the space named', async () => {
+        await page.bringToFront();
+        await page.evaluate(() => document.activeElement?.blur?.());
+        await page.evaluate(() => document.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, metaKey: true, code: 'KeyF', key: 'f' })));
+        expect(await page.evaluate(() => document.activeElement.id)).toBe('tabSearchInput');
+        await search('chip-tab');
+        await page.waitForFunction(() => document.querySelectorAll('#tabSearchResults .search-result').length > 0, { polling: 100 });
+        expect(await results()).toEqual([{ title: 'chip-tab page', space: 'Music' }]);
+        expect(await page.$eval('#spacesList', list => getComputedStyle(list).display)).toBe('none');
+    });
+
+    test('Enter opens the highlighted tab and switches to its space', async () => {
+        await search('chip-tab');
+        await page.waitForFunction(() => document.querySelector('#tabSearchResults .search-result.highlighted'), { polling: 100 });
+        await page.keyboard.press('Enter');
+        await page.waitForFunction(async base => (await chrome.tabs.query({ active: true, currentWindow: true }))[0]?.url === `${base}/chip-tab`, { polling: 100 }, base);
+        await page.bringToFront();
+        await page.waitForFunction(() => document.querySelector('.space.active .space-name').value === 'Music', { polling: 100 });
+        expect(await page.$eval('#tabSearchInput', input => input.value)).toBe('');
+        expect(await page.$eval('#spacesList', list => getComputedStyle(list).display)).not.toBe('none');
+    });
+
+    test('a closed favorite opens as its bound tab, and Escape clears the search', async () => {
+        await search('chip favorite');
+        await page.waitForFunction(() => document.querySelectorAll('#tabSearchResults .search-result.bookmark-only').length === 1, { polling: 100 });
+        await page.$eval('#tabSearchResults .search-result.bookmark-only', row => row.click());
+        await page.waitForFunction(async base => {
+            const { pinnedTabStatesById = {} } = await chrome.storage.local.get('pinnedTabStatesById');
+            const tabs = await chrome.tabs.query({ url: `${base}/chip-favorite` });
+            return tabs.some(t => pinnedTabStatesById[t.id]?.bookmarkId);
+        }, { polling: 100 }, base);
+        await search('nothing-matches-this');
+        await page.waitForSelector('#tabSearchResults .tab-search-empty');
+        await page.keyboard.press('Escape');
+        expect(await page.$eval('#tabSearchResults', el => el.hidden)).toBe(true);
+    });
+});

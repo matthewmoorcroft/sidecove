@@ -28,6 +28,7 @@ import { loadFolderCollapsed, saveFolderCollapsed } from './folder-state.js';
 import { FOLDER_CLOSED_ICON, FOLDER_CLOSED_DOTS_ICON, FOLDER_OPEN_ICON, SPEAKER_ICON, SPEAKER_MUTED_ICON } from './icons.js';
 import { audioState } from './tab-audio.js';
 import { Selection, selectionGesture } from './selection.js';
+import { searchEntries } from './tab-search.js';
 import { LocalStorage } from './localstorage.js';
 import { Utils } from './utils.js';
 import {
@@ -643,6 +644,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Ctrl+1 to Ctrl+9 and Ctrl+Shift+[ or ] switch spaces while the panel has focus.
     document.addEventListener('keydown', (event) => {
+        // Cmd/Ctrl+F searches tabs, since the side panel has no find bar of its own.
+        if (event.code === 'KeyF' && (event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey) {
+            event.preventDefault();
+            tabSearchInput.focus();
+            tabSearchInput.select();
+            return;
+        }
         if (event.key === 'Escape' && selection.size && !event.target.closest?.('input, textarea')) {
             clearSelection();
             return;
@@ -3361,6 +3369,151 @@ async function createTabElement(tab, isPinned = false, isBookmarkOnly = false) {
 
     return tabElement;
 }
+
+// --- Tab search: Arc's Command Bar for open tabs, kept inside the side panel ---
+
+const tabSearchInput = document.getElementById('tabSearchInput');
+const tabSearchResults = document.getElementById('tabSearchResults');
+let tabSearchEntries = [];
+let tabSearchMatches = [];
+let tabSearchHighlight = 0;
+let tabSearchGeneration = 0;
+
+// Open tabs of this window, Chrome-pinned tabs and favorites with no open tab.
+async function collectSearchEntries() {
+    const [windowTabs, bindings, overrides] = await Promise.all([
+        chrome.tabs.query({ windowId: currentWindow.id }), Utils.getPinnedTabStates(), Utils.getTabNameOverrides()
+    ]);
+    const entries = [];
+    const openBookmarks = new Set();
+    for (const tab of windowTabs) {
+        const space = tab.pinned ? null : ownerOf(spaces, tab.id);
+        if (!tab.pinned && !space) continue;
+        if (bindings[tab.id]?.bookmarkId) openBookmarks.add(String(bindings[tab.id].bookmarkId));
+        entries.push({
+            key: `tab:${tab.id}`, kind: 'tab', tabId: tab.id, url: tab.url || '',
+            title: overrides[tab.id]?.name || tab.title || tab.url,
+            spaceId: space?.id ?? null, spaceName: space?.name ?? 'Pinned', color: space?.color
+        });
+    }
+    for (const space of spaces) {
+        let tree;
+        try { tree = await getSpaceBookmarkTree(space); } catch { continue; }
+        const walk = node => (node?.children || []).forEach(child => {
+            if (!child.url) return walk(child);
+            if (openBookmarks.has(String(child.id))) return;
+            entries.push({
+                key: `bookmark:${child.id}`, kind: 'favorite', bookmarkId: child.id, url: child.url,
+                title: child.title || child.url, spaceId: space.id, spaceName: space.name, color: space.color
+            });
+        });
+        walk(tree);
+    }
+    return entries;
+}
+
+async function refreshTabSearch() {
+    const generation = ++tabSearchGeneration;
+    const entries = await collectSearchEntries();
+    if (generation !== tabSearchGeneration) return;
+    tabSearchEntries = entries;
+    renderTabSearch();
+}
+
+function renderTabSearch() {
+    const query = tabSearchInput.value;
+    const searching = query.trim().length > 0;
+    document.getElementById('sidebar-container').classList.toggle('searching', searching);
+    tabSearchResults.hidden = !searching;
+    if (!searching) {
+        tabSearchResults.replaceChildren();
+        tabSearchMatches = [];
+        tabSearchHighlight = 0;
+        return;
+    }
+    tabSearchMatches = searchEntries(query, tabSearchEntries, { currentSpaceId: activeSpaceId });
+    tabSearchHighlight = Math.min(tabSearchHighlight, Math.max(tabSearchMatches.length - 1, 0));
+    if (!tabSearchMatches.length) {
+        const empty = document.createElement('div');
+        empty.className = 'tab-search-empty';
+        empty.textContent = 'No matching tabs';
+        tabSearchResults.replaceChildren(empty);
+        return;
+    }
+    tabSearchResults.replaceChildren(...tabSearchMatches.map((entry, index) => {
+        const row = document.createElement('div');
+        row.className = 'tab search-result';
+        row.classList.toggle('bookmark-only', entry.kind === 'favorite');
+        row.classList.toggle('highlighted', index === tabSearchHighlight);
+        row.setAttribute('role', 'option');
+        row.setAttribute('aria-selected', String(index === tabSearchHighlight));
+        const favicon = document.createElement('img');
+        favicon.className = 'tab-favicon';
+        favicon.src = Utils.getFaviconUrl(entry.url);
+        favicon.onerror = () => { favicon.src = 'assets/default_icon.png'; };
+        const details = document.createElement('div');
+        details.className = 'tab-details';
+        const title = document.createElement('span');
+        title.className = 'tab-title-display';
+        title.textContent = entry.title;
+        const domain = document.createElement('span');
+        domain.className = 'tab-domain-display';
+        try { domain.textContent = new URL(entry.url).hostname || entry.url; } catch { domain.textContent = entry.url; }
+        details.append(title, domain);
+        const space = document.createElement('span');
+        space.className = 'search-result-space';
+        if (entry.color) space.style.setProperty('--result-space-color', `var(--chrome-${entry.color}-color)`);
+        space.textContent = entry.spaceName;
+        row.append(favicon, details, space);
+        row.addEventListener('mousedown', event => event.preventDefault()); // keep the field focused
+        row.addEventListener('click', () => openSearchResult(entry));
+        return row;
+    }));
+    tabSearchResults.querySelector('.highlighted')?.scrollIntoView({ block: 'nearest' });
+}
+
+function clearTabSearch() {
+    tabSearchInput.value = '';
+    renderTabSearch();
+    tabSearchInput.blur();
+}
+
+async function openSearchResult(entry) {
+    clearTabSearch();
+    if (entry.kind === 'tab') {
+        await Utils.focusTab(entry.tabId);
+        return;
+    }
+    const space = spaces.find(s => s.id === entry.spaceId);
+    if (!space) return;
+    if (space.id !== activeSpaceId) await setActiveSpace(space.id, false);
+    await activatePinnedTabByURL(entry.url, space.id, space.name, entry.bookmarkId);
+}
+
+tabSearchInput.addEventListener('focus', () => refreshTabSearch());
+tabSearchInput.addEventListener('input', () => {
+    tabSearchHighlight = 0;
+    renderTabSearch();
+    refreshTabSearch();
+});
+tabSearchInput.addEventListener('keydown', event => {
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        if (!tabSearchMatches.length) return;
+        event.preventDefault();
+        const step = event.key === 'ArrowDown' ? 1 : -1;
+        tabSearchHighlight = (tabSearchHighlight + step + tabSearchMatches.length) % tabSearchMatches.length;
+        renderTabSearch();
+    } else if (event.key === 'Enter') {
+        event.preventDefault();
+        const entry = tabSearchMatches[tabSearchHighlight];
+        if (entry) openSearchResult(entry);
+    } else if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation();
+        clearTabSearch();
+    }
+});
+document.getElementById('tabSearchHint').textContent = /Mac/i.test(navigator.platform) ? '⌘F' : 'Ctrl+F';
 
 // --- Multi-select and bulk actions ---
 
