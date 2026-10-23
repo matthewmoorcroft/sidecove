@@ -105,17 +105,14 @@
 - Purpose: Copy text to system clipboard
 - Permission: `clipboardWrite`
 - Usage: Copy current tab URL via keyboard shortcut (Alt+C)
-- Fallback method: Script injection if Clipboard API fails
-- Implementation: `background.js` (copyCurrentTabUrlWithFallback function)
+- Method: offscreen document, with the open sidebar as fallback (no page script injection)
+- Implementation: `url-copy.js` (copyCurrentTabUrlWithFallback function)
 
 ---
 
 ## Content Scripts & Page Injection
 
-**Chrome Scripting API:**
-- Purpose: Inject and execute scripts in page contexts
-- Usage: URL copying via script injection (fallback when Clipboard API unavailable)
-- Implementation: `background.js`
+None. The extension has no content scripts, host permissions or `scripting` permission.
 
 ---
 
@@ -198,7 +195,7 @@ From manifest.json permissions:
 - **alarms** - Schedule auto-archive tasks
 - **commands** - Handle keyboard shortcuts
 - **favicon** - Fetch favicons for display
-- **scripting** - Inject scripts for clipboard fallback
+- **offscreen** - Offscreen document for clipboard writes
 - **clipboardWrite** - Copy text to clipboard
 
 ---

@@ -96,7 +96,7 @@ import { MOUSE_BUTTON, CSS_CLASSES, TIMING } from './constants.js';
 
 **Error Recovery Examples:**
 - `bookmark-utils.js`: Three-method fallback for finding Arcify folder (search → traverse → "Other Bookmarks")
-- `background.js`: Script injection with sidebar fallback for URL copying
+- `url-copy.js`: Offscreen clipboard with sidebar fallback for URL copying
 - `logger.js`: Defaults to disabled logging if storage not accessible
 
 **Message Handling:**

@@ -70,7 +70,7 @@ npm run build            # Production build (for manual testing)
 - Error responses in message handlers: `sendResponse({ success: false, error: error.message })`
 - Fallback mechanisms tested manually:
   - Three-method Arcify folder finding verified
-  - Script injection with sidebar fallback for URL copying
+  - Offscreen clipboard with sidebar fallback for URL copying
   - Storage access error handling in Logger
 
 **Example error paths in code:**
