@@ -25,7 +25,8 @@ import { ownerOf } from './space-store.js';
 import { canCreateFolder, canMoveFolder, createFolder } from './folder-policy.js';
 import { archiveAndCloseTabs, reopenClosedTabs } from './clean-all.js';
 import { loadFolderCollapsed, saveFolderCollapsed } from './folder-state.js';
-import { FOLDER_CLOSED_ICON, FOLDER_CLOSED_DOTS_ICON, FOLDER_OPEN_ICON } from './icons.js';
+import { FOLDER_CLOSED_ICON, FOLDER_CLOSED_DOTS_ICON, FOLDER_OPEN_ICON, SPEAKER_ICON, SPEAKER_MUTED_ICON } from './icons.js';
+import { audioState } from './tab-audio.js';
 import { LocalStorage } from './localstorage.js';
 import { Utils } from './utils.js';
 import {
@@ -2809,6 +2810,20 @@ async function createTabElement(tab, isPinned = false, isBookmarkOnly = false) {
         closeTab(tabElement, tab, isCurrentlyPinned, isBookmarkOnly);
     });
 
+    // Arc-like speaker on tabs that play sound; clicking it mutes or unmutes the tab.
+    if (!isBookmarkOnly) {
+        updateAudioIndicator(tabElement, tab);
+        tabElement.querySelector('.tab-audio').addEventListener('click', async (e) => {
+            e.stopPropagation();
+            try {
+                const live = await chrome.tabs.get(tab.id);
+                await chrome.tabs.update(tab.id, { muted: !live.mutedInfo?.muted });
+            } catch (error) {
+                Logger.warn('Could not toggle mute:', error);
+            }
+        });
+    }
+
     // --- Function to update display based on overrides ---
     const updateDisplay = async () => {
         // For bookmark-only elements, just display the stored title
@@ -3126,8 +3141,12 @@ async function createTabElement(tab, isPinned = false, isBookmarkOnly = false) {
     // --- Context Menu ---
     tabElement.addEventListener('contextmenu', async (e) => {
         e.preventDefault();
-        const arcifyFolder = await LocalStorage.getOrCreateArcifyFolder();
-        const allBookmarkSpaceFolders = await chrome.bookmarks.getChildren(arcifyFolder.id);
+        const onRename = isBookmarkOnly ? null : () => tabDetails.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+        // Read the live mute state alongside the space folders so the menu opens no later.
+        const [muted, allBookmarkSpaceFolders] = await Promise.all([
+            isBookmarkOnly || !tab.id ? false : chrome.tabs.get(tab.id).then(live => Boolean(live.mutedInfo?.muted), () => false),
+            LocalStorage.getOrCreateArcifyFolder().then(folder => chrome.bookmarks.getChildren(folder.id))
+        ]);
         showTabContextMenu(
             e.pageX,
             e.pageY,
@@ -3142,11 +3161,22 @@ async function createTabElement(tab, isPinned = false, isBookmarkOnly = false) {
             allBookmarkSpaceFolders,
             createSpaceFromInactive,
             replaceBookmarkUrlWithCurrentUrl,
-            moveFavoriteToSpace
+            moveFavoriteToSpace,
+            { muted, onRename }
         );
     });
 
     return tabElement;
+}
+
+function updateAudioIndicator(tabElement, tab) {
+    const button = tabElement.querySelector('.tab-audio');
+    if (!button) return;
+    const state = audioState(tab);
+    button.hidden = !state;
+    button.classList.toggle('muted', state === 'muted');
+    button.innerHTML = state === 'muted' ? SPEAKER_MUTED_ICON : SPEAKER_ICON;
+    button.title = state === 'muted' ? 'Unmute Tab' : 'Mute Tab';
 }
 
 async function createNewTab(callback = () => {}) {
@@ -3310,6 +3340,8 @@ function handleTabUpdate(tabId, changeInfo, tab) {
         // Update tab element if it exists
         const tabElement = document.querySelector(`[data-tab-id="${tabId}"]`);
         if (tabElement) {
+            if (changeInfo.audible !== undefined || changeInfo.mutedInfo) updateAudioIndicator(tabElement, tab);
+
             // Update Favicon if URL changed
             if (changeInfo.url || changeInfo.favIconUrl) {
                 const img = tabElement.querySelector('img');

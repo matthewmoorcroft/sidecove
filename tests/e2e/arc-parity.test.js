@@ -127,3 +127,64 @@ describe('Clean All', () => {
         for (const url of before) expect(after).not.toContain(url);
     });
 });
+
+describe('tab menu and sound', () => {
+    let tabId, homeId;
+    const row = () => `.space.active .tab[data-tab-id="${tabId}"]`;
+    async function menu(label) {
+        await page.$eval(row(), el => {
+            const r = el.getBoundingClientRect();
+            el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: r.left + 40, clientY: r.top + 8 }));
+        });
+        await page.waitForFunction(label => [...document.querySelectorAll('#tab-context-menu .context-menu-item')].some(i => i.textContent === label), { polling: 100 }, label);
+        await page.evaluate(label => [...document.querySelectorAll('#tab-context-menu .context-menu-item')].find(i => i.textContent === label).click(), label);
+    }
+
+    beforeAll(async () => {
+        await page.evaluate(() => document.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, ctrlKey: true, code: 'Digit1' })));
+        await page.waitForFunction(() => document.querySelector('.space.active .space-name').value === 'Home', { polling: 100 });
+        homeId = (await page.evaluate(async () => (await chrome.runtime.sendMessage({ type: 'spaceStore', action: 'get' })).spaces))[0].id;
+        tabId = await openTab('menu-tab', homeId);
+        await page.waitForSelector(row());
+    });
+
+    test('Mute Tab mutes it, shows a muted speaker, and the speaker unmutes it', async () => {
+        await menu('Mute Tab');
+        await page.waitForFunction(id => chrome.tabs.get(id).then(t => t.mutedInfo.muted), { polling: 100 }, tabId);
+        await page.waitForSelector(`${row()} .tab-audio.muted:not([hidden])`);
+        await page.$eval(`${row()} .tab-audio`, button => button.click());
+        await page.waitForFunction(id => chrome.tabs.get(id).then(t => !t.mutedInfo.muted), { polling: 100 }, tabId);
+        await page.waitForSelector(`${row()} .tab-audio[hidden]`);
+        await menu('Mute Tab');
+        await page.waitForSelector(`${row()} .tab-audio.muted:not([hidden])`);
+        await menu('Unmute Tab');
+        await page.waitForFunction(id => chrome.tabs.get(id).then(t => !t.mutedInfo.muted), { polling: 100 }, tabId);
+    });
+
+    test('Duplicate Tab opens a copy in the same space', async () => {
+        const url = await page.$eval(row(), el => el.dataset.url);
+        await menu('Duplicate Tab');
+        await page.waitForFunction(url => document.querySelectorAll(`.space.active [data-tab-type="temporary"] .tab[data-url="${url}"]`).length === 2, { polling: 100 }, url);
+        const owners = await page.evaluate(async url => {
+            const { spaces } = await chrome.runtime.sendMessage({ type: 'spaceStore', action: 'get' });
+            const tabs = (await chrome.tabs.query({})).filter(t => t.url === url);
+            return tabs.map(t => spaces.find(s => s.temporaryTabs.includes(t.id))?.name);
+        }, url);
+        expect(owners).toEqual(['Home', 'Home']);
+    });
+
+    test('Copy Link puts the tab URL on the clipboard', async () => {
+        await browser.defaultBrowserContext().overridePermissions(`chrome-extension://${extensionId}`, ['clipboard-read', 'clipboard-sanitized-write']);
+        await page.bringToFront();
+        await menu('Copy Link');
+        await page.waitForFunction(() => document.getElementById('urlCopyToast').classList.contains('show'), { polling: 100 });
+        expect(await page.$eval('#urlCopyToast', toast => toast.textContent)).toBe('Copied link');
+        expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(`${base}/menu-tab`);
+    });
+
+    test('Rename Tab opens the title editor', async () => {
+        await menu('Rename Tab');
+        await page.waitForFunction(sel => getComputedStyle(document.querySelector(`${sel} .tab-title-input`)).display !== 'none', { polling: 100 }, row());
+        await page.keyboard.press('Escape');
+    });
+});
