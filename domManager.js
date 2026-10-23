@@ -864,32 +864,81 @@ export function clearAllActiveStates() {
  * Hide all drop indicators in the document
  */
 export function hideAllDropIndicators() {
-    document.querySelectorAll('.drop-indicator-horizontal, .drop-indicator-vertical').forEach(element => {
-        element.classList.remove('drop-indicator-horizontal', 'drop-indicator-vertical', 'above', 'below', 'left', 'right');
+    document.querySelectorAll('.drop-indicator-vertical').forEach(element => {
+        element.classList.remove('drop-indicator-vertical', 'left', 'right');
     });
+    hideDropLine();
+    showFolderDropTarget(null);
+}
+
+let dropLine = null;
+
+function hideDropLine() {
+    dropLine?.classList.remove('visible');
 }
 
 /**
- * Show a drop indicator on the target element
- * @param {HTMLElement} targetElement - The element to show the indicator on
- * @param {string} position - Position: 'above', 'below', 'left', or 'right'
- * @param {boolean} isHorizontal - True for horizontal layout (favicons), false for vertical (tabs)
+ * Show the single line marking where a dragged row lands in a list: before the given row,
+ * or after the last one. It starts at the rows' own left edge, so its indent shows the
+ * level the row lands at. A list that is not visible (a collapsed folder) shows no line.
+ * @param {HTMLElement} content - The list the row joins
+ * @param {HTMLElement|null} before - The row it lands before, or null for the end
+ * @param {string} rowSelector - Selector for the list's rows, excluding the dragged one
  */
-export function showDropIndicator(targetElement, position, isHorizontal = false) {
+export function showDropLine(content, before, rowSelector) {
+    const contentRect = content.getBoundingClientRect();
+    if (!contentRect.height) {
+        hideDropLine();
+        return;
+    }
+    const rows = [...content.querySelectorAll(rowSelector)];
+    const index = before ? rows.indexOf(before) : rows.length;
+    const previous = rows[index - 1]?.getBoundingClientRect();
+    const next = before?.getBoundingClientRect();
+    const style = getComputedStyle(content);
+    const edge = next || previous;
+    const left = edge ? edge.left : contentRect.left + parseFloat(style.paddingLeft);
+    const right = edge ? edge.right : contentRect.right - parseFloat(style.paddingRight);
+    const y = previous && next ? (previous.bottom + next.top) / 2
+        : next ? next.top
+        : previous ? previous.bottom
+        : contentRect.top + parseFloat(style.paddingTop);
+
+    if (!dropLine?.isConnected) {
+        dropLine = document.createElement('div');
+        dropLine.className = 'drop-line';
+        (document.getElementById('sidebar-container') || document.body).appendChild(dropLine);
+    }
+    dropLine.style.left = `${left}px`;
+    dropLine.style.width = `${Math.max(0, right - left)}px`;
+    dropLine.style.top = `${y}px`;
+    dropLine.classList.add('visible');
+}
+
+/**
+ * Highlight the folder a drop would go into, or clear the highlight when given null.
+ * @param {HTMLElement|null} folderElement
+ */
+export function showFolderDropTarget(folderElement) {
+    document.querySelectorAll('.folder.drop-target-folder').forEach(folder => {
+        if (folder !== folderElement) folder.classList.remove('drop-target-folder');
+    });
+    folderElement?.classList.add('drop-target-folder');
+}
+
+/**
+ * Show a drop indicator beside a pinned favicon. Lists of rows use showDropLine instead.
+ * @param {HTMLElement} targetElement - The favicon to show the indicator on
+ * @param {string} position - Position: 'left' or 'right'
+ */
+export function showDropIndicator(targetElement, position) {
     // First, hide all existing indicators
     hideAllDropIndicators();
 
     if (!targetElement) return;
 
-    if (isHorizontal) {
-        // For horizontal favicons (left/right positioning)
-        targetElement.classList.add('drop-indicator-vertical');
-        targetElement.classList.add(position); // 'left' or 'right'
-    } else {
-        // For vertical sidebar tabs (above/below positioning)
-        targetElement.classList.add('drop-indicator-horizontal');
-        targetElement.classList.add(position); // 'above' or 'below'
-    }
+    targetElement.classList.add('drop-indicator-vertical');
+    targetElement.classList.add(position); // 'left' or 'right'
 }
 
 /**

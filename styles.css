@@ -1997,51 +1997,7 @@ h3 {
     /* Add any other styles for the dragged item */
 }
 
-/* Drop indicator lines for drag and drop visual feedback */
-.drop-indicator-horizontal {
-    position: relative;
-}
-
-.drop-indicator-horizontal::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    right: 0;
-    height: 3px;
-    background-color: var(--chrome-grey-color);
-    border-radius: 2px;
-    z-index: 1000;
-    opacity: 0.5;
-}
-
-/* Circle indicator on the left side */
-.drop-indicator-horizontal::after {
-    content: '';
-    position: absolute;
-    left: 0;
-    width: 8px;
-    height: 8px;
-    background-color: var(--chrome-grey-color);
-    border-radius: 50%;
-    z-index: 1001;
-}
-
-.drop-indicator-horizontal.above::before {
-    top: -3px;
-}
-
-.drop-indicator-horizontal.above::after {
-    top: -6px;
-}
-
-.drop-indicator-horizontal.below::before {
-    bottom: -3px;
-}
-
-.drop-indicator-horizontal.below::after {
-    bottom: -6px;
-}
-
+/* Drop indicator beside a pinned favicon */
 .drop-indicator-vertical {
     position: relative;
 }
@@ -2064,6 +2020,43 @@ h3 {
 
 .drop-indicator-vertical.right::before {
     right: -6px;
+}
+
+/* Where a dragged row lands in the list. Placed from script at the landing row's left edge,
+   so it starts at the indent of the level the row lands at. */
+.drop-line {
+    position: fixed;
+    display: none;
+    height: 2px;
+    margin-top: -1px;
+    border-radius: 1px;
+    background: var(--drop-line-color);
+    pointer-events: none;
+    z-index: 1000;
+    --drop-line-color: color-mix(in srgb, var(--space-bg-color-dark, #8a8a8a) 55%, black);
+}
+
+.drop-line.visible {
+    display: block;
+}
+
+/* A ring at the start marks the indent. */
+.drop-line::before {
+    content: '';
+    position: absolute;
+    left: -3px;
+    top: -3px;
+    width: 4px;
+    height: 4px;
+    border: 2px solid var(--drop-line-color);
+    border-radius: 50%;
+    background: white;
+}
+
+/* The folder a drop would go into. */
+.folder.drop-target-folder {
+    background: var(--space-bg-color-dark, rgba(0, 0, 0, 0.08));
+    box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--space-bg-color-dark, #8a8a8a) 55%, black);
 }
 
 .archiving-controls {
@@ -2508,6 +2501,14 @@ h3 {
 
     .tab.merge-target {
         background: color-mix(in srgb, var(--space-bg-color, #555) 60%, white);
+    }
+
+    .drop-line {
+        --drop-line-color: color-mix(in srgb, var(--space-bg-color-dark, #8a8a8a) 25%, white);
+    }
+
+    .folder.drop-target-folder {
+        box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--space-bg-color-dark, #8a8a8a) 25%, white);
     }
 
     .context-menu-item.with-submenu::after {

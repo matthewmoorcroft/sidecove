@@ -48,6 +48,8 @@ import {
     getTempContainer,
     clearAllActiveStates,
     hideAllDropIndicators,
+    showDropLine,
+    showFolderDropTarget,
     showDropIndicator,
     getDropPosition,
     handleEmptyContainerDrop,
@@ -374,7 +376,7 @@ async function updatePinnedFavicons() {
                 } else {
                     // Show traditional drop indicators for actual favicons
                     const position = getDropPosition(afterElement, e.clientX, e.clientY, true);
-                    showDropIndicator(afterElement, position, true);
+                    showDropIndicator(afterElement, position);
                     // Remove any placeholder drag-over state
                     const placeholder = pinnedFavicons.querySelector('.pinned-placeholder-container');
                     if (placeholder) placeholder.classList.remove('drag-over');
@@ -1479,10 +1481,12 @@ function getDragAfterElementSwitcher(container, x) {
     });
 }
 
+const TAB_ROW_SELECTOR = ':scope > .tab:not(.dragging), :scope > .folder:not(.dragging)';
+
 function getDragAfterElementTabs(container, y) {
     return getDragAfterElement(container, y, {
         axis: 'y',
-        selector: ':scope > .tab:not(.dragging), :scope > .folder:not(.dragging)',
+        selector: TAB_ROW_SELECTOR,
         placeholderSelector: ':scope > .tab-placeholder'
     });
 }
@@ -1540,6 +1544,7 @@ function setupTabDragHandlers(tabElement) {
     tabElement.addEventListener('dragend', () => {
         isDraggingTab = false;
         tabElement.classList.remove('dragging');
+        hideAllDropIndicators();
         document.querySelectorAll('.drag-companion').forEach(el => el.classList.remove('drag-companion'));
         setMergeTarget(null);
         mergeHover = null;
@@ -1567,6 +1572,7 @@ function setupFolderDragHandlers(folderElement) {
     folderHeader.addEventListener('dragend', () => {
         isDraggingTab = false;
         folderElement.classList.remove('dragging');
+        hideAllDropIndicators();
         dragSourceFolderElement = null;
         refreshCoordinator.schedule();
     });
@@ -2336,28 +2342,16 @@ async function setupDragAndDrop(pinnedContainer, tempContainer) {
                     clearFolderOpenTimer();
                 }
 
-                // Get the element we're dragging over to show drop indicator
-                const afterElement = getDragAfterElementTabs(targetContainer, e.clientY);
-                if (afterElement && targetContainer.contains(afterElement)) {
-                    // Check if this is a placeholder (empty container)
-                    if (afterElement.classList.contains('tab-placeholder')) {
-                        // Show visual feedback on the placeholder itself
-                        afterElement.classList.add('drag-over');
-                        hideAllDropIndicators(); // Don't show traditional indicators for placeholders
-                    } else {
-                        // Show traditional drop indicators for actual tabs/folders
-                        const position = getDropPosition(afterElement, e.clientX, e.clientY, false);
-                        showDropIndicator(afterElement, position, false);
-                        // Remove any placeholder drag-over state in this container
-                        const placeholder = targetContainer.querySelector('.tab-placeholder');
-                        if (placeholder) placeholder.classList.remove('drag-over');
-                    }
+                // Show where the drop lands: a line at that position and depth, and the folder it goes into.
+                const { before, placeholder } = dropPoint(targetContainer, e);
+                const landsAtEnd = dragItemsFor(draggingElement).length > 1 && container.dataset.tabType === 'pinned';
+                showFolderDropTarget(targetFolder?.closest('.folder') || null);
+                if (placeholder) {
+                    placeholder.classList.add('drag-over');
+                    showDropLine(targetContainer, null, TAB_ROW_SELECTOR);
                 } else {
-                    // If no specific element, hide indicators
-                    hideAllDropIndicators();
-                    // Remove any placeholder drag-over state in this container
-                    const placeholder = targetContainer.querySelector('.tab-placeholder');
-                    if (placeholder) placeholder.classList.remove('drag-over');
+                    showDropLine(targetContainer, landsAtEnd ? null : before, TAB_ROW_SELECTOR);
+                    targetContainer.querySelector('.tab-placeholder')?.classList.remove('drag-over');
                 }
 
                 // Note: Actual bookmark operations moved to drop event for proper architecture
@@ -2477,19 +2471,24 @@ async function setupDragAndDrop(pinnedContainer, tempContainer) {
     });
 }
 
-// Put a dragged row where the drop indicator showed it, or at the end of the container.
-function placeAtDropPoint(targetContainer, element, e) {
+// The row a drop at this point lands before (null for the end of the list), or the
+// placeholder of an empty list. The drop line and the drop itself both use it.
+function dropPoint(targetContainer, e) {
     const afterElement = getDragAfterElementTabs(targetContainer, e.clientY);
-    if (!afterElement || !targetContainer.contains(afterElement)) {
-        targetContainer.appendChild(element);
-    } else if (afterElement.classList.contains('tab-placeholder')) {
-        // Empty container - append directly and hide placeholder
-        targetContainer.appendChild(element);
-        afterElement.classList.add('hidden');
-    } else if (getDropPosition(afterElement, e.clientX, e.clientY, false) === 'above') {
-        targetContainer.insertBefore(element, afterElement);
+    if (!afterElement || !targetContainer.contains(afterElement)) return { before: null, placeholder: null };
+    if (afterElement.classList.contains('tab-placeholder')) return { before: null, placeholder: afterElement };
+    return { before: afterElement, placeholder: null };
+}
+
+// Put a dragged row where the drop line showed it, or at the end of the container.
+function placeAtDropPoint(targetContainer, element, e) {
+    const { before, placeholder } = dropPoint(targetContainer, e);
+    if (before) {
+        targetContainer.insertBefore(element, before);
     } else {
-        afterElement.after(element);
+        targetContainer.appendChild(element);
+        // Empty container - hide its placeholder
+        placeholder?.classList.add('hidden');
     }
 }
 
