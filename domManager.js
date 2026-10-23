@@ -621,7 +621,7 @@ export function setupQuickPinListener(moveTabToSpace, moveTabToPinned, moveTabTo
             }
             return true; // Indicate async response
         } else if (request.action === "urlCopySuccess") {
-            // Show toast when URL copy succeeds via script injection
+            // Show toast when the background copies the URL through its offscreen document
             Logger.log("[URLCopy] Received success message from background script");
             showUrlCopyToast();
             sendResponse({ success: true });

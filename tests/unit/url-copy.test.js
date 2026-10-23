@@ -1,47 +1,22 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { copyCurrentTabUrlWithFallback } from '../../url-copy.js';
 
-test('copies from the last-focused tab and waits for the injected result', async () => {
-    let queryOptions;
-    let injected;
-    const messages = [];
-    const chromeApi = {
+function offscreenChrome(calls, { offscreenResult = { success: true } } = {}) {
+    return {
         tabs: {
             query: async options => {
-                queryOptions = options;
-                return [{ id: 42, url: 'https://example.com/article' }];
+                calls.push(['query', options]);
+                return [{ id: 7, url: 'https://example.org' }];
             }
         },
-        scripting: {
-            executeScript: async details => {
-                injected = details;
-                return [{ result: { copied: true } }];
-            }
-        },
-        runtime: {
-            sendMessage: message => messages.push(message),
-            lastError: null
-        }
-    };
-
-    assert.equal(await copyCurrentTabUrlWithFallback({ chromeApi }), true);
-    assert.deepEqual(queryOptions, { active: true, lastFocusedWindow: true });
-    assert.equal(injected.target.tabId, 42);
-    assert.equal(injected.args[0], 'https://example.com/article');
-    assert.equal(messages[0].action, 'urlCopySuccess');
-});
-
-test('uses an offscreen document when Chrome provides the clipboard context', async () => {
-    const calls = [];
-    const chromeApi = {
-        tabs: { query: async () => [{ id: 7, url: 'https://example.org' }] },
         runtime: {
             getURL: path => `chrome-extension://arcify/${path}`,
             getContexts: async () => [],
             sendMessage: async message => {
                 calls.push(['message', message]);
-                return { success: true };
+                return message.target === 'offscreen' ? offscreenResult : undefined;
             }
         },
         offscreen: {
@@ -49,18 +24,65 @@ test('uses an offscreen document when Chrome provides the clipboard context', as
             closeDocument: async () => calls.push(['close'])
         }
     };
+}
+
+test('uses an offscreen document when Chrome provides the clipboard context', async () => {
+    const calls = [];
+    const chromeApi = offscreenChrome(calls);
 
     assert.equal(await copyCurrentTabUrlWithFallback({ chromeApi }), true);
-    assert.equal(calls[0][0], 'create');
-    assert.equal(calls[1][1].target, 'offscreen');
-    assert.equal(calls[1][1].text, 'https://example.org');
+    assert.deepEqual(calls[0], ['query', { active: true, lastFocusedWindow: true }]);
+    assert.equal(calls[1][0], 'create');
+    assert.equal(calls[2][1].target, 'offscreen');
+    assert.equal(calls[2][1].text, 'https://example.org');
     assert.deepEqual(calls.find(call => call[0] === 'close'), ['close']);
+    assert.ok(calls.some(call => call[1]?.action === 'urlCopySuccess'), 'the sidebar is told to show its toast');
 });
 
-test('does not report success when the injected function cannot confirm a copy', async () => {
+test('copies the current URL without the scripting API', async () => {
+    const calls = [];
+    const chromeApi = offscreenChrome(calls);
+    assert.equal(chromeApi.scripting, undefined);
+
+    assert.equal(await copyCurrentTabUrlWithFallback({ chromeApi }), true);
+    assert.equal(calls.find(call => call[1]?.target === 'offscreen')[1].text, 'https://example.org');
+});
+
+test('the manifest no longer requests the scripting permission', () => {
+    const manifest = JSON.parse(readFileSync(new URL('../../manifest.json', import.meta.url), 'utf8'));
+    assert.deepEqual(manifest.permissions, [
+        'tabs', 'tabGroups', 'sidePanel', 'storage', 'bookmarks', 'alarms', 'favicon', 'clipboardWrite', 'offscreen'
+    ]);
+    assert.equal(manifest.host_permissions, undefined);
+    assert.equal(manifest.content_scripts, undefined);
+});
+
+test('falls back to the sidebar, never page injection, when the offscreen copy fails', async () => {
+    const injected = [];
+    const sidebarMessages = [];
+    const chromeApi = {
+        tabs: { query: async () => [{ id: 42, url: 'https://example.com/article' }] },
+        scripting: { executeScript: async details => { injected.push(details); return [{ result: { copied: true } }]; } },
+        offscreen: { createDocument: async () => { throw new Error('offscreen unavailable'); } },
+        runtime: {
+            lastError: null,
+            getURL: path => path,
+            getContexts: async () => [],
+            sendMessage: (message, callback) => {
+                sidebarMessages.push(message);
+                callback({ success: true });
+            }
+        }
+    };
+
+    assert.equal(await copyCurrentTabUrlWithFallback({ chromeApi }), true);
+    assert.deepEqual(injected, []);
+    assert.deepEqual(sidebarMessages, [{ command: 'copyCurrentUrl', url: 'https://example.com/article' }]);
+});
+
+test('does not report success when neither the offscreen document nor the sidebar can copy', async () => {
     const chromeApi = {
         tabs: { query: async () => [{ id: 42, url: 'https://example.com' }] },
-        scripting: { executeScript: async () => [{ result: { copied: false } }] },
         runtime: {
             lastError: { message: 'No sidebar' },
             sendMessage: (_message, callback) => callback()
