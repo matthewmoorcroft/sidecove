@@ -63,24 +63,24 @@ h3 {
     transition: background-color 0.3s ease;
 }
 
+/* Favorites grid: tiles fill a row while there are few, then wrap at a fixed size,
+   so a lone tile on a new row no longer stretches across it (upstream issue #42). */
 .pinned-favicons {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-    /* padding: 8px; */
-    border-radius: 12px;
-    /* background-color: rgba(255, 255, 255, 0.1); */
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(56px, 1fr));
     gap: 8px;
-    justify-content: space-between;
+    border-radius: 12px;
+}
+
+.pinned-favicons > .pinned-placeholder-container {
+    grid-column: 1 / -1;
 }
 
 .pinned-favicon {
-    width: 32px;
-    height: 48px;
-    flex: 1 1 24%;
-    border-radius: 8px;
+    height: 44px;
+    border-radius: 10px;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: background-color 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -94,8 +94,11 @@ h3 {
 }
 
 .pinned-favicon:hover {
-    /* transform: scale(1.1); */
-    background-color: rgba(0, 0, 0, 0.1);
+    background-color: rgba(255, 255, 255, 0.4);
+}
+
+.pinned-favicon:active {
+    transform: scale(0.97);
 }
 
 .pinned-favicon img {
@@ -107,20 +110,23 @@ h3 {
 .context-menu {
     display: block;
     position: fixed;
+    padding: 4px;
     background-color: #fff;
-    border: 1px solid #ccc;
-    border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    border: none;
+    border-radius: 10px;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.16), 0 0 0 1px rgba(0, 0, 0, 0.06);
     z-index: 1000;
-    min-width: 150px;
+    min-width: 170px;
+    animation: sidecove-pop-in 0.12s ease-out;
+    transform-origin: top left;
 }
 
 .context-menu-item {
-    padding: 8px 12px;
+    padding: 6px 10px;
     cursor: pointer;
-    background-color: #fff;
-    border-radius: 8px;
-    transition: background-color 0.3s ease;
+    background-color: transparent;
+    border-radius: 6px;
+    transition: background-color 0.1s ease;
     color: #333;
 }
 
@@ -131,7 +137,7 @@ h3 {
 .context-menu-separator {
     height: 1px;
     background-color: var(--sidebar-border-color, #eee);
-    margin: 4px 0;
+    margin: 4px 6px;
 }
 
 .context-menu-item.with-submenu {
@@ -152,7 +158,7 @@ h3 {
     display: none;
     position: absolute;
     left: 100%;
-    top: -5px;
+    top: -4px;
     /* Adjust as needed for vertical alignment */
     z-index: 101;
     /* Ensure submenu appears above the parent menu */
@@ -287,10 +293,16 @@ h3 {
     display: none;
 }
 
+.space.active {
+    animation: sidecove-space-in 0.18s ease-out;
+}
+
+@keyframes sidecove-space-in {
+    from { opacity: 0; transform: translateY(3px); }
+    to { opacity: 1; transform: none; }
+}
+
 .space {
-    /* background-color: rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-    padding: 16px; */
     display: flex;
     flex-direction: column;
     overflow-y: hidden;
@@ -409,13 +421,15 @@ h3 {
     position: absolute;
     top: 100%;
     right: 0;
-    background-color: #ECEFF1;
-    border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    padding: 4px;
+    background-color: #fff;
+    border-radius: 10px;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.16), 0 0 0 1px rgba(0, 0, 0, 0.06);
     display: none;
     flex-direction: column;
-    min-width: 150px;
+    min-width: 170px;
     z-index: 1000;
+    animation: sidecove-pop-in 0.12s ease-out;
 }
 
 .space-options-container:hover .space-options-dropdown,
@@ -426,11 +440,14 @@ h3 {
 .space-options-dropdown button {
     background: none;
     border: none;
-    padding: 8px 16px;
+    border-radius: 6px;
+    padding: 6px 10px;
     text-align: left;
     cursor: pointer;
     color: #333;
-    font-size: 14px;
+    font: inherit;
+    font-size: 13px;
+    transition: background-color 0.1s ease;
 }
 
 .space-options-dropdown button:hover {
@@ -460,6 +477,11 @@ h3 {
     padding: 8px;
     background: #fff;
     border-radius: 8px;
+}
+
+/* In the space menu the swatches sit on the menu itself, light or dark. */
+.space-options-dropdown .color-picker-grid {
+    background: none;
 }
 
 .create-space-picker {
@@ -546,9 +568,13 @@ h3 {
     margin-right: 16px;
 }
 
-.folder.collapsed:hover {
-    /* background-color: rgba(255, 255, 255, 0.2); */
-    background: var(--space-bg-color-dark, rgba(255, 255, 255, 0.1));
+.folder-header {
+    border-radius: 10px;
+    transition: background-color 0.12s ease;
+}
+
+.folder-header:hover {
+    background: color-mix(in srgb, var(--space-bg-color, #ccc) 62%, white);
 }
 
 .folder-title {
@@ -628,7 +654,8 @@ h3 {
     transition: border-top-color 0.2s;
 }
 
-.folder-header:hover .folder-toggle::before {
+.folder-header:hover .folder-toggle::before,
+.folder-toggle:focus-visible::before {
     border-top: 6px solid #1010107d;
 }
 
@@ -782,6 +809,10 @@ h3 {
     font-size: 18px;
 }
 
+.new-tab-btn:active {
+    transform: scale(0.99);
+}
+
 .new-tab-btn {
     background-color: rgba(255, 255, 255, 0.2);
     border: none;
@@ -795,7 +826,7 @@ h3 {
     gap: 8px;
     font-size: 16px;
     width: 100%;
-    transition: background-color 0.3s ease;
+    transition: background-color 0.15s ease, transform 0.08s ease;
 }
 
 .new-tab-btn:hover {
@@ -866,6 +897,12 @@ h3 {
     white-space: nowrap;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     z-index: 1000;
+    animation: sidecove-toast-in 0.2s ease-out;
+}
+
+@keyframes sidecove-toast-in {
+    from { opacity: 0; transform: translate(-50%, 6px); }
+    to { opacity: 1; transform: translate(-50%, 0); }
 }
 
 .undo-toast-button {
@@ -901,7 +938,14 @@ h3 {
     opacity: 1;
     visibility: visible;
     transition: opacity 0.2s ease, visibility 0.2s ease;
-    mask-image: linear-gradient(to right, rgb(0, 0, 0), rgb(0, 0, 0), rgb(0, 0, 0), rgb(0, 0, 0), rgba(0, 0, 0, 0));
+}
+
+.space-switcher.overflowing {
+    mask-image: linear-gradient(to right, rgb(0, 0, 0) 80%, rgba(0, 0, 0, 0) calc(100% - 8px));
+}
+
+.space-switcher.compact {
+    gap: 4px;
 }
 
 .space-switcher::-webkit-scrollbar {
@@ -1090,32 +1134,34 @@ h3 {
 }
 
 .space-switcher button.active {
-    background-color: #ECEFF1;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    background-color: #fff;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .tab {
     display: flex;
     align-items: center;
-    padding: 4px 12px;
-    margin-bottom: 4px;
-    border-radius: 12px;
+    min-height: 36px;
+    padding: 4px 8px 4px 12px;
+    margin-bottom: 2px;
+    border-radius: 10px;
     cursor: pointer;
-    transition: background-color 0.3s ease;
+    transition: background-color 0.12s ease, box-shadow 0.12s ease, transform 0.08s ease, opacity 0.15s ease;
     background: var(--space-bg-color, rgba(255, 255, 255, 0.1));
     position: relative;
-    /* font-weight: 600; */
 }
 
 .tab:hover {
-    background: var(--space-bg-color-dark, rgba(255, 255, 255, 0.1));
-    /* make background darker */
-    /* background-color: #bdbdbd; */
+    background: color-mix(in srgb, var(--space-bg-color, #ccc) 62%, white);
+}
+
+.tab:active {
+    transform: scale(0.99);
 }
 
 .tab.active {
-    background-color: #ECEFF1;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    background: #fff;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 /* Multi-select: Cmd/Ctrl or Shift click. */
@@ -1124,12 +1170,12 @@ h3 {
 }
 
 .tab.selected {
-    background: color-mix(in srgb, var(--space-bg-color-dark, #999) 55%, white);
-    box-shadow: inset 0 0 0 1.5px var(--space-bg-color-dark, rgba(0, 0, 0, 0.25));
+    background: color-mix(in srgb, var(--space-bg-color, #ccc) 45%, white);
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06);
 }
 
 .tab.selected.active {
-    background-color: #ECEFF1;
+    background: #fff;
 }
 
 /* Holding a tab over a favorite makes a folder of the two. */
@@ -1351,7 +1397,9 @@ h3 {
 }
 
 .tab:hover .tab-close,
-.tab:hover .tab-remove {
+.tab:hover .tab-remove,
+.tab-close:focus-visible,
+.tab-remove:focus-visible {
     opacity: 1;
 }
 
@@ -1426,12 +1474,17 @@ h3 {
     align-items: center;
     opacity: 0;
     height: 0px;
+    /* Hidden fields must not take keyboard focus, which would scroll the panel. */
+    visibility: hidden;
     transition: all 0.2s ease;
 }
 
 .add-space-input-container.visible {
     opacity: 1;
     height: 5rem;
+    visibility: visible;
+    /* Focusable as soon as it opens; it still fades out when closed. */
+    transition: all 0.2s ease, visibility 0s;
 }
 
 #newSpaceName {
@@ -1713,13 +1766,16 @@ h3 {
     overflow-y: auto;
     z-index: 0;
     /* Ensure it's above other elements */
-    transition: opacity 0.3s ease;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
     /* padding: 8px; */
     /* font-size: 13px; */
 }
 
 .archived-tabs-popup.visible {
     opacity: 1;
+    visibility: visible;
+    transition: opacity 0.3s ease, visibility 0s;
     z-index: 2;
     height: 100%;
     margin-top: 12px;
@@ -2262,8 +2318,46 @@ h3 {
         color: #ECEFF1;
     }
 
+    .space-options-dropdown {
+        background-color: #2a2a2a;
+        box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.08);
+    }
+
+    .space-options-dropdown button {
+        color: #ECEFF1;
+    }
+
     .space-options-dropdown button:hover {
         background-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .options-separator {
+        background-color: rgba(255, 255, 255, 0.12);
+    }
+
+    .folder-icon {
+        fill: rgba(255, 255, 255, 0.8);
+    }
+
+    .folder-title {
+        color: #ECEFF1;
+    }
+
+    .tab:hover,
+    .folder-header:hover {
+        background: var(--space-bg-color-dark, rgba(255, 255, 255, 0.1));
+    }
+
+    .tab.active {
+        background: #ECEFF1;
+    }
+
+    .pinned-favicon:hover {
+        background-color: rgba(255, 255, 255, 0.16);
+    }
+
+    .space-switcher button.active {
+        background-color: #ECEFF1;
     }
 
     .folder-name {
@@ -2272,6 +2366,11 @@ h3 {
 
     .folder-toggle {
         color: rgba(255, 255, 255, 0.8);
+    }
+
+    .folder-header:hover .folder-toggle::before,
+    .folder-toggle:focus-visible::before {
+        border-top-color: rgba(255, 255, 255, 0.6);
     }
 
     .tab-placeholder {
@@ -2471,11 +2570,12 @@ h3 {
     /* Context menu dark mode */
     .context-menu {
         background-color: #2a2a2a;
-        border: 1px solid #444;
+        border: none;
+        box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.08);
     }
 
     .context-menu-item {
-        background-color: #2a2a2a;
+        background-color: transparent;
         color: #ECEFF1;
     }
 
@@ -2537,3 +2637,13 @@ h3 {
 }
 .tab-group-import p { margin: 0 0 8px; }
 .tab-group-import button { margin-right: 8px; padding: 6px 10px; cursor: pointer; }
+
+/* Respect a reduced-motion preference for every Sidecove animation. */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+    }
+}

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { cleanupPracticeTabs, preparePractice, isPracticeUrl, practiceUrl } from '../../tour-practice.js';
 import { TOUR_STEPS } from '../../tour-state.js';
-const base = 'chrome-extension://arcify/';
+const base = 'chrome-extension://sidecove/';
 function mockTabs() {
     const tabs = [], created = [];
     globalThis.chrome = { runtime: { getURL: path => base + path }, tabs: {

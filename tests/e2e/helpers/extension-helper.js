@@ -15,7 +15,7 @@ const __dirname = path.dirname(__filename);
  * @returns {Promise<{browser: Browser, extensionId: string}>}
  */
 export async function launchBrowserWithExtension(options = {}) {
-  const extensionPath = options.extensionPath || process.env.ARCIFY_TEST_EXTENSION_PATH || path.resolve(__dirname, '../../../dist');
+  const extensionPath = options.extensionPath || process.env.SIDECOVE_TEST_EXTENSION_PATH || path.resolve(__dirname, '../../../dist');
   // Default: headless (uses Chrome's new headless mode which supports extensions)
   // Set DEBUG=true or HEADED=true to see the browser window
   const isDebug = process.env.DEBUG === 'true' || process.env.HEADED === 'true';
@@ -23,6 +23,8 @@ export async function launchBrowserWithExtension(options = {}) {
 
   const browser = await puppeteer.launch({
     headless: headless ? 'new' : false,
+    // Reusing a profile keeps the extension's storage, as an update does.
+    ...(options.userDataDir ? { userDataDir: options.userDataDir } : {}),
     args: [
       `--disable-extensions-except=${extensionPath}`,
       `--load-extension=${extensionPath}`,

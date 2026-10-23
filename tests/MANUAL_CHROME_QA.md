@@ -5,7 +5,7 @@ Date: 2026-09-07
 Status: **Broad manual pass completed; drag-and-drop signoff pending.**
 
 The latest browser run is connected and usable. A fresh unsigned profile named
-Arcify Import QA has Home with two tabs, an expanded Drag Test Folder, and a
+The import QA profile has Home with two tabs, an expanded Drag Test Folder, and a
 Drag Destination space, ready for a human drag check. The native automation's
 drag action did not move either Chrome tabs or extension elements; no alternate
 Chrome adapter is available. This is neither a passed drag test nor a confirmed
@@ -173,7 +173,7 @@ succeeded without user intervention.
 
 ### Nested folder creation (2026-09-07)
 
-- Loaded updated unpacked build in Arcify Import QA using Chrome's extension Reload control.
+- Loaded updated unpacked build in the import QA profile using Chrome's extension Reload control.
 - Sync off: right-click Drag Test Folder → New Folder → Nested QA; created an indented child. Child menu offered Delete Folder only (no third level).
 - Switched to Drag Destination and back, expanded parent: Nested QA persisted. Renamed child to Nested Renamed; subsequent rendering retained the rename.
 - Enabled sync in Settings: parent context menu offered Delete Folder only; expanded parent and verified Nested Renamed was preserved.
@@ -197,7 +197,7 @@ succeeded without user intervention.
 
 ### Window scope and pinned order — browser verification completed after unlock (2026-09-08)
 
-Loaded the updated unpacked extension via Chrome's Reload button in Arcify Import QA, then used two native Chrome windows through computer-use UI controls.
+Loaded the updated unpacked extension via Chrome's Reload button in the import QA profile, then used two native Chrome windows through computer-use UI controls.
 
 - Sync off: window A retained its Example Domain temporary tab, Extensions tab and native pinned Favorite. A new window B with IANA Example Domains displayed only its own live tab and no native Favorite from A.
 - Pinned IANA Example Domains, then IANA-managed Reserved Domains in B using Alt+D. With inversion enabled, the visible order was Reserved Domains → Example Domains → Drag Test Folder.

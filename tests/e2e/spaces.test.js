@@ -946,7 +946,7 @@ describe('Space Management', () => {
       source.dispatchEvent(new DragEvent('dragend', { bubbles: true }));
     }, from, to, edge);
 
-    test('should keep space chips and Arcify bookmark folders in the same order', async () => {
+    test('should keep space chips and Sidecove bookmark folders in the same order', async () => {
       try {
         for (const name of ['Order A', 'Order B']) {
           await sidebarPage.close();
@@ -1002,7 +1002,7 @@ describe('Space Management', () => {
       }
     }, 120000);
 
-    test('should not pull a space folder moved out of Arcify back in when its chip is dragged', async () => {
+    test('should not pull a space folder moved out of the Sidecove folder back in when its chip is dragged', async () => {
       try {
         await sidebarPage.close();
         sidebarPage = await createSpace(browser, extensionId, 'Relocated');

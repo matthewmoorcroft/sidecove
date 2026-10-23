@@ -15,7 +15,7 @@ The `ChromeHelper` module encapsulates Chrome API interactions and provides a cl
 ## LocalStorage
 
 The `LocalStorage` module manages persistent storage using Chrome's bookmarks API:
-- `getOrCreateArcifyFolder()` - Gets or creates the root bookmark folder
+- `getOrCreateSidecoveFolder()` - Gets or creates the root bookmark folder
 - `getOrCreateSpaceFolder(name)` - Gets or creates a bookmark folder for a space
 
 ## Utils

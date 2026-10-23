@@ -266,7 +266,7 @@ test('clicking an unloaded favorite adopts an open unbound tab with its URL inst
     await page.waitForSelector(`.space.active [data-tab-type="pinned"] .tab[data-tab-id="${open}"][data-bookmark-id="${id}"]`);
 });
 
-test('moving the associated folder out of Arcify keeps live tabs visible and recovers by exact ID', async () => {
+test('moving the associated folder out of the Sidecove folder keeps live tabs visible and recovers by exact ID', async () => {
     const [live, favorite] = await page.evaluate(async ({ url, spaceId }) => {
         const ids = [];
         for (const suffix of ['folder-recovery', 'folder-recovery-favorite']) {

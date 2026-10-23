@@ -1,6 +1,6 @@
 # Onboarding validation
 
-Validated in Google Chrome's Arcify Onboarding QA profile using the production `dist` extension, ID `mjkcdkhinedbafmndhnbfdbbfbplmnhm`.
+Validated in a dedicated Google Chrome onboarding QA profile using the production `dist` extension, ID `mjkcdkhinedbafmndhnbfdbbfbplmnhm`.
 
 ## Current setup and handoff
 

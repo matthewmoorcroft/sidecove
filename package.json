@@ -1,6 +1,6 @@
 {
   "name": "sidecove",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Vertical tabs in Chrome's side panel: switch between spaces, keep pinned tabs and favourites, auto-archive idle tabs. Free and open.",
   "type": "module",
   "scripts": {
@@ -39,11 +39,12 @@
     "tabs",
     "productivity"
   ],
-  "author": "Nisarg Kolhe",
+  "author": "Matthew Moorcroft",
   "license": "GPL-3.0",
-  "contributors": [
-    "Matthew Moorcroft"
-  ],
+  "homepage": "https://github.com/matthewmoorcroft/sidecove",
+  "bugs": {
+    "url": "https://github.com/matthewmoorcroft/sidecove/issues"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/matthewmoorcroft/sidecove.git"

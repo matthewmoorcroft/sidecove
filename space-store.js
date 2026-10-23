@@ -118,7 +118,7 @@ export class SpaceStore {
     // Run on every worker startup and sidebar read, including version-2 installations.
     async discoverBookmarkSpaces() {
         const before = JSON.stringify(this.spaces);
-        const root = await LocalStorage.getOrCreateArcifyFolder();
+        const root = await LocalStorage.getOrCreateSidecoveFolder();
         const folders = (await chrome.bookmarks.getChildren(root.id)).filter(node => !node.url);
         for (const folder of folders) {
             let space = this.spaces.find(space => space.bookmarkFolderId === folder.id);

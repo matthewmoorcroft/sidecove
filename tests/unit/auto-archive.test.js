@@ -29,7 +29,7 @@ beforeEach(() => {
 function startBackground() {
     const event = () => ({ listeners: [], addListener(fn) { this.listeners.push(fn); } });
     const chrome = globalThis.chrome = {
-        runtime: { getURL: path => `chrome-extension://arcify/${path}`, onInstalled: event(), onStartup: event(), onMessage: event() },
+        runtime: { getURL: path => `chrome-extension://sidecove/${path}`, onInstalled: event(), onStartup: event(), onMessage: event() },
         sidePanel: { setPanelBehavior: async () => {} },
         commands: { onCommand: event() },
         alarms: { onAlarm: event() },

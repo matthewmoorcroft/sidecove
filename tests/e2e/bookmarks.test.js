@@ -694,10 +694,10 @@ describe('Bookmarks and Pinned Tabs', () => {
         // Open two test pages
         const runId = Date.now();
         const testPage1 = await browser.newPage();
-        await testPage1.goto(`https://www.example.com/?arcify-count=${runId}-1`, { waitUntil: 'domcontentloaded' });
+        await testPage1.goto(`https://www.example.com/?sidecove-count=${runId}-1`, { waitUntil: 'domcontentloaded' });
         await delay(500);
         const testPage2 = await browser.newPage();
-        await testPage2.goto(`https://www.example.com/?arcify-count=${runId}-2`, { waitUntil: 'domcontentloaded' });
+        await testPage2.goto(`https://www.example.com/?sidecove-count=${runId}-2`, { waitUntil: 'domcontentloaded' });
         await delay(1000);
 
         // Close and reopen sidebar to pick up both tabs
@@ -1146,13 +1146,13 @@ describe('Bookmarks and Pinned Tabs', () => {
         // Open multiple test pages
         const runId = Date.now();
         const testPage1 = await browser.newPage();
-        await testPage1.goto(`https://www.example.com/?arcify-multi=${runId}-1`, { waitUntil: 'domcontentloaded' });
+        await testPage1.goto(`https://www.example.com/?sidecove-multi=${runId}-1`, { waitUntil: 'domcontentloaded' });
         await delay(500);
         const testPage2 = await browser.newPage();
-        await testPage2.goto(`https://www.example.com/?arcify-multi=${runId}-2`, { waitUntil: 'domcontentloaded' });
+        await testPage2.goto(`https://www.example.com/?sidecove-multi=${runId}-2`, { waitUntil: 'domcontentloaded' });
         await delay(500);
         const testPage3 = await browser.newPage();
-        await testPage3.goto(`https://www.example.com/?arcify-multi=${runId}-3`, { waitUntil: 'domcontentloaded' });
+        await testPage3.goto(`https://www.example.com/?sidecove-multi=${runId}-3`, { waitUntil: 'domcontentloaded' });
         await delay(1000);
 
         // Close and reopen sidebar to pick up all tabs

@@ -80,7 +80,8 @@ describe('space navigation', () => {
     });
 
     test('the active chip stays in view with many spaces', async () => {
-        for (const name of ['Travel', 'Finance', 'Side project', 'Photos']) await createSpaceInPage(name);
+        // Enough spaces that even compact chips overflow the strip.
+        for (const name of ['Travel', 'Finance', 'Side project', 'Photos', 'Garden', 'Recipes', 'Games', 'Studio']) await createSpaceInPage(name);
         await sleep(600);
         const geometry = await page.evaluate(() => {
             const strip = document.getElementById('spaceSwitcher');
