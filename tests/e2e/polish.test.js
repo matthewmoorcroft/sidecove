@@ -88,3 +88,16 @@ test('a favorite that wraps onto a new row keeps the same width as the others (u
     expect(Math.max(...widths) - Math.min(...widths)).toBeLessThanOrEqual(1);
     await page.evaluate(ids => chrome.tabs.remove(ids), ids);
 });
+
+test('the welcome screens send feedback to the Sidecove issues page and show no email address', async () => {
+    for (const file of ['installation-onboarding.html', 'onboarding.html']) {
+        const welcome = await browser.newPage();
+        await welcome.goto(`chrome-extension://${extensionId}/${file}`, { waitUntil: 'domcontentloaded' });
+        const found = await welcome.evaluate(() => ({
+            feedback: [...document.querySelectorAll('a')].some(a => a.href === 'https://github.com/matthewmoorcroft/sidecove/issues'),
+            emails: (document.body.innerText.match(/[\w.+-]+@[\w-]+\.[\w.]+/g) || []).concat([...document.querySelectorAll('a[href^="mailto:"]')].map(a => a.href))
+        }));
+        await welcome.close();
+        expect({ file, ...found }).toEqual({ file, feedback: true, emails: [] });
+    }
+});

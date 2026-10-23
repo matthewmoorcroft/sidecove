@@ -233,7 +233,6 @@ Sidecove reads your tabs' titles and URLs only to show and manage them in the si
 
 ## Acknowledgments
 
-- Sidecove is a fork of [Arcify](https://github.com/nisargkolhe/arcify) by Nisarg Kolhe and its contributors, licensed under GPL-3.0. The original copyright and licence are kept, and this repository's history records every change made since.
 - The sidebar, spaces and pinned-tab workflow was inspired by the Arc browser. Arc is a trademark of The Browser Company; Sidecove is not affiliated with it.
 - Thanks to all contributors who help improve this project
 

@@ -13,6 +13,7 @@ A clearer drop indicator and a polish pass, with no new permissions.
 - Animations respect the system's reduce-motion setting.
 - **Guided tour:** Next and the other tour buttons now have light text on a deep fill of the space colour, at least 4.5:1 contrast in every space colour in light and dark, so Next no longer looks disabled. Stepping through the tour no longer flashes a scroll bar under the card.
 - The product is called Sidecove throughout, including the tour's "Make Sidecove feel like you". Existing spaces, favorites and settings carry over unchanged.
+- The welcome screen points feedback to [GitHub Issues](https://github.com/matthewmoorcroft/sidecove/issues).
 
 ## 1.1.0
 
