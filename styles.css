@@ -375,36 +375,37 @@ h3 {
     border-color: rgba(0, 0, 0, 0.3);
 }
 
+/* Swatches show the same override as the space background (upstream issue #39). */
 .color-swatch[data-color="grey"] {
-    background-color: #9CA3AF;
+    background-color: var(--user-chrome-grey-color, #9CA3AF);
 }
 
 .color-swatch[data-color="blue"] {
-    background-color: #60A5FA;
+    background-color: var(--user-chrome-blue-color, #60A5FA);
 }
 
 .color-swatch[data-color="red"] {
-    background-color: #F87171;
+    background-color: var(--user-chrome-red-color, #F87171);
 }
 
 .color-swatch[data-color="yellow"] {
-    background-color: #FBBF24;
+    background-color: var(--user-chrome-yellow-color, #FBBF24);
 }
 
 .color-swatch[data-color="green"] {
-    background-color: #34D399;
+    background-color: var(--user-chrome-green-color, #34D399);
 }
 
 .color-swatch[data-color="pink"] {
-    background-color: #F472B6;
+    background-color: var(--user-chrome-pink-color, #F472B6);
 }
 
 .color-swatch[data-color="purple"] {
-    background-color: #A78BFA;
+    background-color: var(--user-chrome-purple-color, #A78BFA);
 }
 
 .color-swatch[data-color="cyan"] {
-    background-color: #22D3EE;
+    background-color: var(--user-chrome-cyan-color, #22D3EE);
 }
 
 .folder {
