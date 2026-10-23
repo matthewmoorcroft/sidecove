@@ -391,6 +391,29 @@ describe('multi-select and folders', () => {
         expect(await selectedIds()).toEqual([]);
     });
 
+    test('a dragged selection moves together to the top of the temporary tabs', async () => {
+        const ids = await openTabs(['order-a', 'order-b', 'order-c', 'order-d']);
+        const order = await page.$$eval('.space.active [data-tab-type="temporary"] .tab[data-tab-id]', rows => rows.map(r => Number(r.dataset.tabId)));
+        const [first, second, third, fourth] = order;
+        await click(rowOf(second), { metaKey: true });
+        await click(rowOf(fourth), { metaKey: true });
+        await page.evaluate(({ source, target }) => {
+            const from = document.querySelector(source), to = document.querySelector(target);
+            const dataTransfer = new DataTransfer();
+            const r = to.getBoundingClientRect();
+            const point = { clientX: r.left + r.width / 2, clientY: r.top + 2 };
+            from.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer }));
+            to.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer, ...point }));
+            to.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer, ...point }));
+            from.dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer }));
+        }, { source: rowOf(fourth), target: rowOf(first) });
+        const expected = [second, fourth, first, third, ...order.slice(4)];
+        await page.waitForFunction(expected => JSON.stringify([...document.querySelectorAll('.space.active [data-tab-type="temporary"] .tab[data-tab-id]')]
+            .map(r => Number(r.dataset.tabId))) === JSON.stringify(expected), { polling: 100 }, expected);
+        expect(await selectedIds()).toEqual([]);
+        await page.evaluate(ids => chrome.tabs.remove(ids), ids);
+    });
+
     test('Close on a selection closes the tabs and Undo reopens them', async () => {
         const [a, b] = await openTabs(['close-a', 'close-b']);
         await click(rowOf(a), { metaKey: true });

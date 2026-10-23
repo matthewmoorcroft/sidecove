@@ -70,7 +70,8 @@ export async function switchSpaceWithoutSidebar({ chromeApi, dispatch, windowId,
     const { activeSpaces = {} } = await chromeApi.storage.session.get('activeSpaces');
     const owner = activeTab && spaces.find(space =>
         [...space.spaceBookmarks, ...space.temporaryTabs].includes(activeTab.id));
-    const currentId = owner?.id || activeSpaces[windowId] || spaces[0]?.id;
+    const recorded = spaces.some(space => space.id === activeSpaces[windowId]) ? activeSpaces[windowId] : null;
+    const currentId = recorded || owner?.id || spaces[0]?.id;
     const targetId = resolveSpaceTarget(spaces, currentId, request);
     if (!targetId) return null;
     const target = spaces.find(space => space.id === targetId);

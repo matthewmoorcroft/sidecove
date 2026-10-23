@@ -464,6 +464,9 @@ async function updatePinnedFavicons() {
                     }
                 }
 
+                // Only the dragged tab is pinned; the rest of a selection stays where it was.
+                clearSelection();
+
                 // Step 1: Pin the tab (this adds it to the end by default)
                 await chrome.tabs.update(tabId, { pinned: true });
 
@@ -2397,7 +2400,17 @@ async function setupDragAndDrop(pinnedContainer, tempContainer) {
             }
             const carried = draggingElement ? dragItemsFor(draggingElement) : [];
             if (carried.length > 1) {
-                await dropItemsInSection(carried.map(describeItem), container, getDropTargetFolderContent(e.target, draggingElement));
+                const items = carried.map(describeItem);
+                let temporaryDisplayOrder = null;
+                if (container.dataset.tabType === 'temporary') {
+                    // Gather the open tabs at the drop point in selection order, then read the order before any await.
+                    placeAtDropPoint(container, draggingElement, e);
+                    const index = carried.indexOf(draggingElement);
+                    draggingElement.before(...carried.slice(0, index).filter(el => el.dataset.tabId));
+                    draggingElement.after(...carried.slice(index + 1).filter(el => el.dataset.tabId));
+                    temporaryDisplayOrder = getTempSectionTabIds(container.closest('.space'));
+                }
+                await dropItemsInSection(items, container, getDropTargetFolderContent(e.target, draggingElement), temporaryDisplayOrder);
                 return;
             }
             if (draggingElement) {
@@ -2424,35 +2437,7 @@ async function setupDragAndDrop(pinnedContainer, tempContainer) {
                 if (targetFolderElement) openFolder(targetFolderElement);
 
                 const targetContainer = targetFolder || container;
-
-                // Calculate drop position using same logic as indicators
-                const afterElement = getDragAfterElementTabs(targetContainer, e.clientY);
-                if (afterElement && targetContainer.contains(afterElement)) {
-                    // Check if this is a placeholder (empty container)
-                    if (afterElement.classList.contains('tab-placeholder')) {
-                        // Empty container - append directly and hide placeholder
-                        targetContainer.appendChild(draggingElement);
-                        afterElement.classList.add('hidden');
-                    } else {
-                        // Normal positioning logic for actual tabs/folders
-                        const position = getDropPosition(afterElement, e.clientX, e.clientY, false);
-
-                        // Position element based on indicator logic
-                        if (position === 'above') {
-                            targetContainer.insertBefore(draggingElement, afterElement);
-                        } else { // 'below'
-                            const nextSibling = afterElement.nextElementSibling;
-                            if (nextSibling) {
-                                targetContainer.insertBefore(draggingElement, nextSibling);
-                            } else {
-                                targetContainer.appendChild(draggingElement);
-                            }
-                        }
-                    }
-                } else {
-                    // Fallback: append to end if no specific target
-                    targetContainer.appendChild(draggingElement);
-                }
+                placeAtDropPoint(targetContainer, draggingElement, e);
 
                 const dropInverted = await Utils.getInvertTabOrder();
                 const dropIntent = container.dataset.tabType === 'temporary'
@@ -2492,8 +2477,25 @@ async function setupDragAndDrop(pinnedContainer, tempContainer) {
     });
 }
 
-// A dragged selection lands at the end of the folder or section it is dropped on.
-async function dropItemsInSection(items, container, targetFolderContent) {
+// Put a dragged row where the drop indicator showed it, or at the end of the container.
+function placeAtDropPoint(targetContainer, element, e) {
+    const afterElement = getDragAfterElementTabs(targetContainer, e.clientY);
+    if (!afterElement || !targetContainer.contains(afterElement)) {
+        targetContainer.appendChild(element);
+    } else if (afterElement.classList.contains('tab-placeholder')) {
+        // Empty container - append directly and hide placeholder
+        targetContainer.appendChild(element);
+        afterElement.classList.add('hidden');
+    } else if (getDropPosition(afterElement, e.clientX, e.clientY, false) === 'above') {
+        targetContainer.insertBefore(element, afterElement);
+    } else {
+        afterElement.after(element);
+    }
+}
+
+// A dragged selection lands at the end of the folder or favorites it is dropped on. Among
+// temporary tabs it takes the drop point, given as the section's display order.
+async function dropItemsInSection(items, container, targetFolderContent, temporaryDisplayOrder = null) {
     // Read the drop target now; a refresh may replace these elements during the awaits.
     const space = spaces.find(s => s.id === container.closest('.space')?.dataset.spaceId);
     const pinned = container.dataset.tabType === 'pinned';
@@ -2513,6 +2515,9 @@ async function dropItemsInSection(items, container, targetFolderContent) {
             if (item.kind !== 'favorite' || !item.tabId) continue;
             await moveTabToTemp(space, await chrome.tabs.get(item.tabId), { refresh: false });
         }
+        if (!temporaryDisplayOrder) return;
+        space.temporaryTabs = mergeCapturedTemporaryOrder(space.temporaryTabs, temporaryDisplayOrder, await Utils.getInvertTabOrder());
+        await persistSpaceTabOrder(space.id);
     });
 }
 
