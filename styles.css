@@ -2345,7 +2345,7 @@ h3 {
 
     .tab:hover,
     .folder-header:hover {
-        background: color-mix(in srgb, var(--space-bg-color, #555) 82%, white);
+        background: var(--space-bg-color-dark, rgba(255, 255, 255, 0.1));
     }
 
     .tab.active {

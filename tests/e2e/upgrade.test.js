@@ -6,7 +6,7 @@ import { launchBrowserWithExtension, openSidebar } from './helpers/extension-hel
 
 // Updating from 1.1.0 keeps every space, favorite and setting. An unpacked extension's ID
 // comes from its folder, so the update replaces the files in one folder and reuses the
-// profile. SIDECOVE_PREVIOUS_BUILD can point at a real 1.1.0 build; otherwise the current
+// profile. CI points SIDECOVE_PREVIOUS_BUILD at a real 1.1.0 build; without it the current
 // build is installed first under version 1.1.0.
 const dist = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../dist');
 let root, extensionDir, profileDir;
@@ -46,6 +46,7 @@ afterAll(() => {
 
 test('a 1.1.0 profile keeps its spaces, favorites and settings after updating', async () => {
     const previous = process.env.SIDECOVE_PREVIOUS_BUILD;
+    if (!previous) console.warn('SIDECOVE_PREVIOUS_BUILD is not set, so this relabels the current build as 1.1.0 instead of installing the real 1.1.0.');
     install(previous || dist, previous ? null : '1.1.0');
     let { browser, extensionId } = await launchBrowserWithExtension({ extensionPath: extensionDir, userDataDir: profileDir });
     let page = await openSidebar(browser, extensionId);

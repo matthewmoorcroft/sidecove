@@ -33,6 +33,16 @@ jobs:
       - name: Install Puppeteer browser and system deps
         run: npx puppeteer browsers install chrome
 
+      - name: Build Sidecove 1.1.0 for the upgrade test
+        run: |
+          git fetch --depth=1 origin tag v1.1.0
+          mkdir -p "$RUNNER_TEMP/sidecove-1.1.0"
+          git archive v1.1.0 | tar -x -C "$RUNNER_TEMP/sidecove-1.1.0"
+          cd "$RUNNER_TEMP/sidecove-1.1.0"
+          PUPPETEER_SKIP_DOWNLOAD=1 npm ci
+          npm run build
+          echo "SIDECOVE_PREVIOUS_BUILD=$RUNNER_TEMP/sidecove-1.1.0/dist" >> "$GITHUB_ENV"
+
       - name: Run E2E tests
         run: npm test
         env:

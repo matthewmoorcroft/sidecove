@@ -101,3 +101,48 @@ test('the welcome screens send feedback to the Sidecove issues page and show no 
         expect({ file, ...found }).toEqual({ file, feedback: true, emails: [] });
     }
 });
+
+test.each(['grey', 'blue', 'red', 'yellow', 'green', 'pink', 'purple', 'cyan'])('in dark mode a hovered tab and folder keep their titles readable in the %s space', async color => {
+    await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: 'dark' }]);
+    const { tabId, folderId } = await page.evaluate(async color => {
+        const { spaces } = await chrome.runtime.sendMessage({ type: 'spaceStore', action: 'get' });
+        await chrome.runtime.sendMessage({ type: 'spaceStore', action: 'patch', before: spaces, after: spaces.map((s, i) => i === 0 ? { ...s, color } : s) });
+        const folder = await chrome.bookmarks.create({ parentId: spaces[0].bookmarkFolderId, title: 'Hover folder' });
+        const tab = await chrome.tabs.create({ url: 'about:blank#hover', active: false });
+        return { tabId: tab.id, folderId: folder.id };
+    }, color);
+    const rows = {
+        tab: [`.space.active .tab[data-tab-id="${tabId}"]`, '.tab-title-display'],
+        folder: [`.space.active .folder[data-bookmark-id="${folderId}"] > .folder-header`, '.folder-title']
+    };
+    await page.waitForFunction((color, selectors) => document.querySelector('.space.active .space-color-select')?.value === color
+        && selectors.every(selector => document.querySelector(selector)), { polling: 100 }, color, Object.values(rows).map(([row]) => row));
+    // Let the refresh after the change settle so it does not replace the hovered row.
+    await sleep(1000);
+    await page.bringToFront();
+    const contrast = {};
+    for (const [name, [row, title]] of Object.entries(rows)) {
+        await page.hover(row);
+        await sleep(300);
+        // WCAG contrast of the title against the hovered row, measured from computed colours.
+        contrast[name] = await page.evaluate((row, title) => {
+            const ctx = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
+            const rgba = css => { ctx.clearRect(0, 0, 1, 1); ctx.fillStyle = '#000'; ctx.fillStyle = css; ctx.fillRect(0, 0, 1, 1); const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data; return [r, g, b, a / 255]; };
+            const over = (top, under) => top.slice(0, 3).map((c, i) => c * top[3] + under[i] * (1 - top[3]));
+            const lum = rgb => { const [r, g, b] = rgb.map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+            const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+            const rowElement = document.querySelector(row);
+            if (!rowElement.matches(':hover')) return 'not hovered';
+            const sidebar = over(rgba(getComputedStyle(document.getElementById('sidebar-container')).backgroundColor), [0, 0, 0]);
+            const background = over(rgba(getComputedStyle(rowElement).backgroundColor), sidebar);
+            return +ratio(over(rgba(getComputedStyle(rowElement.querySelector(title)).color), background), background).toFixed(2);
+        }, row, title);
+    }
+    await page.mouse.move(350, 795);
+    await page.evaluate(async ({ tabId, folderId }) => {
+        await chrome.tabs.remove(tabId);
+        await chrome.bookmarks.removeTree(folderId);
+    }, { tabId, folderId });
+    await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: 'light' }]);
+    for (const [name, value] of Object.entries(contrast)) expect({ name, value: value >= 4.5 }).toEqual({ name, value: true });
+});
