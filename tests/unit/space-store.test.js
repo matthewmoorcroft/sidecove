@@ -19,7 +19,7 @@ beforeEach(() => {
     tabs = [{ id: 1, windowId: 1, url: 'https://one.test/', groupId: -1 }, { id: 2, windowId: 1, url: 'https://two.test/', groupId: -1 }];
     const event = () => ({ listeners: [], addListener(fn) { this.listeners.push(fn); }, emit(...args) { this.listeners.forEach(fn => fn(...args)); } });
     globalThis.chrome = {
-        runtime: { getURL: path => `chrome-extension://arcify/${path}` },
+        runtime: { getURL: path => `chrome-extension://sidecove/${path}` },
         storage: { local: area(local), session: area(session), sync: area(sync), onChanged: event() },
         tabs: { onCreated: event(), onUpdated: event(), onRemoved: event(), onReplaced: event(), onActivated: event(), onMoved: event(), query: async query => tabs.filter(t => query.groupId === undefined || query.groupId === t.groupId),
             group: async args => { mutations.push(['group', args]); const id = args.groupId ?? 100 + groups.length; if (!groups.some(g => g.id === id)) groups.push({ id, windowId: 1 }); tabs.filter(t => args.tabIds.includes(t.id)).forEach(t => t.groupId = id); return id; },
@@ -137,7 +137,7 @@ test('background event handlers track tab replacement and preserve window-close 
 });
 test('extension pages are removed when a blank helper tab finishes navigating', async () => {
     const store = new SpaceStore(); await store.dispatch({ action: 'get' });
-    tabs[0].url = 'chrome-extension://arcify/options.html';
+    tabs[0].url = 'chrome-extension://sidecove/options.html';
     await store.run(async () => { store.track(tabs[0]); await store.persist(); });
     assert.equal(ownerOf(local.spaces, 1), undefined);
 });
@@ -189,7 +189,7 @@ test('explicit tab focus raises the window returned by Chrome', async () => {
     await Utils.focusTab(2);
     assert.deepEqual(actions, [['tab', 2, { active: true }], ['window', 22, { focused: true }]]);
 });
-test('version-2 startup discovers Arcify bookmark spaces with group sync off', async () => {
+test('version-2 startup discovers Sidecove bookmark spaces with group sync off', async () => {
     local.spaces = [];
     local.spaceRegistry = { project: { spaceUuid: 'saved-project', color: 'purple', bookmarkFolderId: 'project' } };
     const tree = { root: [{ id: 'project', title: 'Project' }, { id: 'loose', title: 'Not a space', url: 'https://loose.test/' }], project: [{ id: 'saved-link', title: 'Saved', url: 'https://saved.test/' }, { id: 'nested', title: 'Reading' }], nested: [] };
@@ -217,7 +217,7 @@ test('sidebar reads discover later bookmark folders and follow folder renames by
     assert.equal(store.spaces[2].bookmarkFolderId, 'later');
     assert.deepEqual(mutations, []);
 });
-test('space order follows the order of space folders under Arcify', async () => {
+test('space order follows the order of space folders under the Sidecove folder', async () => {
     let folders = [{ id: 'b', title: 'b' }, { id: 'loose', title: 'Loose', url: 'https://loose.test/' }, { id: 'a', title: 'a' }];
     chrome.bookmarks.getChildren = async id => id === 'root' ? structuredClone(folders) : [];
     const store = new SpaceStore();

@@ -29,15 +29,15 @@ export const TOUR_STEPS = [
       caption: 'Archive a tab for later, then bring it back with a click.',
       detail: 'Manual archives remain accessible with auto-archiving off. Enable automatic cleanup in Settings and choose an inactivity interval; pinned tabs and tabs playing audio stay open. Clean All closes temporary tabs in the current space.',
       target: '.space .sidebar-button' },
-    { id: 'settings', label: 'Your preferences', title: 'Make Arcify feel like you',
+    { id: 'settings', label: 'Your preferences', title: 'Make Sidecove feel like you',
       tip: 'Open the highlighted Options menu → Settings for colors, tab order, automatic cleanup, and Chrome group sync.',
       caption: 'Your colors. Your shortcuts. Your way of keeping things organized.',
-      detail: 'Settings includes default space, tab order, collapsed-folder behavior, auto-archiving, custom colors, and Advanced debug logging. Optional Chrome group sync mirrors Arcify’s spaces; Arcify stays authoritative. Turning sync off leaves Chrome groups unchanged.',
+      detail: 'Settings includes default space, tab order, collapsed-folder behavior, auto-archiving, custom colors, and Advanced debug logging. Optional Chrome group sync mirrors Sidecove’s spaces; Sidecove stays authoritative. Turning sync off leaves Chrome groups unchanged.',
       target: '.space .space-options' },
     { id: 'done', label: 'All done', title: 'You’re all set.',
-      tip: 'You’ve seen the essentials. Start organizing your tabs with Arcify.',
+      tip: 'You’ve seen the essentials. Start organizing your tabs with Sidecove.',
       caption: 'Your practice tabs will close when you start.',
-      detail: 'Create spaces for different parts of your life, pin the tabs you return to, and let Arcify keep the rest within reach.',
+      detail: 'Create spaces for different parts of your life, pin the tabs you return to, and let Sidecove keep the rest within reach.',
       target: null }
 ];
 

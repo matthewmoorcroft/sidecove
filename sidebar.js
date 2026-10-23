@@ -125,7 +125,7 @@ function disposeEditorsInElement(element) {
 }
 
 chrome.runtime.onMessage.addListener(message => {
-    if (message.action !== 'arcifyBookmarksChanged') return;
+    if (message.action !== 'sidecoveBookmarksChanged') return;
     scheduleBookmarkRefresh();
 });
 
@@ -158,7 +158,7 @@ async function replaceBookmarkUrlWithCurrentUrl(tab, tabElement) {
 
     const newUrl = liveTab?.url || tabElement?.dataset?.url || tab?.url || null;
     if (!newUrl) {
-        console.warn('[Arcify] Replace bookmark URL failed: missing current tab URL', { tabId: tab.id });
+        console.warn('[Sidecove] Replace bookmark URL failed: missing current tab URL', { tabId: tab.id });
         return;
     }
     const newTitle = liveTab?.title || tab?.title || null;
@@ -170,7 +170,7 @@ async function replaceBookmarkUrlWithCurrentUrl(tab, tabElement) {
     const resolvedBookmarkId = bookmarkId;
 
     if (!resolvedBookmarkId) {
-        console.warn('[Arcify] Cannot replace bookmark URL: missing bookmarkId and unable to resolve.', {
+        console.warn('[Sidecove] Cannot replace bookmark URL: missing bookmarkId and unable to resolve.', {
             tabId: tab.id,
             pinnedUrl,
             dataset: tabElement?.dataset
@@ -187,7 +187,7 @@ async function replaceBookmarkUrlWithCurrentUrl(tab, tabElement) {
         if (newTitle) updatePayload.title = newTitle;
         await chrome.bookmarks.update(bookmark.id, updatePayload);
     } catch (e) {
-        console.error('[Arcify] chrome.bookmarks.update failed', { bookmarkId: resolvedBookmarkId, newUrl, error: e });
+        console.error('[Sidecove] chrome.bookmarks.update failed', { bookmarkId: resolvedBookmarkId, newUrl, error: e });
         return;
     }
 
@@ -1171,12 +1171,12 @@ function showSpaceIconPicker(space, anchor) {
 
 async function moveSpaceFolderBefore(space, nextSpace) {
     try {
-        const arcifyFolder = await LocalStorage.getOrCreateArcifyFolder();
-        const children = await chrome.bookmarks.getChildren(arcifyFolder.id);
+        const sidecoveFolder = await LocalStorage.getOrCreateSidecoveFolder();
+        const children = await chrome.bookmarks.getChildren(sidecoveFolder.id);
         if (!children.some(node => node.id === space.bookmarkFolderId)) return;
         const nextIndex = children.findIndex(node => node.id === nextSpace?.bookmarkFolderId);
         const index = nextIndex < 0 ? children.length : nextIndex;
-        await chrome.bookmarks.move(space.bookmarkFolderId, { parentId: arcifyFolder.id, index });
+        await chrome.bookmarks.move(space.bookmarkFolderId, { parentId: sidecoveFolder.id, index });
     } catch (error) {
         Logger.warn('Could not reorder space folder:', error);
     }
@@ -1265,7 +1265,7 @@ async function handleSpaceSwitcherDrop(e) {
 
         spaces.splice(newIndex, 0, draggedSpace);
 
-        // Move the space folder too: discovery orders spaces by their folders under Arcify.
+        // Move the space folder too: discovery orders spaces by their folders under the Sidecove folder.
         await moveSpaceFolderBefore(draggedSpace, spaces[newIndex + 1]);
 
         saveSpaces();
@@ -1328,8 +1328,8 @@ async function updateSpaceSwitcher() {
     revealActiveSpaceChip();
 
     // Inactive space from bookmarks
-    const arcifyFolder = await LocalStorage.getOrCreateArcifyFolder();
-    const spaceFolders = await chrome.bookmarks.getChildren(arcifyFolder.id);
+    const sidecoveFolder = await LocalStorage.getOrCreateSidecoveFolder();
+    const spaceFolders = await chrome.bookmarks.getChildren(sidecoveFolder.id);
     spaceFolders.forEach(spaceFolder => {
         if (spaces.find(space => space.name == spaceFolder.title)) {
             return;
@@ -1666,8 +1666,8 @@ async function createSpaceFromInactive(spaceName, tabToMove) {
     Logger.log(`Creating inactive space "${spaceName}" with tab:`, tabToMove);
     isCreatingSpace = true;
     try {
-        const arcifyFolder = await LocalStorage.getOrCreateArcifyFolder();
-        const spaceFolders = await chrome.bookmarks.getChildren(arcifyFolder.id);
+        const sidecoveFolder = await LocalStorage.getOrCreateSidecoveFolder();
+        const spaceFolders = await chrome.bookmarks.getChildren(sidecoveFolder.id);
         const spaceFolder = spaceFolders.find(f => f.title === spaceName);
 
         if (!spaceFolder) {
@@ -1769,7 +1769,7 @@ async function moveTabToPinned(space, tab) {
     updatePinnedSectionPlaceholders();
 
     // Persist extension ordering after membership changes.
-    await persistSpaceTabOrder(space.id, { source: 'arcify', movedTabId: tab.id });
+    await persistSpaceTabOrder(space.id);
     await refreshActiveSpaceUI();
 }
 
@@ -1790,7 +1790,7 @@ async function restoreFavoriteTab(spaceId, tabId, index, bookmark) {
     await Utils.setPinnedTabState(tabId, { pinnedUrl: bookmark.url, bookmarkId: bookmark.id });
     space.temporaryTabs = space.temporaryTabs.filter(id => id !== tabId);
     space.spaceBookmarks.splice(index, 0, tabId);
-    await persistSpaceTabOrder(space.id, { source: 'arcify', movedTabId: tabId });
+    await persistSpaceTabOrder(space.id);
     await refreshActiveSpaceUI();
 }
 
@@ -1821,7 +1821,7 @@ async function moveTabToTemp(space, tab, { temporaryDisplayOrder = null, inverte
     }
 
     // Persist extension ordering after membership changes.
-    await persistSpaceTabOrder(space.id, { source: 'arcify', movedTabId: tab.id });
+    await persistSpaceTabOrder(space.id);
     if (refresh) await refreshActiveSpaceUI();
 }
 
@@ -1899,7 +1899,7 @@ function syncCollapsedFolderTabs(folderElement) {
         });
 
         if (showAllOpenTabsInCollapsedFolders) {
-            // Arcify mode: show all open (non-bookmark-only) tabs even when folder is collapsed.
+            // Arc-style mode: show all open (non-bookmark-only) tabs even when folder is collapsed.
             const openTabs = Array.from(folderContent.querySelectorAll(':scope > .tab'))
                 .filter(t => !t.classList.contains('bookmark-only') && t.dataset.tabId);
             openTabs.forEach(t => projectFolderTab(t, collapsedContainer));
@@ -2279,10 +2279,10 @@ async function persistSpaceTabOrder(spaceId) {
 }
 
 /**
- * Called after an Arcify drag+drop to update the space model (spaceBookmarks/temporaryTabs)
+ * Called after an in-sidebar drag and drop to update the space model (spaceBookmarks/temporaryTabs)
  * from the DOM and persist the extension order.
  */
-async function handleArcifyOrderChangeAfterDrop(container) {
+async function handleOrderChangeAfterDrop(container) {
     if (!container) return;
     const spaceElement = container.closest('.space');
     if (!spaceElement) return;
@@ -2455,10 +2455,10 @@ async function setupDragAndDrop(pinnedContainer, tempContainer) {
                     syncCollapsedFolderTabs(targetFolderElement);
                 }
 
-                // Update the model from the DOM (Arcify is source of truth here), then reconcile Chrome.
+                // Update the model from the DOM (the sidebar is the source of truth here), then reconcile Chrome.
                 // This is intentionally done after bookmark operations so section membership is correct.
                 if (droppedFolder || (droppedTabId && !operationResult?.orderHandled)) {
-                    await handleArcifyOrderChangeAfterDrop(container);
+                    await handleOrderChangeAfterDrop(container);
                 }
                 if (operationResult?.orderHandled) await refreshActiveSpaceUI({ force: true });
                 } catch (error) {
@@ -3385,7 +3385,7 @@ async function createTabElement(tab, isPinned = false, isBookmarkOnly = false) {
                             }
 
                             // Ensure restored tab lands in correct Chrome position for this space.
-                            await persistSpaceTabOrder(targetSpaceId, { source: 'arcify', movedTabId: restoredTab.id });
+                            await persistSpaceTabOrder(targetSpaceId);
 
                             // Replace the element with the active tab element
                             if (isPinned) {
@@ -3481,7 +3481,7 @@ async function createTabElement(tab, isPinned = false, isBookmarkOnly = false) {
         // Read the live mute state alongside the space folders so the menu opens no later.
         const [muted, allBookmarkSpaceFolders] = await Promise.all([
             isBookmarkOnly || !tab.id ? false : chrome.tabs.get(tab.id).then(live => Boolean(live.mutedInfo?.muted), () => false),
-            LocalStorage.getOrCreateArcifyFolder().then(folder => chrome.bookmarks.getChildren(folder.id))
+            LocalStorage.getOrCreateSidecoveFolder().then(folder => chrome.bookmarks.getChildren(folder.id))
         ]);
         showTabContextMenu(
             e.pageX,

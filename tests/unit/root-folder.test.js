@@ -6,11 +6,12 @@ import { BookmarkUtils } from '../../bookmark-utils.js';
 import { readBookmarkSpaces } from '../../onboarding-bookmarks.js';
 import { getSpaceBookmarkFolder } from '../../space-bookmarks.js';
 
-// A bookmark tree holding an Arcify root left by the upstream extension, and optionally a Sidecove root.
+// A bookmark tree holding a root folder another extension left behind, and optionally a Sidecove root.
+// Only the exact Sidecove title is ever adopted, whatever the other folder is called.
 function mock({ sidecove = false } = {}) {
     const nodes = [
         { id: '0', title: '' }, { id: '2', parentId: '0', title: 'Other bookmarks' },
-        { id: 'arcify', parentId: '2', title: 'Arcify' }, { id: 'arcify-space', parentId: 'arcify', title: 'Work' }
+        { id: 'upstream', parentId: '2', title: 'Upstream' }, { id: 'upstream-space', parentId: 'upstream', title: 'Work' }
     ];
     if (sidecove) nodes.push({ id: 'sidecove', parentId: '2', title: 'Sidecove' }, { id: 'sidecove-space', parentId: 'sidecove', title: 'Home' });
     const writes = [];
@@ -29,25 +30,25 @@ test('the root bookmark folder is titled Sidecove', () => {
     assert.equal(ROOT_FOLDER_TITLE, 'Sidecove');
 });
 
-test('a fresh install creates a Sidecove folder and leaves an existing Arcify folder untouched', async () => {
+test('a fresh install creates a Sidecove folder and leaves another extension's folder untouched', async () => {
     const { writes } = mock();
-    const folder = await LocalStorage.getOrCreateArcifyFolder();
+    const folder = await LocalStorage.getOrCreateSidecoveFolder();
     assert.equal(folder.title, 'Sidecove');
     assert.deepEqual(writes, [['create', { title: 'Sidecove' }]]);
 });
 
 test('an existing Sidecove folder is reused without writes', async () => {
     const { writes } = mock({ sidecove: true });
-    assert.equal((await LocalStorage.getOrCreateArcifyFolder()).id, 'sidecove');
-    assert.equal((await BookmarkUtils.findArcifyFolder()).id, 'sidecove');
+    assert.equal((await LocalStorage.getOrCreateSidecoveFolder()).id, 'sidecove');
+    assert.equal((await BookmarkUtils.findSidecoveFolder()).id, 'sidecove');
     assert.deepEqual(writes, []);
 });
 
-test('lookups never adopt an Arcify folder', async () => {
+test('lookups never adopt another extension's folder', async () => {
     mock();
-    assert.equal(await BookmarkUtils.findArcifyFolder(), null);
+    assert.equal(await BookmarkUtils.findSidecoveFolder(), null);
     assert.deepEqual(await readBookmarkSpaces(), { folderId: null, names: [] });
-    await assert.rejects(getSpaceBookmarkFolder({ bookmarkFolderId: 'arcify-space' }), /Sidecove folder/);
+    await assert.rejects(getSpaceBookmarkFolder({ bookmarkFolderId: 'upstream-space' }), /Sidecove folder/);
 });
 
 test('setup reads spaces from the Sidecove folder only', async () => {

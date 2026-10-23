@@ -33,11 +33,11 @@ async function displayBuildInfo() {
   console.log(`   Development (dist-dev/): ${await fs.pathExists(distDevPath) ? '✅ Exists' : '❌ Not found'}\n`);
   
   // Check for zip files
-  const zipPath = path.resolve(__dirname, '../arcify-extension.zip');
+  const zipPath = path.resolve(__dirname, '../sidecove-extension.zip');
   if (await fs.pathExists(zipPath)) {
     const stats = await fs.stat(zipPath);
     const sizeInMB = (stats.size / 1024 / 1024).toFixed(2);
-    console.log(`📦 Package: arcify-extension.zip (${sizeInMB} MB)\n`);
+    console.log(`📦 Package: sidecove-extension.zip (${sizeInMB} MB)\n`);
   }
   
   // Available scripts

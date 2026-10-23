@@ -5,11 +5,11 @@
 1. **Removed Spotlight References**
    - Spotlight extension has been moved to a separate project
    - Removed `dev:spotlight`, `build:spotlight` from npm scripts
-   - Updated `build` script to only build main Arcify extension
+   - Updated `build` script to only build the main Sidecove extension
    - Updated `clean` script to not reference spotlight directories
 
 2. **Build Now Works**
-   - `npm run build` successfully builds Arcify extension to `dist/`
+   - `npm run build` successfully builds the Sidecove extension to `dist/`
    - No more build errors related to missing spotlight files
 
 3. **E2E Tests Ready**

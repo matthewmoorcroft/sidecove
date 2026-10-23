@@ -7,12 +7,12 @@ export async function initSidebarTour() {
     let transition, transitioning = false, revision = 0;
     const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
     const panel = document.createElement('section');
-    panel.id = 'arcify-tour'; panel.hidden = true;
+    panel.id = 'sidecove-tour'; panel.hidden = true;
     panel.setAttribute('aria-label', 'Sidecove guided tour');
     panel.innerHTML = `<div class="coach-heading"><span id="coach-progress"></span><button id="coach-skip" type="button">Skip tour</button></div>
         <div id="coach-content" aria-live="polite"><h2 id="coach-title"></h2><p id="coach-copy"></p><p id="coach-feedback" role="status"></p></div>
         <button id="coach-retry" type="button" hidden>Add practice tab</button><div class="coach-navigation"><button id="coach-back" type="button">Back</button><button id="coach-next" type="button">Next tip</button></div>`;
-    const ring = document.createElement('div'); ring.id = 'arcify-tour-ring'; ring.hidden = true; ring.setAttribute('aria-hidden', 'true');
+    const ring = document.createElement('div'); ring.id = 'sidecove-tour-ring'; ring.hidden = true; ring.setAttribute('aria-hidden', 'true');
     document.getElementById('sidebar-container').append(ring);
     document.querySelector('.new-tab-btn-container').before(panel);
     const el = id => document.getElementById(id);

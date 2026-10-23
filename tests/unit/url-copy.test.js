@@ -12,7 +12,7 @@ function offscreenChrome(calls, { offscreenResult = { success: true } } = {}) {
             }
         },
         runtime: {
-            getURL: path => `chrome-extension://arcify/${path}`,
+            getURL: path => `chrome-extension://sidecove/${path}`,
             getContexts: async () => [],
             sendMessage: async message => {
                 calls.push(['message', message]);

@@ -2,7 +2,7 @@
  * LocalStorage - Bookmark-based persistence and Chrome storage utilities
  * 
  * Purpose: Manages space bookmarks and provides legacy storage compatibility
- * Key Functions: Arcify bookmark folder management, space bookmark operations, storage synchronization
+ * Key Functions: Sidecove bookmark folder management, space bookmark operations, storage synchronization
  * Architecture: Static utility object for bookmark-based data persistence
  * 
  * Critical Notes:
@@ -81,7 +81,7 @@ const LocalStorage = {
         });
     },
 
-    getOrCreateArcifyFolder: async function () {
+    getOrCreateSidecoveFolder: async function () {
         let folder = (await chrome.bookmarks.search({ title: ROOT_FOLDER_TITLE })).find(node => !node.url);
         if (!folder) {
             folder = await chrome.bookmarks.create({ title: ROOT_FOLDER_TITLE });
@@ -89,29 +89,29 @@ const LocalStorage = {
         return folder;
     },
     getOrCreateSpaceFolder: async function (spaceName) {
-        const arcifyFolder = await this.getOrCreateArcifyFolder();
-        const children = await chrome.bookmarks.getChildren(arcifyFolder.id);
+        const sidecoveFolder = await this.getOrCreateSidecoveFolder();
+        const children = await chrome.bookmarks.getChildren(sidecoveFolder.id);
         let spaceFolder = children.find((f) => !f.url && f.title === spaceName);
 
         if (!spaceFolder) {
             spaceFolder = await chrome.bookmarks.create({
-                parentId: arcifyFolder.id,
+                parentId: sidecoveFolder.id,
                 title: spaceName
             });
         }
         return spaceFolder;
     },
 
-    // Get all space names from Arcify bookmark folders (source of truth)
+    // Get all space names from Sidecove bookmark folders (source of truth)
     getSpaceNames: async function () {
         let spaceNames = new Set(); // Use Set to automatically deduplicate
 
         try {
-            // Get the Arcify folder
-            const arcifyFolder = await this.getOrCreateArcifyFolder();
-            if (arcifyFolder) {
-                // Get all children of the Arcify folder
-                const children = await chrome.bookmarks.getChildren(arcifyFolder.id);
+            // Get the Sidecove folder
+            const sidecoveFolder = await this.getOrCreateSidecoveFolder();
+            if (sidecoveFolder) {
+                // Get all children of the Sidecove folder
+                const children = await chrome.bookmarks.getChildren(sidecoveFolder.id);
 
                 // Filter for folders only (not bookmarks) and extract names
                 const folders = children.filter(item => !item.url);
@@ -119,7 +119,7 @@ const LocalStorage = {
                     spaceNames.add(folder.title);
                 });
 
-                Logger.log('Found spaces from Arcify bookmark folders:', spaceNames.size);
+                Logger.log('Found spaces from Sidecove bookmark folders:', spaceNames.size);
             }
         } catch (bookmarkError) {
             Logger.log('Could not get spaces from bookmark folders:', bookmarkError);

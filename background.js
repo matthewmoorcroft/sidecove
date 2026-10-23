@@ -78,18 +78,19 @@ chrome.runtime.onInstalled.addListener(async (details) => {
     }
 
     if (chrome.contextMenus) {
-        chrome.contextMenus.create({
-            id: "openArcify",
+        // Clear menus from an earlier version first; 1.1.0 and before used a different id.
+        chrome.contextMenus.removeAll(() => chrome.contextMenus.create({
+            id: "openSidecove",
             title: "Sidecove",
             contexts: ["all"]
-        });
+        }));
     }
 });
 
 // Handle context menu clicks
 if (chrome.contextMenus) {
     chrome.contextMenus.onClicked.addListener((info, tab) => {
-        info.menuItemId === "openArcify" && chrome.sidePanel.open({
+        info.menuItemId === "openSidecove" && chrome.sidePanel.open({
             windowId: tab.windowId
         })
     });
@@ -223,16 +224,16 @@ async function runAutoArchiveCheck() {
     const now = Date.now();
 
     try {
-        // --- Build the protected favorite set from the durable Arcify bookmark tree ---
+        // --- Build the protected favorite set from the durable Sidecove bookmark tree ---
         // NOTE: space.spaceBookmarks holds ephemeral tab-IDs (not URLs), so the old
         // check here was always empty and never protected favorites from archiving.
-        // The Arcify bookmark folder is the durable record of favorites; collect its
+        // The Sidecove bookmark folder is the durable record of favorites; collect its
         // URLs normalized with the same pinned-URL key the renderer uses (origin+path).
         const protectedUrlKeys = new Set();
         try {
-            const arcifyFolder = (await chrome.bookmarks.search({ title: ROOT_FOLDER_TITLE })).find(node => !node.url);
-            if (arcifyFolder) {
-                const [subTree] = await chrome.bookmarks.getSubTree(arcifyFolder.id);
+            const sidecoveFolder = (await chrome.bookmarks.search({ title: ROOT_FOLDER_TITLE })).find(node => !node.url);
+            if (sidecoveFolder) {
+                const [subTree] = await chrome.bookmarks.getSubTree(sidecoveFolder.id);
                 const collectUrls = (node) => {
                     if (!node) return;
                     if (node.url) {
@@ -243,7 +244,7 @@ async function runAutoArchiveCheck() {
                 collectUrls(subTree);
             }
         } catch (bookmarkError) {
-            Logger.warn('Auto-archive: could not read Arcify bookmark tree for protection:', bookmarkError);
+            Logger.warn('Auto-archive: could not read Sidecove bookmark tree for protection:', bookmarkError);
             return;
         }
 
@@ -265,8 +266,8 @@ async function runAutoArchiveCheck() {
                 continue;
             }
 
-            // Protect Arcify favorites: never archive a tab whose URL matches a bookmark
-            // in the Arcify tree (compared by origin+pathname to tolerate query/hash drift).
+            // Protect Sidecove favorites: never archive a tab whose URL matches a bookmark
+            // in the Sidecove tree (compared by origin+pathname to tolerate query/hash drift).
             if (isProtectedFavorite(tab, protectedIds, bindings, protectedUrlKeys)) {
                 // Refresh activity so protected favorites aren't re-checked repeatedly.
                 await updateTabLastActivity(tab.id);

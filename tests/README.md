@@ -1,6 +1,6 @@
 # E2E Testing Guide
 
-This directory contains end-to-end (E2E) tests for the Arcify sidebar extension using Puppeteer and Jest.
+This directory contains end-to-end (E2E) tests for the Sidecove sidebar extension using Puppeteer and Jest.
 
 ## 🚀 Quick Start
 

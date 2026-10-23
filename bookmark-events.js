@@ -33,7 +33,7 @@ function notify(reason) {
     clearTimeout(timer);
     timer = setTimeout(() => {
         try {
-            const sent = chrome.runtime.sendMessage({ action: 'arcifyBookmarksChanged', reason });
+            const sent = chrome.runtime.sendMessage({ action: 'sidecoveBookmarksChanged', reason });
             sent?.catch?.(() => {});
         } catch { /* No sidebar is normally open. */ }
     }, COALESCE_MS);

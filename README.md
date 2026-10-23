@@ -4,7 +4,7 @@
 
 Sidecove puts your tabs in a vertical sidebar in Chrome's side panel and organises them into spaces, each with its own pinned tabs, folders and colour. Spaces and pinned tabs are stored as ordinary Chrome bookmarks, so they sync with your Google account. Nothing is sent to any server.
 
-Sidecove is based on [Arcify](https://github.com/nisargkolhe/arcify) by Nisarg Kolhe, with a set of fixes on top. It is an independent project, not affiliated with or endorsed by The Browser Company or the Arc browser.
+Sidecove is an independent project, not affiliated with or endorsed by The Browser Company or the Arc browser.
 
 ![Sidecove sidebar](docs/screenshot-sidebar.png)
 
@@ -21,10 +21,6 @@ Sidecove is based on [Arcify](https://github.com/nisargkolhe/arcify) by Nisarg K
 - Auto-archive for idle tabs, and Clean All with Undo
 
 See [CHANGELOG.md](CHANGELOG.md) for what changed in each version.
-
-## Coming from Arcify
-
-Sidecove keeps its spaces in its own bookmark folder named **Sidecove** and starts with a fresh one. To bring your Arcify spaces along, first export your bookmarks as a backup (Chrome's bookmark manager → ⋮ → Export bookmarks), remove Arcify, then rename its **Arcify** bookmark folder to **Sidecove** before opening Sidecove. Bookmarks sync, so the rename reaches every device signed in to the same Google account, and Arcify will no longer find its folder.
 
 ## Development Setup
 
