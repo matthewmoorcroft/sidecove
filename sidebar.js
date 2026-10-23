@@ -23,6 +23,7 @@ import { isProtectedFavorite } from './favorite-safety.js';
 import { selectWindowSpaceTabs, mergeVisibleOrder, mergeCapturedTemporaryOrder, canonicalOrderFromDisplay, saveBookmarkOperation } from './sidebar-tabs.js';
 import { ownerOf } from './space-store.js';
 import { canCreateFolder, canMoveFolder, createFolder } from './folder-policy.js';
+import { archiveAndCloseTabs, reopenClosedTabs } from './clean-all.js';
 import { loadFolderCollapsed, saveFolderCollapsed } from './folder-state.js';
 import { FOLDER_CLOSED_ICON, FOLDER_CLOSED_DOTS_ICON, FOLDER_OPEN_ICON } from './icons.js';
 import { LocalStorage } from './localstorage.js';
@@ -3258,12 +3259,36 @@ async function cleanTemporaryTabs(spaceId) {
         !isProtectedFavorite(t, protectedIds, bindings, favoriteUrlKeys)
     );
 
-    await Promise.all(closable.map(t => chrome.tabs.remove(t.id)));
+    if (!closable.length) return;
+
+    // Close in display order so Undo reopens them the way they were listed.
+    const displayOrder = getTempSectionTabIds(getSpaceElement(spaceId));
+    closable.sort((a, b) => displayOrder.indexOf(a.id) - displayOrder.indexOf(b.id));
+    const records = await archiveAndCloseTabs(closable, spaceId, {
+        addArchivedTab: entry => Utils.addArchivedTab(entry),
+        removeTabs: ids => chrome.tabs.remove(ids)
+    });
 
     // Keep only surviving favorites.
     const closedIds = new Set(closable.map(t => t.id));
     space.temporaryTabs = space.temporaryTabs.filter(id => !closedIds.has(id));
     saveSpaces();
+
+    // Arc's Clear can be undone, and the tabs also stay in Archived.
+    const count = records.length;
+    showUndoToast(`Closed ${count} ${count === 1 ? 'tab' : 'tabs'}. They're in Archived.`, async () => {
+        const invertTabOrder = await Utils.getInvertTabOrder();
+        // New tabs join the top of an inverted list, so reopen bottom-up to keep the order.
+        const ordered = invertTabOrder ? [...records].reverse() : records;
+        await pendingSpaceSaves;
+        await reopenClosedTabs(ordered, currentWindow.id, {
+            createTab: props => chrome.tabs.create(props),
+            assignTab: (tabId, targetSpaceId) => spaceRequest('assign', { tabId, spaceId: targetSpaceId }),
+            removeArchivedTab: (url, targetSpaceId) => Utils.removeArchivedTab(url, targetSpaceId)
+        });
+        await adoptStoredSpaces(await spaceRequest('get'));
+        await refreshActiveSpaceUI();
+    }, 8000);
 }
 
 async function handleTabCreated(tab) {

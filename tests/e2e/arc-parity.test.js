@@ -101,3 +101,29 @@ describe('space navigation', () => {
     });
 });
 
+
+describe('Clean All', () => {
+    const tempRows = () => page.$$eval('.space.active [data-tab-type="temporary"] .tab[data-tab-id]', rows => rows.map(row => row.dataset.url));
+
+    test('archives the closed tabs and Undo brings them back in order', async () => {
+        await page.evaluate(() => document.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, ctrlKey: true, code: 'Digit2' })));
+        await page.waitForFunction(() => document.querySelector('.space.active .space-name').value === 'Work', { polling: 100 });
+        const [work] = (await page.evaluate(async () => (await chrome.runtime.sendMessage({ type: 'spaceStore', action: 'get' })).spaces)).filter(s => s.name === 'Work');
+        for (const path of ['clean-one', 'clean-two', 'clean-three']) await openTab(path, work.id);
+        await page.waitForFunction(() => document.querySelectorAll('.space.active [data-tab-type="temporary"] .tab[data-tab-id]').length === 3, { polling: 100 });
+        const before = await tempRows();
+
+        await page.$eval('.space.active .clean-tabs-btn', button => button.click());
+        await page.waitForFunction(() => document.querySelectorAll('.space.active [data-tab-type="temporary"] .tab[data-tab-id]').length === 0, { polling: 100 });
+        expect(await page.$eval('#undoToast', toast => toast.textContent)).toContain('Closed 3 tabs');
+        const archived = await page.evaluate(async () => (await chrome.storage.local.get('archivedTabs')).archivedTabs.map(t => t.url));
+        expect(archived).toEqual(expect.arrayContaining(before));
+
+        await page.$eval('#undoToast .undo-toast-button', button => button.click());
+        await page.waitForFunction(() => document.querySelectorAll('.space.active [data-tab-type="temporary"] .tab[data-tab-id]').length === 3, { polling: 100 });
+        await sleep(300);
+        expect(await tempRows()).toEqual(before);
+        const after = await page.evaluate(async () => (await chrome.storage.local.get('archivedTabs')).archivedTabs.map(t => t.url));
+        for (const url of before) expect(after).not.toContain(url);
+    });
+});
