@@ -11,6 +11,8 @@ A clearer drop indicator and a polish pass, with no new permissions.
 - **Space switch:** the new space fades in. Chips that still overflow fade out at the right edge only while they overflow.
 - **Keyboard:** Tab no longer moves focus into the hidden New Space form or archive list, which used to scroll the whole sidebar out of place. Close, remove and folder toggle buttons show when they have keyboard focus.
 - Animations respect the system's reduce-motion setting.
+- **Guided tour:** Next and the other tour buttons now have light text on a deep fill of the space colour, at least 4.5:1 contrast in every space colour in light and dark, so Next no longer looks disabled. Stepping through the tour no longer flashes a scroll bar under the card.
+- The product is called Sidecove throughout, including the tour's "Make Sidecove feel like you". Existing spaces, favorites and settings carry over unchanged.
 
 ## 1.1.0
 
