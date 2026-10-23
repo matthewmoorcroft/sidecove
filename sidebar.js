@@ -51,7 +51,7 @@ import {
 import { BookmarkUtils } from './bookmark-utils.js';
 import { Logger } from './logger.js';
 import { MOUSE_BUTTON, CSS_CLASSES, TIMING } from './constants.js';
-import { resolveSpaceTarget, spaceRequestFromKey } from './space-navigation.js';
+import { resolveSpaceTarget, scrollLeftToReveal, spaceRequestFromKey } from './space-navigation.js';
 
 // DOM Elements
 const spacesList = document.getElementById('spacesList');
@@ -1130,6 +1130,7 @@ spaceSwitcher.addEventListener('drop', handleSpaceSwitcherDrop);
 
 async function updateSpaceSwitcher() {
     Logger.log('Updating space switcher...');
+    const previousScrollLeft = spaceSwitcher.scrollLeft;
     spaceSwitcher.innerHTML = '';
 
 
@@ -1171,6 +1172,9 @@ async function updateSpaceSwitcher() {
 
         spaceSwitcher.appendChild(button);
     });
+    // Rebuilding resets the scroll position; keep it, then bring the active chip into view.
+    spaceSwitcher.scrollLeft = previousScrollLeft;
+    revealActiveSpaceChip();
 
     // Inactive space from bookmarks
     const arcifyFolder = await LocalStorage.getOrCreateArcifyFolder();
@@ -1191,6 +1195,23 @@ async function updateSpaceSwitcher() {
 
     // const spaceFolder = spaceFolders.find(f => f.title === space.name);
 
+}
+
+// Keep the active chip visible when there are more spaces than fit. The right inset
+// clears the add-space button that floats over the end of the strip.
+function revealActiveSpaceChip() {
+    const active = spaceSwitcher.querySelector('button.active');
+    if (!active || spaceSwitcher.scrollWidth <= spaceSwitcher.clientWidth) return;
+    const left = scrollLeftToReveal({
+        scrollLeft: spaceSwitcher.scrollLeft,
+        viewWidth: spaceSwitcher.clientWidth,
+        itemLeft: active.getBoundingClientRect().left - spaceSwitcher.getBoundingClientRect().left + spaceSwitcher.scrollLeft,
+        itemWidth: active.getBoundingClientRect().width,
+        startInset: 8,
+        endInset: 48
+    });
+    // Instant: the strip is rebuilt on every update, which would cancel a smooth scroll.
+    spaceSwitcher.scrollLeft = left;
 }
 
 // Wrapper functions that use the unified getDragAfterElement from domManager.js

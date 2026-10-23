@@ -71,5 +71,26 @@ describe('space navigation', () => {
         await page.waitForFunction(() => document.querySelector('.space.active .space-name').value === 'Music', { polling: 100 });
         await helper.close();
     });
+
+    test('the active chip stays in view with many spaces', async () => {
+        for (const name of ['Travel', 'Finance', 'Side project', 'Photos']) await createSpaceInPage(name);
+        await sleep(600);
+        const geometry = await page.evaluate(() => {
+            const strip = document.getElementById('spaceSwitcher');
+            const chip = strip.querySelector('button.active');
+            const s = strip.getBoundingClientRect(), c = chip.getBoundingClientRect();
+            return { overflow: strip.scrollWidth > strip.clientWidth, chipLeft: c.left, chipRight: c.right, stripLeft: s.left, stripRight: s.right };
+        });
+        expect(geometry.overflow).toBe(true);
+        expect(geometry.chipLeft).toBeGreaterThanOrEqual(geometry.stripLeft);
+        // The add-space button covers the last 48px of the strip.
+        expect(geometry.chipRight).toBeLessThanOrEqual(geometry.stripRight - 40);
+        await page.evaluate(() => document.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, ctrlKey: true, code: 'Digit1' })));
+        await page.waitForFunction(() => {
+            const strip = document.getElementById('spaceSwitcher');
+            const s = strip.getBoundingClientRect(), c = strip.querySelector('button.active').getBoundingClientRect();
+            return c.left >= s.left && strip.querySelector('button.active').textContent.includes('Home');
+        }, { polling: 100 });
+    });
 });
 
