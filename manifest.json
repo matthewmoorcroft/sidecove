@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Sidecove",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Vertical tabs in Chrome's side panel: switch between spaces, keep pinned tabs and favourites, auto-archive idle tabs. Free and open.",
   "permissions": [
     "tabs",

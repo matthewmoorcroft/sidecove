@@ -1,8 +1,16 @@
 # Changelog
 
-## Unreleased
+## 1.2.0
+
+A clearer drop indicator and a polish pass, with no new permissions.
 
 - **Drop indicator:** while you drag a tab, favorite or folder, one line shows exactly where it will land. The line starts at the indent of the level it lands at, and the folder it would go into is highlighted, so a top-level drop and a drop into a nested folder look clearly different. It also shows at the end of a list, where there used to be no line.
+- **Favorites grid:** tiles fill the row while there are few and wrap at an even size, so a lone tile on a new row no longer stretches across it (upstream issue #42).
+- **Menus:** the tab menu and the space menu share one rounded, shadowed look with tighter rows and a short pop-in. In dark mode the space menu and its colour swatches are dark too.
+- **Hover and press:** rows, folder headers, favorites and New Tab respond with a lighter hover and a slight press. The active tab and the active space chip stand out more clearly.
+- **Space switch:** the new space fades in. Chips that still overflow fade out at the right edge only while they overflow.
+- **Keyboard:** Tab no longer moves focus into the hidden New Space form or archive list, which used to scroll the whole sidebar out of place. Close, remove and folder toggle buttons show when they have keyboard focus.
+- Animations respect the system's reduce-motion setting.
 
 ## 1.1.0
 
