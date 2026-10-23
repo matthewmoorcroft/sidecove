@@ -867,6 +867,63 @@ export function hideAllDropIndicators() {
     document.querySelectorAll('.drop-indicator-horizontal, .drop-indicator-vertical').forEach(element => {
         element.classList.remove('drop-indicator-horizontal', 'drop-indicator-vertical', 'above', 'below', 'left', 'right');
     });
+    hideDropLine();
+    showFolderDropTarget(null);
+}
+
+let dropLine = null;
+
+function hideDropLine() {
+    dropLine?.classList.remove('visible');
+}
+
+/**
+ * Show the single line marking where a dragged row lands in a list: before the given row,
+ * or after the last one. It starts at the rows' own left edge, so its indent shows the
+ * level the row lands at. A list that is not visible (a collapsed folder) shows no line.
+ * @param {HTMLElement} content - The list the row joins
+ * @param {HTMLElement|null} before - The row it lands before, or null for the end
+ * @param {string} rowSelector - Selector for the list's rows, excluding the dragged one
+ */
+export function showDropLine(content, before, rowSelector) {
+    const contentRect = content.getBoundingClientRect();
+    if (!contentRect.height) {
+        hideDropLine();
+        return;
+    }
+    const rows = [...content.querySelectorAll(rowSelector)];
+    const index = before ? rows.indexOf(before) : rows.length;
+    const previous = rows[index - 1]?.getBoundingClientRect();
+    const next = before?.getBoundingClientRect();
+    const style = getComputedStyle(content);
+    const edge = next || previous;
+    const left = edge ? edge.left : contentRect.left + parseFloat(style.paddingLeft);
+    const right = edge ? edge.right : contentRect.right - parseFloat(style.paddingRight);
+    const y = previous && next ? (previous.bottom + next.top) / 2
+        : next ? next.top
+        : previous ? previous.bottom
+        : contentRect.top + parseFloat(style.paddingTop);
+
+    if (!dropLine?.isConnected) {
+        dropLine = document.createElement('div');
+        dropLine.className = 'drop-line';
+        (document.getElementById('sidebar-container') || document.body).appendChild(dropLine);
+    }
+    dropLine.style.left = `${left}px`;
+    dropLine.style.width = `${Math.max(0, right - left)}px`;
+    dropLine.style.top = `${y}px`;
+    dropLine.classList.add('visible');
+}
+
+/**
+ * Highlight the folder a drop would go into, or clear the highlight when given null.
+ * @param {HTMLElement|null} folderElement
+ */
+export function showFolderDropTarget(folderElement) {
+    document.querySelectorAll('.folder.drop-target-folder').forEach(folder => {
+        if (folder !== folderElement) folder.classList.remove('drop-target-folder');
+    });
+    folderElement?.classList.add('drop-target-folder');
 }
 
 /**

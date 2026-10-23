@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Drop indicator:** while you drag a tab, favorite or folder, one line shows exactly where it will land. The line starts at the indent of the level it lands at, and the folder it would go into is highlighted, so a top-level drop and a drop into a nested folder look clearly different. It also shows at the end of a list, where there used to be no line.
+
 ## 1.1.0
 
 Closer to Arc, with no new permissions.
