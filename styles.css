@@ -1,3 +1,12 @@
+/* Varela Round ships with the extension so no page fetches fonts from the network. */
+@font-face {
+    font-family: "Varela Round";
+    src: url("assets/varela-round.ttf") format("truetype");
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+}
+
 * {
     margin: 0;
     padding: 0;
