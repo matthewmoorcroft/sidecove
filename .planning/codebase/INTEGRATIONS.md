@@ -80,7 +80,8 @@
   - `NextTabInSpace` - Navigate to next tab in space
   - `PrevTabInSpace` - Navigate to previous tab in space
   - `copyCurrentUrl` - Copy current tab URL to clipboard
-- Implementation: `background.js` (command listener), `options.js` (display shortcuts in settings)
+  - `NextSpace`, `PrevSpace`, `SwitchToSpace1`-`SwitchToSpace9` - Switch spaces (no default keys; `SwitchToSpace9` picks the last space)
+- Implementation: `background.js` (command listener), `space-navigation.js` (space command parsing and sidebar-less switching), `options.js` (display shortcuts in settings)
 
 ---
 
