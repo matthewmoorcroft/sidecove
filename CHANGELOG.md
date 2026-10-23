@@ -1,0 +1,22 @@
+# Changelog
+
+## 1.1.0
+
+Closer to Arc, with no new permissions.
+
+- **Switch spaces from the keyboard:** Ctrl+1 to Ctrl+8 for a numbered space, Ctrl+9 for the last one, and Ctrl+Shift+[ or ] to step through them while the sidebar has focus. Next space, Previous space and Switch to space 1-9 can be bound anywhere in Chrome at chrome://extensions/shortcuts.
+- **Mouse side buttons** switch spaces from anywhere in the sidebar, not just over the space chips.
+- **Search tabs** (Cmd or Ctrl+F): find open tabs, pinned tabs and favorites across every space by title or address.
+- **Move things between spaces:** drop a tab, favorite, folder or pinned tab on a space chip.
+- **Select several tabs** with Cmd or Ctrl click and Shift click, then move, pin, archive, close or put them in a new folder. Drag a selection to move it together.
+- **Make a folder by dropping:** hold a tab over a favorite for a moment and drop it, and both go into a new folder.
+- **Tab menu:** Duplicate Tab, Copy Link, Mute or Unmute Tab and Rename Tab.
+- **Sound:** tabs that play sound show a speaker; click it to mute or unmute.
+- **Space icons:** give each space an emoji. When the chips no longer fit, they shrink to icons or initials, and the active chip stays in view.
+- **Clean All** now archives the tabs it closes and offers Undo.
+- Custom colours from Settings now show in the colour pickers too.
+- The Varela Round font ships with the extension, so the sidebar and settings no longer load it from Google Fonts. Nothing is sent anywhere.
+
+## 1.0.1
+
+- Removed the unused `scripting` permission. Copy current URL works as before, through Chrome's offscreen clipboard.
