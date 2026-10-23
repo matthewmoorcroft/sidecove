@@ -408,9 +408,23 @@ describe('multi-select and folders', () => {
             from.dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer }));
         }, { source: rowOf(fourth), target: rowOf(first) });
         const expected = [second, fourth, first, third, ...order.slice(4)];
-        await page.waitForFunction(expected => JSON.stringify([...document.querySelectorAll('.space.active [data-tab-type="temporary"] .tab[data-tab-id]')]
-            .map(r => Number(r.dataset.tabId))) === JSON.stringify(expected), { polling: 100 }, expected);
-        expect(await selectedIds()).toEqual([]);
+        await page.waitForFunction(async ({ expected, spaceId }) => {
+            const { spaces } = await chrome.runtime.sendMessage({ type: 'spaceStore', action: 'get' });
+            const { invertTabOrder } = await chrome.storage.sync.get({ invertTabOrder: true });
+            const stored = spaces.find(s => s.id === spaceId).temporaryTabs.filter(id => expected.includes(id));
+            return JSON.stringify(invertTabOrder ? stored.reverse() : stored) === JSON.stringify(expected);
+        }, { polling: 100 }, { expected, spaceId: reading.id });
+        await page.waitForFunction(() => !document.querySelector('.space.active .tab.selected'), { polling: 100 });
+        await page.reload();
+        await page.waitForFunction(expected => {
+            if (document.querySelector('.space.active .space-name')?.value !== 'Reading') {
+                document.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, ctrlKey: true, code: 'Digit4' }));
+                return false;
+            }
+            const shown = [...document.querySelectorAll('.space.active [data-tab-type="temporary"] .tab[data-tab-id]')]
+                .map(r => Number(r.dataset.tabId)).filter(id => expected.includes(id));
+            return JSON.stringify(shown) === JSON.stringify(expected);
+        }, { polling: 100 }, expected);
         await page.evaluate(ids => chrome.tabs.remove(ids), ids);
     });
 
