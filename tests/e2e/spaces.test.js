@@ -1184,9 +1184,12 @@ describe('Space Management', () => {
       const row = `.space.active .tab[data-tab-id="${tabId}"]`;
       await sidebarPage.waitForSelector(row);
       await sidebarPage.$eval(row, el => el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true })));
-      await sidebarPage.evaluate(() => {
-        [...document.querySelectorAll('.context-menu-item')].find(el => el.textContent === 'Pin Tab').click();
-      });
+      // The menu opens asynchronously after reading the space folders.
+      await sidebarPage.waitForFunction(() => {
+        const item = [...document.querySelectorAll('.context-menu-item')].find(el => el.textContent === 'Pin Tab');
+        item?.click();
+        return Boolean(item);
+      }, { polling: 50 });
       const pinnedRow = `.space.active [data-tab-type="pinned"] .tab[data-tab-id="${tabId}"][data-bookmark-id]`;
       await sidebarPage.waitForSelector(pinnedRow);
       return { tabId, pinnedRow, bookmarkId: await sidebarPage.$eval(pinnedRow, el => el.dataset.bookmarkId) };

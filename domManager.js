@@ -183,7 +183,7 @@ export function activateSpaceInDOM(spaceId, spaces, updateSpaceSwitcher) {
     updateSpaceSwitcher();
 }
 
-export function showTabContextMenu(x, y, tab, isPinned, isBookmarkOnly, tabElement, closeTab, spaces, moveTabToSpace, setActiveSpace, allBookmarkSpaceFolders, createSpaceFromInactive, onReplaceBookmarkUrlWithCurrent = null, moveFavoriteToSpace = null) {
+export function showTabContextMenu(x, y, tab, isPinned, isBookmarkOnly, tabElement, closeTab, spaces, moveTabToSpace, setActiveSpace, allBookmarkSpaceFolders, createSpaceFromInactive, onReplaceBookmarkUrlWithCurrent = null, moveFavoriteToSpace = null, { muted = false, onRename = null } = {}) {
     // Remove any existing context menus
     const existingMenu = document.getElementById('tab-context-menu');
     if (existingMenu) {
@@ -240,7 +240,25 @@ export function showTabContextMenu(x, y, tab, isPinned, isBookmarkOnly, tabEleme
         const separator = document.createElement('div');
         separator.className = 'context-menu-separator';
         contextMenu.appendChild(separator);
+
+        // Arc's tab menu: duplicate, mute and rename the tab.
+        addMenuItem(contextMenu, 'Duplicate Tab', () => chrome.tabs.duplicate(tab.id));
+        addMenuItem(contextMenu, muted ? 'Unmute Tab' : 'Mute Tab', () => chrome.tabs.update(tab.id, { muted: !muted }));
+        if (typeof onRename === 'function') addMenuItem(contextMenu, 'Rename Tab', onRename);
     }
+
+    // Favorites without an open tab can still share their link.
+    addMenuItem(contextMenu, 'Copy Link', async () => {
+        let url = tabElement.dataset.url || tab.url;
+        if (!isBookmarkOnly && tab.id) {
+            try { url = (await chrome.tabs.get(tab.id)).url || url; } catch { /* closed meanwhile */ }
+        }
+        if (await copyText(url)) showUrlCopyToast('Copied link');
+    });
+
+    const actionSeparator = document.createElement('div');
+    actionSeparator.className = 'context-menu-separator';
+    contextMenu.appendChild(actionSeparator);
 
     // Favorites must carry their saved bookmark so moving them does not silently unpin them.
     if (!isBookmarkOnly || typeof moveFavoriteToSpace === 'function') {
@@ -501,10 +519,105 @@ export async function showArchivedTabsPopup(activeSpaceId) {
     }
 }
 
+/**
+ * Show a context menu built from entries: { label, action }, { label, submenu: [...] },
+ * { label, note: true } for a heading, or 'separator'.
+ */
+export function showMenu(x, y, entries, id = 'tab-context-menu') {
+    document.getElementById(id)?.remove();
+    const menu = document.createElement('div');
+    menu.id = id;
+    menu.className = 'context-menu';
+    menu.style.position = 'fixed';
+    menu.style.left = `${x}px`;
+    menu.style.top = `${y}px`;
+    const fill = (container, items) => {
+        for (const entry of items) {
+            if (entry === 'separator') {
+                const separator = document.createElement('div');
+                separator.className = 'context-menu-separator';
+                container.appendChild(separator);
+            } else if (entry.note) {
+                const note = document.createElement('div');
+                note.className = 'context-menu-note';
+                note.textContent = entry.label;
+                container.appendChild(note);
+            } else if (entry.submenu) {
+                if (!entry.submenu.length) continue;
+                const item = document.createElement('div');
+                item.className = 'context-menu-item with-submenu';
+                item.textContent = entry.label;
+                const submenu = document.createElement('div');
+                submenu.className = 'context-menu submenu';
+                fill(submenu, entry.submenu);
+                item.appendChild(submenu);
+                container.appendChild(item);
+            } else {
+                addMenuItem(container, entry.label, async () => {
+                    menu.remove();
+                    await entry.action();
+                });
+            }
+        }
+    };
+    fill(menu, entries);
+    document.body.appendChild(menu);
+    Utils.adjustMenuPosition(menu, x, y);
+    const close = event => {
+        if (!menu.contains(event.target)) {
+            menu.remove();
+            document.removeEventListener('click', close, { capture: true });
+        }
+    };
+    document.addEventListener('click', close, { capture: true });
+    return menu;
+}
+
+function addMenuItem(menu, label, action) {
+    const item = document.createElement('div');
+    item.className = 'context-menu-item';
+    item.textContent = label;
+    item.addEventListener('click', async (event) => {
+        event.stopPropagation();
+        menu.closest('#tab-context-menu')?.remove();
+        menu.remove();
+        try {
+            await action();
+        } catch (error) {
+            Logger.warn(`[ContextMenu] ${label} failed:`, error);
+        }
+    });
+    menu.appendChild(item);
+    return item;
+}
+
+// The panel is focused after a right-click, so the async clipboard normally works; the
+// textarea path covers a panel that lost focus. Both stay inside the extension page.
+export async function copyText(text) {
+    if (!text) return false;
+    try {
+        await navigator.clipboard.writeText(text);
+        return true;
+    } catch (error) {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.setAttribute('readonly', '');
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        const copied = document.execCommand('copy');
+        textarea.remove();
+        if (!copied) Logger.warn('Copy failed:', error);
+        return copied;
+    }
+}
+
 // Toast notification for URL copy success
-export function showUrlCopyToast() {
+export function showUrlCopyToast(message = 'Copied current URL') {
     const toast = document.getElementById('urlCopyToast');
     if (!toast) return;
+    toast.textContent = message;
 
     // Clear any existing timeout
     if (toast.hideTimeout) {

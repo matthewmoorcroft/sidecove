@@ -42,6 +42,7 @@ import { Utils } from './utils.js';
 import { Logger } from './logger.js';
 import { ROOT_FOLDER_TITLE } from './constants.js';
 import { copyCurrentTabUrlWithFallback } from './url-copy.js';
+import { parseSpaceCommand, switchSpaceWithoutSidebar } from './space-navigation.js';
 
 const AUTO_ARCHIVE_ALARM_NAME = 'autoArchiveTabsAlarm';
 const TAB_ACTIVITY_STORAGE_KEY = 'tabLastActivity'; // Key to store timestamps
@@ -126,8 +127,31 @@ chrome.commands.onCommand.addListener(async function (command) {
         chrome.runtime.sendMessage({ command: "PrevTabInSpace" });
     } else if (command === "copyCurrentUrl") {
         await copyCurrentTabUrlWithFallback();
+    } else {
+        const request = parseSpaceCommand(command);
+        if (request) await switchSpaceFromCommand(request);
     }
 });
+
+// The open sidebar of the focused window switches spaces itself so its view stays in step;
+// without one, the worker activates the target space's last tab directly.
+async function switchSpaceFromCommand(request) {
+    try {
+        const window = await chrome.windows.getLastFocused({ windowTypes: ['normal'] });
+        let handled = false;
+        try {
+            const response = await chrome.runtime.sendMessage({ command: 'switchSpace', windowId: window.id, request });
+            handled = response?.handled === true;
+        } catch {
+            // No sidebar is listening.
+        }
+        if (!handled) {
+            await switchSpaceWithoutSidebar({ chromeApi: chrome, dispatch: message => spaceStore.dispatch(message), windowId: window.id, request });
+        }
+    } catch (error) {
+        Logger.error('[Spaces] Could not switch space from shortcut:', error);
+    }
+}
 
 // --- Helper: Update Last Activity Timestamp ---
 async function updateTabLastActivity(tabId) {

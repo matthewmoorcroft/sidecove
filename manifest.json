@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Sidecove",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "Vertical tabs in Chrome's side panel: switch between spaces, keep pinned tabs and favourites, auto-archive idle tabs. Free and open.",
   "permissions": [
     "tabs",
@@ -46,6 +46,39 @@
     },
     "copyCurrentUrl": {
       "description": "Copy current tab URL"
+    },
+    "NextSpace": {
+      "description": "Switch to the next space"
+    },
+    "PrevSpace": {
+      "description": "Switch to the previous space"
+    },
+    "SwitchToSpace1": {
+      "description": "Switch to space 1"
+    },
+    "SwitchToSpace2": {
+      "description": "Switch to space 2"
+    },
+    "SwitchToSpace3": {
+      "description": "Switch to space 3"
+    },
+    "SwitchToSpace4": {
+      "description": "Switch to space 4"
+    },
+    "SwitchToSpace5": {
+      "description": "Switch to space 5"
+    },
+    "SwitchToSpace6": {
+      "description": "Switch to space 6"
+    },
+    "SwitchToSpace7": {
+      "description": "Switch to space 7"
+    },
+    "SwitchToSpace8": {
+      "description": "Switch to space 8"
+    },
+    "SwitchToSpace9": {
+      "description": "Switch to the last space"
     }
   },
   "options_page": "options.html"

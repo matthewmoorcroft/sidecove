@@ -12,11 +12,15 @@ Sidecove is based on [Arcify](https://github.com/nisargkolhe/arcify) by Nisarg K
 
 ## Features
 
-- Vertical tab management
-- Tab grouping functionality
-- Keyboard shortcuts for quick access
-- Bookmark integration
-- Clean, minimal interface
+- Vertical tabs in Chrome's side panel, organised into spaces with their own colour and icon
+- Pinned tabs, favorites and nested folders, stored as ordinary Chrome bookmarks
+- Drag tabs, favorites and folders between sections, folders and spaces; drop one tab on a favorite to make a folder
+- Multi-select with Cmd or Ctrl click and Shift click to move, pin, archive, close or file several tabs at once
+- Search open tabs and favorites across spaces (Cmd or Ctrl+F)
+- Keyboard and mouse side-button space switching
+- Auto-archive for idle tabs, and Clean All with Undo
+
+See [CHANGELOG.md](CHANGELOG.md) for what changed in each version.
 
 ## Coming from Arcify
 

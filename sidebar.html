@@ -5,9 +5,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sidecove: vertical tab spaces</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Varela+Round&display=swap" rel="stylesheet">
     <style>
         .varela-round-regular {
             font-family: "Varela Round", sans-serif;
@@ -36,6 +33,15 @@
                 </div>
             </div>
         </div>
+        <div class="tab-search" id="tabSearch">
+            <svg class="tab-search-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2" />
+                <path d="M15.5 15.5L20 20" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+            </svg>
+            <input type="search" id="tabSearchInput" placeholder="Search tabs" autocomplete="off" spellcheck="false" aria-label="Search tabs and favorites" aria-controls="tabSearchResults">
+            <kbd class="tab-search-hint" id="tabSearchHint"></kbd>
+        </div>
+        <div class="tab-search-results" id="tabSearchResults" role="listbox" aria-label="Search results" hidden></div>
         <div class="spaces-list" id="spacesList">
             <!-- Spaces will be dynamically added here -->
         </div>
@@ -89,6 +95,7 @@
                             <path d="M7 10l5 5 5-5z" />
                         </svg>
                     </button>
+                    <button class="space-icon-button" type="button" title="Choose an icon for this space" aria-label="Choose an icon for this space"></button>
                     <input type="text" class="space-name" placeholder="Space Name">
                 </div>
                 <button id="archive-button" class="sidebar-button" title="Archived Tabs">
@@ -125,6 +132,7 @@
                             <div class="color-swatch" data-color="purple"></div>
                             <div class="color-swatch" data-color="cyan"></div>
                         </div>
+                        <button class="space-icon-menu-btn">Change Icon</button>
                         <button class="new-folder-btn">New Folder</button>
                         <button class="delete-space-btn">Delete Space</button>
                         <div class="options-separator"></div>
@@ -185,6 +193,7 @@
                 <span class="tab-domain-display" style="display: none;"></span>
                 <input type="text" class="tab-title-input" style="display: none;" spellcheck="false">
             </div>
+            <button class="tab-audio" type="button" hidden></button>
             <button class="tab-close" title="Close Tab">×</button>
         </div>
     </template>

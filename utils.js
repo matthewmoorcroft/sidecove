@@ -234,9 +234,9 @@ const Utils = {
         await chrome.storage.local.set({ [ARCHIVED_TABS_KEY]: tabs });
     },
 
-    // Add a tab to the archive
+    // Add a tab to the archive. Resolves true only when a new entry was stored.
     addArchivedTab: async function (tabData) { // tabData = { url, name, spaceId, archivedAt }
-        if (!tabData || !tabData.url || !tabData.name || !tabData.spaceId) return;
+        if (!tabData || !tabData.url || !tabData.name || !tabData.spaceId) return false;
 
         const archivedTabs = await this.getArchivedTabs();
 
@@ -244,7 +244,7 @@ const Utils = {
         const existingTab = archivedTabs.find(t => t.url === tabData.url);
         if (existingTab) {
             Logger.log(`Tab with URL already archived: ${tabData.name} (${tabData.url})`);
-            return; // Don't add duplicates based on URL
+            return false; // Don't add duplicates based on URL
         }
 
         // Add new tab with timestamp
@@ -261,6 +261,7 @@ const Utils = {
 
         await this.saveArchivedTabs(archivedTabs);
         Logger.log(`Archived tab: ${tabData.name} from space ${tabData.spaceId}`);
+        return true;
     },
 
     // Function to archive a tab (likely called from context menu)
