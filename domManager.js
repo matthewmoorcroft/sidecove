@@ -519,11 +519,67 @@ export async function showArchivedTabsPopup(activeSpaceId) {
     }
 }
 
+/**
+ * Show a context menu built from entries: { label, action }, { label, submenu: [...] },
+ * { label, note: true } for a heading, or 'separator'.
+ */
+export function showMenu(x, y, entries, id = 'tab-context-menu') {
+    document.getElementById(id)?.remove();
+    const menu = document.createElement('div');
+    menu.id = id;
+    menu.className = 'context-menu';
+    menu.style.position = 'fixed';
+    menu.style.left = `${x}px`;
+    menu.style.top = `${y}px`;
+    const fill = (container, items) => {
+        for (const entry of items) {
+            if (entry === 'separator') {
+                const separator = document.createElement('div');
+                separator.className = 'context-menu-separator';
+                container.appendChild(separator);
+            } else if (entry.note) {
+                const note = document.createElement('div');
+                note.className = 'context-menu-note';
+                note.textContent = entry.label;
+                container.appendChild(note);
+            } else if (entry.submenu) {
+                if (!entry.submenu.length) continue;
+                const item = document.createElement('div');
+                item.className = 'context-menu-item with-submenu';
+                item.textContent = entry.label;
+                const submenu = document.createElement('div');
+                submenu.className = 'context-menu submenu';
+                fill(submenu, entry.submenu);
+                item.appendChild(submenu);
+                container.appendChild(item);
+            } else {
+                addMenuItem(container, entry.label, async () => {
+                    menu.remove();
+                    await entry.action();
+                });
+            }
+        }
+    };
+    fill(menu, entries);
+    document.body.appendChild(menu);
+    Utils.adjustMenuPosition(menu, x, y);
+    const close = event => {
+        if (!menu.contains(event.target)) {
+            menu.remove();
+            document.removeEventListener('click', close, { capture: true });
+        }
+    };
+    document.addEventListener('click', close, { capture: true });
+    return menu;
+}
+
 function addMenuItem(menu, label, action) {
     const item = document.createElement('div');
     item.className = 'context-menu-item';
     item.textContent = label;
-    item.addEventListener('click', async () => {
+    item.addEventListener('click', async (event) => {
+        event.stopPropagation();
+        menu.closest('#tab-context-menu')?.remove();
         menu.remove();
         try {
             await action();

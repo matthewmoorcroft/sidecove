@@ -267,3 +267,138 @@ describe('moving things between spaces', () => {
         expect(owner.name).toBe('Music');
     });
 });
+
+describe('multi-select and folders', () => {
+    let reading;
+    const rowOf = id => `.space.active .tab[data-tab-id="${id}"]`;
+    const click = (selector, modifiers = {}) => page.$eval(selector, (el, modifiers) =>
+        el.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0, ...modifiers })), modifiers);
+    const selectedIds = () => page.$$eval('.space.active .tab.selected', rows => rows.map(r => Number(r.dataset.tabId)));
+    async function bulk(selector, label) {
+        await page.$eval(selector, el => {
+            const r = el.getBoundingClientRect();
+            el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: r.left + 40, clientY: r.top + 8 }));
+        });
+        await page.waitForFunction(label => [...document.querySelectorAll('#tab-context-menu .context-menu-item')].some(i => i.textContent === label), { polling: 100 }, label);
+        await page.evaluate(label => [...document.querySelectorAll('#tab-context-menu .context-menu-item')].find(i => i.textContent === label).click(), label);
+    }
+    async function openTabs(names) {
+        // The first Cmd-click also selects the active tab; keep the sidebar itself active so
+        // each test starts from an empty selection.
+        await page.bringToFront();
+        const ids = [];
+        for (const name of names) ids.push(await openTab(name, reading.id));
+        for (const id of ids) await page.waitForSelector(rowOf(id));
+        return ids;
+    }
+    const folderOf = id => page.evaluate(async id => {
+        const { pinnedTabStatesById = {} } = await chrome.storage.local.get('pinnedTabStatesById');
+        const bookmarkId = pinnedTabStatesById[id]?.bookmarkId;
+        return bookmarkId ? (await chrome.bookmarks.get(bookmarkId))[0].parentId : null;
+    }, id);
+
+    // A new folder opens its name editor, which pauses refreshes until it closes.
+    afterEach(async () => { await page.evaluate(() => document.activeElement?.blur?.()); });
+
+    beforeAll(async () => {
+        await page.evaluate(() => document.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, ctrlKey: true, code: 'Digit4' })));
+        await page.waitForFunction(() => document.querySelector('.space.active .space-name').value === 'Reading', { polling: 100 });
+        reading = (await storedSpaces()).find(s => s.name === 'Reading');
+    });
+
+    test('Cmd-click toggles, Shift-click selects a run, Escape and a plain click clear', async () => {
+        const ids = await openTabs(['sel-a', 'sel-b', 'sel-c', 'sel-d']);
+        const order = await page.$$eval('.space.active [data-tab-type="temporary"] .tab[data-tab-id]', rows => rows.map(r => Number(r.dataset.tabId)));
+        await click(rowOf(order[0]), { metaKey: true });
+        await click(rowOf(order[2]), { metaKey: true });
+        expect(await selectedIds()).toEqual([order[0], order[2]]);
+        await click(rowOf(order[3]), { shiftKey: true });
+        expect(await selectedIds()).toEqual([order[2], order[3]]);
+        await click(rowOf(order[0]), { shiftKey: true });
+        expect(await selectedIds()).toEqual(order.slice(0, 3));
+        await page.evaluate(() => document.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Escape' })));
+        expect(await selectedIds()).toEqual([]);
+        await click(rowOf(order[1]), { ctrlKey: true });
+        await click(rowOf(order[3]), { ctrlKey: true });
+        expect(await selectedIds()).toEqual([order[1], order[3]]);
+        await click(rowOf(order[1]));
+        expect(await selectedIds()).toEqual([]);
+        // The plain click opened that tab; the side panel stays visible in real use.
+        await page.bringToFront();
+        await page.evaluate(ids => chrome.tabs.remove(ids), ids);
+    });
+
+    test('New Folder with selected tabs makes them favorites in a new folder and opens it for naming', async () => {
+        const [a, b] = await openTabs(['folder-a', 'folder-b']);
+        await click(rowOf(a), { metaKey: true });
+        await click(rowOf(b), { metaKey: true });
+        await bulk(rowOf(a), 'New Folder with 2 Tabs');
+        await page.waitForFunction(() => document.activeElement?.classList.contains('folder-name'), { polling: 100 });
+        const folderId = await page.evaluate(() => document.activeElement.closest('.folder').dataset.bookmarkId);
+        expect(await folderOf(a)).toBe(folderId);
+        expect(await folderOf(b)).toBe(folderId);
+        expect((await page.evaluate(id => chrome.bookmarks.get(id), folderId))[0].parentId).toBe(reading.bookmarkFolderId);
+        const stored = (await storedSpaces()).find(s => s.id === reading.id);
+        expect(stored.spaceBookmarks).toEqual(expect.arrayContaining([a, b]));
+        await page.keyboard.type('Reading list');
+        await page.keyboard.press('Enter');
+        await page.waitForFunction(id => chrome.bookmarks.get(id).then(([n]) => n.title === 'Reading list'), { polling: 100 }, folderId);
+    });
+
+    test('holding a tab over a favorite and dropping makes a folder of the two', async () => {
+        const favorite = await page.evaluate(async ({ parentId, url }) => (await chrome.bookmarks.create({ parentId, title: 'Merge target', url })).id,
+            { parentId: reading.bookmarkFolderId, url: `${base}/merge-target` });
+        const target = `.space.active .tab.bookmark-only[data-bookmark-id="${favorite}"]`;
+        await page.waitForSelector(target);
+        const [tab] = await openTabs(['merge-tab']);
+        await page.evaluate(({ source, target }) => {
+            const from = document.querySelector(source), to = document.querySelector(target);
+            window.__dt = new DataTransfer();
+            const r = to.getBoundingClientRect();
+            window.__point = { clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 };
+            from.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: window.__dt }));
+            to.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: window.__dt, ...window.__point }));
+        }, { source: rowOf(tab), target });
+        await sleep(650);
+        await page.evaluate(({ source, target }) => {
+            const from = document.querySelector(source), to = document.querySelector(target);
+            to.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: window.__dt, ...window.__point }));
+            if (!to.classList.contains('merge-target')) throw new Error('merge target was not armed');
+            to.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: window.__dt, ...window.__point }));
+            from.dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer: window.__dt }));
+        }, { source: rowOf(tab), target });
+        await page.waitForFunction(async ({ favorite, parent }) => {
+            const [node] = await chrome.bookmarks.get(favorite);
+            return node.parentId !== parent;
+        }, { polling: 100 }, { favorite, parent: reading.bookmarkFolderId });
+        const folderId = (await page.evaluate(id => chrome.bookmarks.get(id), favorite))[0].parentId;
+        expect(await folderOf(tab)).toBe(folderId);
+        const children = await page.evaluate(id => chrome.bookmarks.getChildren(id), folderId);
+        expect(children.map(c => c.title)).toEqual(['Merge target', 'merge-tab page']);
+        await page.keyboard.press('Escape');
+    });
+
+    test('a dragged selection moves together onto a space chip', async () => {
+        const [a, b] = await openTabs(['bulk-a', 'bulk-b']);
+        await click(rowOf(a), { metaKey: true });
+        await click(rowOf(b), { metaKey: true });
+        await dragOnto(rowOf(a), await chip('Travel'));
+        await page.waitForFunction(async ({ a, b }) => {
+            const { spaces } = await chrome.runtime.sendMessage({ type: 'spaceStore', action: 'get' });
+            const travel = spaces.find(s => s.name === 'Travel');
+            return travel.temporaryTabs.includes(a) && travel.temporaryTabs.includes(b);
+        }, { polling: 100 }, { a, b });
+        expect(await selectedIds()).toEqual([]);
+    });
+
+    test('Close on a selection closes the tabs and Undo reopens them', async () => {
+        const [a, b] = await openTabs(['close-a', 'close-b']);
+        await click(rowOf(a), { metaKey: true });
+        await click(rowOf(b), { metaKey: true });
+        await bulk(rowOf(a), 'Close 2 Tabs');
+        await page.waitForFunction(({ a, b }) => !document.querySelector(`.tab[data-tab-id="${a}"]`) && !document.querySelector(`.tab[data-tab-id="${b}"]`), { polling: 100 }, { a, b });
+        await page.$eval('#undoToast .undo-toast-button', button => button.click());
+        await page.waitForFunction(base => [`${base}/close-a`, `${base}/close-b`].every(url =>
+            document.querySelector(`.space.active [data-tab-type="temporary"] .tab[data-url="${url}"]`)), { polling: 100 }, base);
+    });
+});

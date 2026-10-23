@@ -851,6 +851,52 @@ h3 {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
+/* Multi-select: Cmd/Ctrl or Shift click. */
+.tab {
+    user-select: none;
+}
+
+.tab.selected {
+    background: color-mix(in srgb, var(--space-bg-color-dark, #999) 55%, white);
+    box-shadow: inset 0 0 0 1.5px var(--space-bg-color-dark, rgba(0, 0, 0, 0.25));
+}
+
+.tab.selected.active {
+    background-color: #ECEFF1;
+}
+
+/* Holding a tab over a favorite makes a folder of the two. */
+.tab.merge-target {
+    background: color-mix(in srgb, var(--space-bg-color-dark, #999) 45%, white);
+    box-shadow: inset 0 0 0 2px var(--space-bg-color-dark, rgba(0, 0, 0, 0.35));
+    transform: scale(1.02);
+}
+
+.tab.drag-companion {
+    opacity: 0.45;
+}
+
+.drag-count-badge {
+    position: fixed;
+    top: -100px;
+    left: -100px;
+    padding: 4px 10px;
+    border-radius: 12px;
+    background: #222;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.context-menu-note {
+    padding: 6px 12px 4px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: rgba(0, 0, 0, 0.45);
+}
+
 /* Favorites with no open tab are dimmed so open ones stand out, as in Arc */
 .tab.bookmark-only .tab-favicon {
     opacity: 0.5;
@@ -2127,6 +2173,22 @@ h3 {
 
     .context-menu-separator {
         background-color: #444;
+    }
+
+    .context-menu-note {
+        color: rgba(255, 255, 255, 0.5);
+    }
+
+    .tab.selected {
+        background: color-mix(in srgb, var(--space-bg-color, #555) 70%, white);
+    }
+
+    .tab.selected .tab-title-display {
+        color: #111;
+    }
+
+    .tab.merge-target {
+        background: color-mix(in srgb, var(--space-bg-color, #555) 60%, white);
     }
 
     .context-menu-item.with-submenu::after {
