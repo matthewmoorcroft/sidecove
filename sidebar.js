@@ -2998,9 +2998,18 @@ async function closeTab(tabElement, tab, isPinned = false, isBookmarkOnly = fals
     Logger.log('Closing tab:', tab, tabElement, isPinned, isBookmarkOnly);
 
     if (isBookmarkOnly) {
-        const space = spaces.find(s => s.id === tabElement.closest('.space')?.dataset.spaceId);
-        if (!space) return;
-        offerFavoriteUndo(await removeSpacePin(space, { bookmarkId: tabElement.dataset.bookmarkId }));
+        // A refresh can replace this row just after it renders, leaving it outside any space.
+        // The bookmark still names the favorite, so look for it in each space instead.
+        const rowSpace = spaces.find(s => s.id === tabElement.closest('.space')?.dataset.spaceId);
+        let removed = null;
+        for (const space of rowSpace ? [rowSpace] : spaces) {
+            removed = await removeSpacePin(space, { bookmarkId: tabElement.dataset.bookmarkId }).catch(error => {
+                if (rowSpace) throw error;
+                return null;
+            });
+            if (removed) break;
+        }
+        offerFavoriteUndo(removed);
         tabElement.remove();
 
         // Update folder placeholders after removing bookmark
