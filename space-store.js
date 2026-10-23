@@ -56,7 +56,8 @@ export class SpaceStore {
         folder ||= await LocalStorage.getOrCreateSpaceFolder(name);
         const entry = await LocalStorage.getOrCreateSpaceRegistryEntry(folder.id, { name, color });
         return { id: entry.spaceUuid, spaceUuid: entry.spaceUuid, uuid: entry.spaceUuid,
-            bookmarkFolderId: folder.id, name, color: entry.color || color, spaceBookmarks: [], temporaryTabs: [] };
+            bookmarkFolderId: folder.id, name, color: entry.color || color,
+            ...(entry.icon ? { icon: entry.icon } : {}), spaceBookmarks: [], temporaryTabs: [] };
     }
     async initialize() {
         if (this.initialized) return;

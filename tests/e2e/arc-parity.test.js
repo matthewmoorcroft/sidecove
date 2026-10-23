@@ -450,3 +450,55 @@ describe('tab search', () => {
         expect(await page.$eval('#tabSearchResults', el => el.hidden)).toBe(true);
     });
 });
+
+describe('space icons and compact chips', () => {
+    const activeChip = () => page.$eval('#spaceSwitcher button.active', b => ({ icon: b.querySelector('.space-chip-icon')?.textContent || null, name: b.querySelector('.space-chip-name').textContent }));
+
+    test('choosing an icon shows it on the header and chip and survives a reload', async () => {
+        await page.bringToFront();
+        await page.evaluate(() => document.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, ctrlKey: true, code: 'Digit3' })));
+        await page.waitForFunction(() => document.querySelector('.space.active .space-name').value === 'Music', { polling: 100 });
+        await page.$eval('.space.active .space-icon-button', button => button.click());
+        await page.waitForSelector('#spaceIconPicker .space-icon-choice');
+        await page.evaluate(() => [...document.querySelectorAll('#spaceIconPicker .space-icon-choice')].find(b => b.textContent === '🎵').click());
+        await page.waitForFunction(() => document.querySelector('#spaceSwitcher button.active .space-chip-icon')?.textContent === '🎵', { polling: 100 });
+        expect(await page.$eval('.space.active .space-icon-button', b => b.textContent)).toBe('🎵');
+        expect(await activeChip()).toEqual({ icon: '🎵', name: 'Music' });
+        await page.waitForFunction(async () => (await chrome.storage.local.get('spaces')).spaces.find(s => s.name === 'Music')?.icon === '🎵', { polling: 100 });
+        const registryIcon = await page.evaluate(async () => {
+            const { spaces } = await chrome.storage.local.get('spaces');
+            const music = spaces.find(s => s.name === 'Music');
+            return (await chrome.storage.local.get('spaceRegistry')).spaceRegistry[music.bookmarkFolderId].icon;
+        });
+        expect(registryIcon).toBe('🎵');
+        await page.reload();
+        await page.waitForFunction(() => document.querySelector('#spaceSwitcher button.active .space-chip-icon')?.textContent === '🎵', { polling: 100 });
+    });
+
+    test('a typed emoji can be used, a word cannot, and the icon can be removed', async () => {
+        await page.$eval('.space.active .space-icon-button', button => button.click());
+        await page.waitForSelector('#spaceIconPicker .space-icon-custom');
+        await page.type('#spaceIconPicker .space-icon-custom', 'Jazz');
+        await page.keyboard.press('Enter');
+        expect(await page.$eval('#spaceIconPicker .space-icon-custom', input => input.classList.contains('invalid'))).toBe(true);
+        await page.$eval('#spaceIconPicker .space-icon-custom', input => { input.value = ''; });
+        await page.type('#spaceIconPicker .space-icon-custom', '🎷');
+        await page.keyboard.press('Enter');
+        await page.waitForFunction(() => document.querySelector('#spaceSwitcher button.active .space-chip-icon')?.textContent === '🎷', { polling: 100 });
+        await page.$eval('.space.active .space-icon-button', button => button.click());
+        await page.$eval('#spaceIconPicker .space-icon-remove', button => button.click());
+        await page.waitForFunction(() => !document.querySelector('#spaceSwitcher button.active .space-chip-icon'), { polling: 100 });
+        expect(await page.$eval('#spaceSwitcher button.active', b => b.textContent)).toBe('Music');
+        await page.waitForFunction(async () => (await chrome.storage.local.get('spaces')).spaces.find(s => s.name === 'Music')?.icon === null, { polling: 100 });
+    });
+
+    test('chips shrink to icons or initials when the names do not fit, and grow back with room', async () => {
+        expect(await page.$eval('#spaceSwitcher', strip => strip.classList.contains('compact'))).toBe(true);
+        const shown = await page.$$eval('#spaceSwitcher button[data-space-id]', buttons => buttons.map(b => [b.dataset.initial, getComputedStyle(b.querySelector('.space-chip-name')).display]));
+        expect(shown[0]).toEqual(['H', 'none']);
+        await page.setViewport({ width: 1400, height: 800 });
+        await page.waitForFunction(() => !document.getElementById('spaceSwitcher').classList.contains('compact'), { polling: 100 });
+        await page.setViewport({ width: 360, height: 800 });
+        await page.waitForFunction(() => document.getElementById('spaceSwitcher').classList.contains('compact'), { polling: 100 });
+    });
+});

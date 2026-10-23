@@ -25,7 +25,8 @@ import { ownerOf } from './space-store.js';
 import { canCreateFolder, canMoveFolder, createFolder } from './folder-policy.js';
 import { archiveAndCloseTabs, reopenClosedTabs } from './clean-all.js';
 import { loadFolderCollapsed, saveFolderCollapsed } from './folder-state.js';
-import { FOLDER_CLOSED_ICON, FOLDER_CLOSED_DOTS_ICON, FOLDER_OPEN_ICON, SPEAKER_ICON, SPEAKER_MUTED_ICON } from './icons.js';
+import { FOLDER_CLOSED_ICON, FOLDER_CLOSED_DOTS_ICON, FOLDER_OPEN_ICON, SPEAKER_ICON, SPEAKER_MUTED_ICON, SPACE_ICON_PLACEHOLDER } from './icons.js';
+import { SPACE_ICON_CHOICES, normalizeSpaceIcon, spaceInitial } from './space-icons.js';
 import { audioState } from './tab-audio.js';
 import { Selection, selectionGesture } from './selection.js';
 import { searchEntries } from './tab-search.js';
@@ -733,11 +734,11 @@ async function adoptStoredSpaces(next, { render = true } = {}) {
         render = false;
         refreshCoordinator.invalidateSpaces();
     }
-    const projection = list => JSON.stringify(list.map(({ id, name, color, bookmarkFolderId, spaceBookmarks, temporaryTabs }) =>
-        ({ id, name, color, bookmarkFolderId, spaceBookmarks, temporaryTabs })));
+    const projection = list => JSON.stringify(list.map(({ id, name, color, icon, bookmarkFolderId, spaceBookmarks, temporaryTabs }) =>
+        ({ id, name, color, icon: icon || null, bookmarkFolderId, spaceBookmarks, temporaryTabs })));
     const needsRender = projection(spaces) !== projection(next);
     const old = spaces;
-    const oldMetadata = new Map(old.map(s => [s.id, { name: s.name, color: s.color }]));
+    const oldMetadata = new Map(old.map(s => [s.id, { name: s.name, color: s.color, icon: s.icon || null }]));
     spaces = next.map(space => {
         const existing = old.find(s => s.id === space.id);
         return existing ? Object.assign(existing, structuredClone(space)) : structuredClone(space);
@@ -761,7 +762,7 @@ async function adoptStoredSpaces(next, { render = true } = {}) {
             }
         });
         const previous = oldMetadata.get(space.id);
-        if (!previous || previous.name !== space.name || previous.color !== space.color) {
+        if (!previous || previous.name !== space.name || previous.color !== space.color || previous.icon !== (space.icon || null)) {
             const element = getSpaceElement(space.id);
             disposeEditorsInElement(element);
             element?.remove();
@@ -924,6 +925,19 @@ function createSpaceElement(space) {
         }
     });
 
+    // Space icon, as in Arc: shown in the header and on the space's chip.
+    const iconButton = spaceElement.querySelector('.space-icon-button');
+    renderSpaceIconButton(iconButton, space);
+    iconButton.addEventListener('click', (e) => {
+        e.stopPropagation();
+        showSpaceIconPicker(space, iconButton);
+    });
+    spaceElement.querySelector('.space-icon-menu-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.activeElement?.blur?.();
+        showSpaceIconPicker(space, iconButton);
+    });
+
     // Set up space name input
     const nameInput = spaceElement.querySelector('.space-name');
     nameInput.value = space.name;
@@ -1076,6 +1090,80 @@ function createSpaceElement(space) {
     }
 }
 
+function renderSpaceIconButton(button, space) {
+    if (!button) return;
+    button.classList.toggle('has-icon', Boolean(space.icon));
+    if (space.icon) button.textContent = space.icon;
+    else button.innerHTML = SPACE_ICON_PLACEHOLDER;
+}
+
+async function setSpaceIcon(space, icon) {
+    // null rather than delete, so the change reaches the stored space through the patch.
+    space.icon = icon || null;
+    await saveSpaces();
+    await LocalStorage.updateSpaceRegistryEntry(space.bookmarkFolderId, { icon: space.icon });
+    renderSpaceIconButton(getSpaceElement(space.id)?.querySelector('.space-icon-button'), space);
+    await updateSpaceSwitcher();
+}
+
+function showSpaceIconPicker(space, anchor) {
+    document.getElementById('spaceIconPicker')?.remove();
+    const picker = document.createElement('div');
+    picker.id = 'spaceIconPicker';
+    picker.className = 'space-icon-picker';
+    picker.setAttribute('role', 'dialog');
+    picker.setAttribute('aria-label', `Icon for ${space.name}`);
+    const close = () => {
+        picker.remove();
+        document.removeEventListener('mousedown', onOutside, true);
+    };
+    const choose = async icon => {
+        close();
+        try { await setSpaceIcon(space, icon); } catch (error) { alert(error.message); }
+    };
+    const onOutside = event => { if (!picker.contains(event.target)) close(); };
+
+    const grid = document.createElement('div');
+    grid.className = 'space-icon-grid';
+    for (const icon of SPACE_ICON_CHOICES) {
+        const choice = document.createElement('button');
+        choice.type = 'button';
+        choice.className = 'space-icon-choice';
+        choice.classList.toggle('selected', icon === space.icon);
+        choice.textContent = icon;
+        choice.addEventListener('click', () => choose(icon));
+        grid.appendChild(choice);
+    }
+    const custom = document.createElement('input');
+    custom.type = 'text';
+    custom.className = 'space-icon-custom';
+    custom.placeholder = 'Or type any emoji';
+    custom.setAttribute('aria-label', 'Custom icon');
+    custom.addEventListener('keydown', event => {
+        if (event.key === 'Escape') { event.stopPropagation(); close(); return; }
+        if (event.key !== 'Enter') return;
+        const icon = normalizeSpaceIcon(custom.value);
+        if (icon) choose(icon);
+        else custom.classList.add('invalid');
+    });
+    custom.addEventListener('input', () => custom.classList.remove('invalid'));
+    picker.append(grid, custom);
+    if (space.icon) {
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'space-icon-remove';
+        remove.textContent = 'Remove Icon';
+        remove.addEventListener('click', () => choose(null));
+        picker.appendChild(remove);
+    }
+    picker.addEventListener('keydown', event => { if (event.key === 'Escape') close(); });
+    document.body.appendChild(picker);
+    const rect = anchor.getBoundingClientRect();
+    Utils.adjustMenuPosition(picker, Math.max(8, rect.left - 4), rect.bottom + 6);
+    document.addEventListener('mousedown', onOutside, true);
+    grid.querySelector('.selected, .space-icon-choice')?.focus();
+}
+
 async function moveSpaceFolderBefore(space, nextSpace) {
     try {
         const arcifyFolder = await LocalStorage.getOrCreateArcifyFolder();
@@ -1193,7 +1281,7 @@ async function updateSpaceSwitcher() {
 
     spaces.forEach(space => {
         const button = document.createElement('button');
-        button.textContent = space.name;
+        fillSpaceChip(button, space.name, space.icon);
         button.dataset.spaceId = space.id; // Store space ID
         button.classList.toggle('active', space.id === activeSpaceId);
         button.draggable = true; // Make the button draggable
@@ -1230,6 +1318,7 @@ async function updateSpaceSwitcher() {
         spaceSwitcher.appendChild(button);
     });
     // Rebuilding resets the scroll position; keep it, then bring the active chip into view.
+    updateSpaceChipDensity();
     spaceSwitcher.scrollLeft = previousScrollLeft;
     revealActiveSpaceChip();
 
@@ -1241,7 +1330,7 @@ async function updateSpaceSwitcher() {
             return;
         } else {
             const button = document.createElement('button');
-            button.textContent = spaceFolder.title;
+            fillSpaceChip(button, spaceFolder.title, null);
             button.addEventListener('click', async () => {
                 const newTab = await ChromeHelper.createNewTab();
                 await createSpaceFromInactive(spaceFolder.title, newTab);
@@ -1251,8 +1340,37 @@ async function updateSpaceSwitcher() {
     });
 
     // const spaceFolder = spaceFolders.find(f => f.title === space.name);
-
+    updateSpaceChipDensity();
+    revealActiveSpaceChip();
 }
+
+// The chip's text stays the space name; without an icon the compact chip shows the name's
+// first letter through CSS.
+function fillSpaceChip(button, name, icon) {
+    button.title = name;
+    button.dataset.initial = spaceInitial(name);
+    button.classList.toggle('has-icon', Boolean(icon));
+    if (icon) {
+        const iconElement = document.createElement('span');
+        iconElement.className = 'space-chip-icon';
+        iconElement.textContent = icon;
+        button.appendChild(iconElement);
+    }
+    const label = document.createElement('span');
+    label.className = 'space-chip-name';
+    label.textContent = name;
+    button.appendChild(label);
+}
+
+// Like Arc, shrink the chips to icons when the names no longer fit.
+function updateSpaceChipDensity() {
+    spaceSwitcher.classList.remove('compact');
+    if (spaceSwitcher.scrollWidth > spaceSwitcher.clientWidth + 1) spaceSwitcher.classList.add('compact');
+}
+window.addEventListener('resize', () => {
+    updateSpaceChipDensity();
+    revealActiveSpaceChip();
+});
 
 // Confirm a drop on a chip without leaving the current space.
 function flashSpaceChip(spaceId) {

@@ -65,7 +65,7 @@ const LocalStorage = {
             }
         });
     },
-    // Update a registry entry's mutable attributes (name/color/order) so the durable record
+    // Update a registry entry's mutable attributes (name/color/order/icon) so the durable record
     // tracks the user's renames/recolors. No-op if the entry doesn't exist yet.
     updateSpaceRegistryEntry: async function (bookmarkFolderId, attrs = {}) {
         if (!bookmarkFolderId) return;
@@ -76,6 +76,7 @@ const LocalStorage = {
             if (attrs.name !== undefined) entry.name = attrs.name;
             if (attrs.color !== undefined) entry.color = attrs.color;
             if (attrs.order !== undefined) entry.order = attrs.order;
+            if (attrs.icon !== undefined) entry.icon = attrs.icon;
             await this.saveSpaceRegistry(registry);
         });
     },
