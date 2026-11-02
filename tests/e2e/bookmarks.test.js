@@ -1516,7 +1516,7 @@ describe('Bookmarks and Pinned Tabs', () => {
   describe('Undo Favorite Removal', () => {
     test('should restore a removed favorite at the same parent and index', async () => {
       try {
-        logTestStep('Testing undo after removing a favorite with "−"...');
+        logTestStep('Testing undo after removing a favorite with "×"...');
 
         const fixture = await sidebarPage.evaluate(async () => {
           const { spaces } = await chrome.runtime.sendMessage({ type: 'spaceStore', action: 'get' });

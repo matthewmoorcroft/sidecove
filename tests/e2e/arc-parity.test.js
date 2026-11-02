@@ -80,7 +80,7 @@ describe('space navigation', () => {
     });
 
     test('the active chip stays in view with many spaces', async () => {
-        // Enough spaces that even compact chips overflow the strip.
+        // Enough spaces that the chips overflow the strip.
         for (const name of ['Travel', 'Finance', 'Side project', 'Photos', 'Garden', 'Recipes', 'Games', 'Studio']) await createSpaceInPage(name);
         await sleep(600);
         const geometry = await page.evaluate(() => {
@@ -489,7 +489,7 @@ describe('tab search', () => {
     });
 });
 
-describe('space icons and compact chips', () => {
+describe('space icons and the chip strip', () => {
     const activeChip = () => page.$eval('#spaceSwitcher button.active', b => ({ icon: b.querySelector('.space-chip-icon')?.textContent || null, name: b.querySelector('.space-chip-name').textContent }));
 
     test('choosing an icon shows it on the header and chip and survives a reload', async () => {
@@ -530,13 +530,27 @@ describe('space icons and compact chips', () => {
         await page.waitForFunction(async () => (await chrome.storage.local.get('spaces')).spaces.find(s => s.name === 'Music')?.icon === null, { polling: 100 });
     });
 
-    test('chips shrink to icons or initials when the names do not fit, and grow back with room', async () => {
-        expect(await page.$eval('#spaceSwitcher', strip => strip.classList.contains('compact'))).toBe(true);
-        const shown = await page.$$eval('#spaceSwitcher button[data-space-id]', buttons => buttons.map(b => [b.dataset.initial, getComputedStyle(b.querySelector('.space-chip-name')).display]));
-        expect(shown[0]).toEqual(['H', 'none']);
+    test('chips keep their full names; the strip scrolls and fades the edge that has more chips', async () => {
+        const strip = () => page.evaluate(() => {
+            const el = document.getElementById('spaceSwitcher');
+            const names = [...el.querySelectorAll('button[data-space-id]')].map(b => {
+                const name = b.querySelector('.space-chip-name');
+                return { shown: getComputedStyle(name).display !== 'none', fits: name.scrollWidth <= name.clientWidth + 1, text: name.textContent };
+            });
+            return { names, overflow: el.scrollWidth > el.clientWidth, before: el.classList.contains('more-before'), after: el.classList.contains('more-after') };
+        });
+        await page.$eval('#spaceSwitcher', el => { el.scrollLeft = 0; });
+        await page.waitForFunction(() => !document.getElementById('spaceSwitcher').classList.contains('more-before'), { polling: 100 });
+        let state = await strip();
+        expect(state.overflow).toBe(true);
+        expect(state.names.filter(n => !n.shown || !n.fits)).toEqual([]);
+        expect([state.before, state.after]).toEqual([false, true]);
+        await page.$eval('#spaceSwitcher', el => { el.scrollLeft = el.scrollWidth; });
+        await page.waitForFunction(() => document.getElementById('spaceSwitcher').classList.contains('more-before'), { polling: 100 });
+        state = await strip();
+        expect([state.before, state.after]).toEqual([true, false]);
         await page.setViewport({ width: 1400, height: 800 });
-        await page.waitForFunction(() => !document.getElementById('spaceSwitcher').classList.contains('compact'), { polling: 100 });
+        await page.waitForFunction(() => { const el = document.getElementById('spaceSwitcher'); return !el.classList.contains('more-before') && !el.classList.contains('more-after'); }, { polling: 100 });
         await page.setViewport({ width: 360, height: 800 });
-        await page.waitForFunction(() => document.getElementById('spaceSwitcher').classList.contains('compact'), { polling: 100 });
     });
 });

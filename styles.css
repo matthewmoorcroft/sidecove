@@ -817,14 +817,14 @@ h3 {
     background-color: rgba(255, 255, 255, 0.2);
     border: none;
     color: #333;
-    padding: 12px;
-    border-radius: 12px;
+    padding: 6px 12px;
+    border-radius: 10px;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    font-size: 16px;
+    gap: 6px;
+    font-size: 14px;
     width: 100%;
     transition: background-color 0.15s ease, transform 0.08s ease;
 }
@@ -834,7 +834,7 @@ h3 {
 }
 
 .new-tab-btn span {
-    font-size: 20px;
+    font-size: 17px;
 }
 
 /* Toast notification for URL copy success */
@@ -940,12 +940,16 @@ h3 {
     transition: opacity 0.2s ease, visibility 0.2s ease;
 }
 
-.space-switcher.overflowing {
-    mask-image: linear-gradient(to right, rgb(0, 0, 0) 80%, rgba(0, 0, 0, 0) calc(100% - 8px));
+.space-switcher.more-after {
+    mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent calc(100% - 4px));
 }
 
-.space-switcher.compact {
-    gap: 4px;
+.space-switcher.more-before {
+    mask-image: linear-gradient(to left, #000 calc(100% - 32px), transparent calc(100% - 4px));
+}
+
+.space-switcher.more-before.more-after {
+    mask-image: linear-gradient(to right, transparent 4px, #000 32px, #000 calc(100% - 32px), transparent calc(100% - 4px));
 }
 
 .space-switcher::-webkit-scrollbar {
@@ -992,23 +996,6 @@ h3 {
 .space-chip-name {
     overflow: hidden;
     text-overflow: ellipsis;
-}
-
-/* Compact chips: icons (or initials) only, once the names no longer fit. */
-.space-switcher.compact button {
-    width: 32px;
-    min-width: 32px;
-    padding: 0;
-}
-
-.space-switcher.compact .space-chip-name {
-    display: none;
-}
-
-.space-switcher.compact button:not(.has-icon)::before {
-    content: attr(data-initial);
-    font-size: 13px;
-    font-weight: 600;
 }
 
 /* Space icon in the header: an emoji, or a faint placeholder on hover. */

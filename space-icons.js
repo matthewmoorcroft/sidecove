@@ -19,8 +19,3 @@ export function normalizeSpaceIcon(value) {
     if (!text || /[\u0000-\u001f\u007f]/.test(text)) return null;
     return graphemes(text).length === 1 ? text : null;
 }
-
-export function spaceInitial(name) {
-    const first = graphemes(String(name ?? '').trim())[0];
-    return first ? first.toLocaleUpperCase() : '?';
-}

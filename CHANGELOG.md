@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- **Space chips keep their names.** When they don't all fit, the strip scrolls sideways instead of shrinking the chips to initials, and fades the edge that has more spaces beyond it.
+- **New Tab** is a slimmer button, about the height of a tab row.
+- **Close buttons follow Arc:** an open favorite shows − (close the tab, keep the favorite); a closed favorite shows × (remove it); ordinary tabs keep ×.
+- **Copy current tab URL** now has a default shortcut, ⌥⇧C (Alt+Shift+C). Chrome keeps ⌘⇧C for its developer tools, so it cannot be an extension default; you can still choose another key at chrome://extensions/shortcuts.
+
 ## 1.2.0
 
 A clearer drop indicator and a polish pass, with no new permissions.

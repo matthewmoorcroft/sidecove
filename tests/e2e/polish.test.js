@@ -146,3 +146,40 @@ test.each(['grey', 'blue', 'red', 'yellow', 'green', 'pink', 'purple', 'cyan'])(
     await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: 'light' }]);
     for (const [name, value] of Object.entries(contrast)) expect({ name, value: value >= 4.5 }).toEqual({ name, value: true });
 });
+
+test('an open favorite closes with −, a closed favorite is removed with ×, and an ordinary tab closes with ×', async () => {
+    const { tabId, bookmarkId, closedId } = await page.evaluate(async () => {
+        const { spaces } = await chrome.runtime.sendMessage({ type: 'spaceStore', action: 'get' });
+        const parentId = spaces[0].bookmarkFolderId;
+        const closed = await chrome.bookmarks.create({ parentId, title: 'Closed favorite', url: 'https://example.com/closed-favorite' });
+        const open = await chrome.bookmarks.create({ parentId, title: 'Open favorite', url: 'about:blank#open-favorite' });
+        const tab = await chrome.tabs.create({ url: 'about:blank#open-favorite', active: false });
+        await chrome.storage.local.set({ pinnedTabStatesById: { ...(await chrome.storage.local.get('pinnedTabStatesById')).pinnedTabStatesById, [tab.id]: { bookmarkId: open.id, pinnedUrl: open.url } } });
+        const after = spaces.map((s, i) => i === 0 ? { ...s, spaceBookmarks: [...s.spaceBookmarks, tab.id], temporaryTabs: s.temporaryTabs.filter(id => id !== tab.id) } : s);
+        await chrome.runtime.sendMessage({ type: 'spaceStore', action: 'patch', before: spaces, after });
+        return { tabId: tab.id, bookmarkId: open.id, closedId: closed.id };
+    });
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    const button = selector => page.waitForSelector(selector).then(() => page.$eval(selector, b => ({ text: b.textContent, title: b.title })));
+    expect(await button(`.space.active [data-tab-type="pinned"] .tab[data-tab-id="${tabId}"] .tab-close`)).toEqual({ text: '−', title: 'Close Tab, Keep Favorite' });
+    expect(await button(`.space.active .bookmark-only[data-bookmark-id="${closedId}"] .tab-remove`)).toEqual({ text: '×', title: 'Remove Favorite' });
+    expect(await button('.space.active [data-tab-type="temporary"] .tab[data-tab-id] .tab-close')).toEqual({ text: '×', title: 'Close Tab' });
+    await page.evaluate(async ({ tabId, bookmarkId, closedId }) => {
+        await chrome.tabs.remove(tabId);
+        await chrome.bookmarks.remove(bookmarkId);
+        await chrome.bookmarks.remove(closedId);
+    }, { tabId, bookmarkId, closedId });
+});
+
+test('New Tab is a slim button, about the height of a tab row', async () => {
+    const height = await page.$eval('#newTabBtn, .new-tab-btn', button => button.getBoundingClientRect().height);
+    expect(height).toBeLessThanOrEqual(36);
+});
+
+// Chrome keeps Cmd/Ctrl+Shift+C for DevTools and will not assign it to an extension, so
+// the default is Alt+Shift+C, beside Sidecove's Alt+S and Alt+D.
+test('Copy current tab URL has a default shortcut', async () => {
+    const commands = await page.evaluate(() => chrome.commands.getAll());
+    const copy = commands.find(command => command.name === 'copyCurrentUrl');
+    expect(copy.shortcut).toMatch(/^(⌥⇧C|Alt\+Shift\+C)$/);
+});

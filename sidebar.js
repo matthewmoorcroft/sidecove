@@ -26,7 +26,7 @@ import { canCreateFolder, canMoveFolder, createFolder } from './folder-policy.js
 import { archiveAndCloseTabs, reopenClosedTabs } from './clean-all.js';
 import { loadFolderCollapsed, saveFolderCollapsed } from './folder-state.js';
 import { FOLDER_CLOSED_ICON, FOLDER_CLOSED_DOTS_ICON, FOLDER_OPEN_ICON, SPEAKER_ICON, SPEAKER_MUTED_ICON, SPACE_ICON_PLACEHOLDER } from './icons.js';
-import { SPACE_ICON_CHOICES, normalizeSpaceIcon, spaceInitial } from './space-icons.js';
+import { SPACE_ICON_CHOICES, normalizeSpaceIcon } from './space-icons.js';
 import { audioState } from './tab-audio.js';
 import { Selection, selectionGesture } from './selection.js';
 import { searchEntries } from './tab-search.js';
@@ -1353,7 +1353,6 @@ async function updateSpaceSwitcher() {
 // first letter through CSS.
 function fillSpaceChip(button, name, icon) {
     button.title = name;
-    button.dataset.initial = spaceInitial(name);
     button.classList.toggle('has-icon', Boolean(icon));
     if (icon) {
         const iconElement = document.createElement('span');
@@ -1367,14 +1366,14 @@ function fillSpaceChip(button, name, icon) {
     button.appendChild(label);
 }
 
-// Like Arc, shrink the chips to icons when the names no longer fit.
+// Chips keep their full names; when they do not all fit, the strip scrolls and fades
+// whichever edge still has chips beyond it.
 function updateSpaceChipDensity() {
-    const overflows = () => spaceSwitcher.scrollWidth > spaceSwitcher.clientWidth + 1;
-    spaceSwitcher.classList.remove('compact');
-    if (overflows()) spaceSwitcher.classList.add('compact');
-    // Fade the right edge only while chips are still cut off, even after compacting.
-    spaceSwitcher.classList.toggle('overflowing', overflows());
+    const hidden = spaceSwitcher.scrollWidth - spaceSwitcher.clientWidth;
+    spaceSwitcher.classList.toggle('more-before', hidden > 1 && spaceSwitcher.scrollLeft > 1);
+    spaceSwitcher.classList.toggle('more-after', hidden > 1 && spaceSwitcher.scrollLeft < hidden - 1);
 }
+spaceSwitcher.addEventListener('scroll', updateSpaceChipDensity, { passive: true });
 window.addEventListener('resize', () => {
     updateSpaceChipDensity();
     revealActiveSpaceChip();
@@ -3130,8 +3129,10 @@ async function createTabElement(tab, isPinned = false, isBookmarkOnly = false) {
     // Set up action button
     actionButton.classList.remove('tab-close');
     actionButton.classList.add(isBookmarkOnly ? 'tab-remove' : 'tab-close');
-    actionButton.innerHTML = isBookmarkOnly ? '−' : '×';
-    actionButton.title = isBookmarkOnly ? 'Remove Bookmark' : 'Close Tab';
+    // As in Arc: − closes an open favorite's tab and keeps the favorite; × removes the
+    // favorite itself, or closes an ordinary tab.
+    actionButton.innerHTML = isPinned && !isBookmarkOnly ? '−' : '×';
+    actionButton.title = isBookmarkOnly ? 'Remove Favorite' : isPinned ? 'Close Tab, Keep Favorite' : 'Close Tab';
     actionButton.addEventListener('click', async (e) => {
         e.stopPropagation();
         const activeSpace = spaces.find(s => s.id === activeSpaceId);

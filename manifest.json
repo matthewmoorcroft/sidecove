@@ -45,6 +45,9 @@
       "description": "Navigates to prev tab in space"
     },
     "copyCurrentUrl": {
+      "suggested_key": {
+        "default": "Alt+Shift+C"
+      },
       "description": "Copy current tab URL"
     },
     "NextSpace": {
