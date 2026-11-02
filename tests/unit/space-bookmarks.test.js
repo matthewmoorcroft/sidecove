@@ -90,4 +90,3 @@ test('removing a favorite returns the snapshot needed to undo it', async () => {
     assert.deepEqual(snapshot, { parentId: 'folder', index: 1, title: 'Saved', url: 'https://saved.test/' });
     assert.equal(await removeSpacePin({ bookmarkFolderId: 'space' }, { bookmarkId: 'missing' }), null);
 });
-
