@@ -62,13 +62,14 @@ export class SpaceStore {
     async initialize() {
         if (this.initialized) return;
         const data = await chrome.storage.local.get(['spaces', 'spaceModelVersion', 'spaceTabSnapshot', 'archivedTabs']);
-        const session = await chrome.storage.session.get(['spaceSession', 'spaceRestoreQueue', 'activeSpaces', 'restoredTabRanks']);
+        const session = await chrome.storage.session.get(['spaceSession', 'spaceRestoreQueue', 'activeSpaces', 'lastActiveSpace', 'restoredTabRanks']);
         this.spaces = data.spaces || [];
         this.snapshotByTab = new Map((data.spaceTabSnapshot || []).filter(t => t.tabId).map(t => [t.tabId, t]));
         this.provisional = new Set();
         this.restoredMetadata = [];
         this.restoredRanks = new Map(session.restoredTabRanks || []);
         this.active = session.activeSpaces || {};
+        this.lastActive = session.lastActiveSpace || null;
         this.defaultSpaceName = (await chrome.storage.sync.get('defaultSpaceName')).defaultSpaceName || 'Home';
         const live = await chrome.tabs.query({});
         if (data.spaceModelVersion !== 2) {
@@ -99,6 +100,7 @@ export class SpaceStore {
             this.restoreQueue = data.spaceTabSnapshot || [];
             this.spaces.forEach(s => { s.spaceBookmarks = []; s.temporaryTabs = []; delete s.lastTab; });
             this.active = {};
+            this.lastActive = null;
             this.restoredRanks.clear();
             await chrome.storage.local.set({ pinnedTabStatesById: {}, tabNameOverridesById: {}, tabLastActivity: {} });
         } else {
@@ -160,8 +162,12 @@ export class SpaceStore {
         // A blank new-tab page belongs to the selected space, not that incidental opener.
         const isNewTabPage = !url || /^(chrome:\/\/(newtab|new-tab-page)\/?|about:blank)$/.test(url);
         const openerSpace = isNewTabPage ? null : ownerOf(this.spaces, tab.openerTabId);
+        // A window with no space of its own yet (such as one Chrome opens for a link from another
+        // app) uses the space last in use in any window; the default space is for when there
+        // is none, as right after Chrome starts.
         const space = this.spaces.find(s => s.id === restored?.spaceId) || openerSpace
             || this.spaces.find(s => s.id === this.active[tab.windowId])
+            || this.spaces.find(s => s.id === this.lastActive)
             || this.spaces.find(s => s.name === this.defaultSpaceName) || this.spaces[0];
         if (!space) return;
         const key = restored?.section || 'temporaryTabs';
@@ -205,7 +211,7 @@ export class SpaceStore {
             });
         }
         await chrome.storage.local.set({ spaces: clone(this.spaces), spaceModelVersion: 2, spaceTabSnapshot: [...snapshot, ...this.restoreQueue] });
-        await chrome.storage.session.set({ spaceSession: true, activeSpaces: this.active, spaceRestoreQueue: this.restoreQueue, restoredTabRanks: [...this.restoredRanks] });
+        await chrome.storage.session.set({ spaceSession: true, activeSpaces: this.active, lastActiveSpace: this.lastActive, spaceRestoreQueue: this.restoreQueue, restoredTabRanks: [...this.restoredRanks] });
         try { await syncSpaceGroups(this.spaces, this.active); }
         catch (error) { console.warn('Tab group sync deferred:', error); }
     }
@@ -225,7 +231,7 @@ export class SpaceStore {
                     this.spaces = applySpacePatch(this.spaces, message.before, message.after);
                     if (!this.spaces.length) this.spaces.push(await this.makeSpace(this.defaultSpaceName));
                     break;
-                case 'activate': this.active[message.windowId] = message.spaceId; break;
+                case 'activate': this.active[message.windowId] = message.spaceId; this.lastActive = message.spaceId; break;
                 case 'assign': {
                     const target = this.spaces.find(s => s.id === message.spaceId);
                     if (target) {
@@ -281,7 +287,7 @@ export class SpaceStore {
         }));
         chrome.tabs.onActivated.addListener(info => handle(() => {
             const space = ownerOf(this.spaces, info.tabId);
-            if (space) { space.lastTab = info.tabId; this.active[info.windowId] = space.id; }
+            if (space) { space.lastTab = info.tabId; this.active[info.windowId] = space.id; this.lastActive = space.id; }
         }));
         chrome.storage.onChanged.addListener((changes, area) => {
             if (area === 'local' && (changes.pinnedTabStatesById || changes.tabNameOverridesById)) handle(() => {});

@@ -242,7 +242,9 @@ Spaces and their tab order are stored by the extension, independently of Chrome 
 groups. Closing the last tab keeps the space and its bookmarks. Moving, renaming,
 recoloring, or removing a native group does not change a space. The background
 service worker tracks new and closed tabs even when the sidebar is closed; new
-tabs inherit their opener's space, or the active space for their window.
+tabs inherit their opener's space, or the active space for their window. A window
+with no space yet, such as one Chrome opens for a link from another app, uses the
+space you used last.
 
 Existing spaces from earlier versions migrate automatically to stable IDs. On a fresh setup with
 native groups, the sidebar offers an optional **Create spaces** import; declining
