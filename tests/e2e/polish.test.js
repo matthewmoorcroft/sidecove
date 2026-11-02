@@ -171,9 +171,54 @@ test('an open favorite closes with −, a closed favorite is removed with ×, an
     }, { tabId, bookmarkId, closedId });
 });
 
-test('New Tab is a slim button, about the height of a tab row', async () => {
-    const height = await page.$eval('#newTabBtn, .new-tab-btn', button => button.getBoundingClientRect().height);
-    expect(height).toBeLessThanOrEqual(36);
+// As in Arc: a plain row with a grey plus and text, no button box, lined up with the tabs.
+test('New Tab is a plain row lined up with the tabs, and readable in every space colour', async () => {
+    await page.bringToFront();
+    const tabId = await page.evaluate(async () => (await chrome.tabs.create({ url: 'about:blank#new-tab-row', active: false })).id);
+    await page.waitForSelector(`.space.active .tab[data-tab-id="${tabId}"] .tab-favicon`);
+    await page.mouse.move(350, 5);
+    const look = await page.evaluate(id => {
+        const button = document.getElementById('newTabBtn');
+        const style = getComputedStyle(button);
+        const plus = button.querySelector('span').getBoundingClientRect();
+        const icon = document.querySelector(`.space.active .tab[data-tab-id="${id}"] .tab-favicon`).getBoundingClientRect();
+        return { background: style.backgroundColor, border: style.borderTopWidth, weight: style.fontWeight, plusLeft: plus.left, iconLeft: icon.left, height: button.getBoundingClientRect().height };
+    }, tabId);
+    expect(look.background).toBe('rgba(0, 0, 0, 0)');
+    expect(look.border).toBe('0px');
+    expect(look.weight).toBe('400');
+    expect(Math.abs(look.plusLeft - look.iconLeft)).toBeLessThanOrEqual(1.5);
+    expect(look.height).toBeLessThanOrEqual(40);
+
+    // Never harder to read than a tab title, and at least 4.5:1 wherever tab titles are.
+    const measure = () => page.evaluate(id => {
+        const ctx = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
+        const rgba = css => { ctx.clearRect(0, 0, 1, 1); ctx.fillStyle = '#000'; ctx.fillStyle = css; ctx.fillRect(0, 0, 1, 1); const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data; return [r, g, b, a / 255]; };
+        const over = (top, under) => top.slice(0, 3).map((c, i) => c * top[3] + under[i] * (1 - top[3]));
+        const lum = rgb => { const [r, g, b] = rgb.map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+        const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+        const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+        const bg = over(rgba(getComputedStyle(document.getElementById('sidebar-container')).backgroundColor), dark ? [0, 0, 0] : [255, 255, 255]);
+        const text = el => ratio(over(rgba(getComputedStyle(el).color), bg), bg);
+        return { newTab: text(document.getElementById('newTabBtn')), title: text(document.querySelector(`.space.active .tab[data-tab-id="${id}"] .tab-title-display`)) };
+    }, tabId);
+    const short = [];
+    for (const scheme of ['light', 'dark']) {
+        await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }]);
+        for (const color of ['grey', 'blue', 'red', 'yellow', 'green', 'pink', 'purple', 'cyan']) {
+            await page.evaluate(async color => {
+                const { spaces } = await chrome.runtime.sendMessage({ type: 'spaceStore', action: 'get' });
+                await chrome.runtime.sendMessage({ type: 'spaceStore', action: 'patch', before: spaces, after: spaces.map((s, i) => i === 0 ? { ...s, color } : s) });
+            }, color);
+            await page.waitForFunction(color => document.querySelector('.space.active .space-color-select')?.value === color, { polling: 100 }, color);
+            await sleep(100);
+            const { newTab, title } = await measure();
+            if (newTab + 0.01 < Math.min(4.5, title)) short.push({ scheme, color, newTab: +newTab.toFixed(2), title: +title.toFixed(2) });
+        }
+    }
+    await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: 'light' }]);
+    await page.evaluate(id => chrome.tabs.remove(id), tabId);
+    expect(short).toEqual([]);
 });
 
 // Chrome keeps Cmd/Ctrl+Shift+C for DevTools and will not make it an extension's default

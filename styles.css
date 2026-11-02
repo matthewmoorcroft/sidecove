@@ -814,28 +814,38 @@ h3 {
     transform: scale(0.99);
 }
 
+/* As in Arc: New Tab is a plain row, a grey plus where a tab's icon sits and grey text,
+   with the same height, padding and hover as a tab row. */
 .new-tab-btn {
-    background-color: rgba(255, 255, 255, 0.2);
+    background: none;
     border: none;
-    color: #333;
-    padding: 6px 12px;
+    color: rgba(51, 51, 51, 0.9);
+    min-height: 36px;
+    padding: 4px 8px 4px 12px;
     border-radius: 10px;
     cursor: pointer;
     display: flex;
     align-items: center;
-    justify-content: center;
-    gap: 6px;
+    justify-content: flex-start;
+    gap: 8px;
+    font: inherit;
     font-size: 14px;
+    font-weight: 400;
+    text-align: left;
     width: 100%;
-    transition: background-color 0.15s ease, transform 0.08s ease;
+    transition: background-color 0.12s ease, color 0.12s ease, transform 0.08s ease;
 }
 
 .new-tab-btn:hover {
-    background-color: rgba(255, 255, 255, 0.3);
+    background: color-mix(in srgb, var(--space-bg-color, #ccc) 62%, white);
+    color: #333;
 }
 
 .new-tab-btn span {
-    font-size: 17px;
+    width: 16px;
+    font-size: 18px;
+    line-height: 1;
+    text-align: center;
 }
 
 /* Toast notification for URL copy success */
@@ -1602,10 +1612,6 @@ h3 {
 #createSpaceBtn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
-}
-
-.new-tab-btn span {
-    font-size: 20px;
 }
 
 .new-tab-input {
@@ -2475,7 +2481,14 @@ h3 {
         background-color: rgba(255, 255, 255, 0.1);
     }
 
+    /* Tab titles in dark mode are already at the edge of readable, so New Tab keeps their
+       colour and stays quieter through its regular weight alone. */
     .new-tab-btn {
+        color: #ECEFF1;
+    }
+
+    .new-tab-btn:hover {
+        background: var(--space-bg-color-dark, rgba(255, 255, 255, 0.1));
         color: #ECEFF1;
     }
 
