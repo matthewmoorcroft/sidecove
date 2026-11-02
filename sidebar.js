@@ -537,9 +537,7 @@ async function activatePinnedTabByURL(bookmarkUrl, targetSpaceId, spaceName, boo
                 title: bookmark.title || 'Bookmark',
                 spaceName: spaceName,
                 pinnedUrl: bookmarkUrl,
-                bookmarkId: bookmark.id,
-                // An explicit activation adopts one unbound open tab on exactly the same link.
-                adoptTab: BookmarkUtils.findAdoptableTab(tabs, bindings, bookmark.url || bookmarkUrl)
+                bookmarkId: bookmark.id
             };
 
             // Prepare context for BookmarkUtils
@@ -3381,11 +3379,6 @@ async function createTabElement(tab, isPinned = false, isBookmarkOnly = false) {
                         isOpeningBookmark = false;
                         return;
                     }
-                    // An explicit click adopts one unbound open tab on exactly the same link.
-                    const adoptTab = isPinned && clickedBookmarkId ? BookmarkUtils.findAdoptableTab(
-                        allTabs.filter(t => ownerOf(spaces, t.id)?.id === activeSpaceId),
-                        bindings, tabElement.dataset.pinnedUrl || tabUrl) : null;
-
                     // Check if tab is in archive and restore it
                     const archivedTabs = await Utils.getArchivedTabs();
                     const archivedTab = !isPinned && archivedTabs.find(t => t.url === tabUrl);
@@ -3470,8 +3463,7 @@ async function createTabElement(tab, isPinned = false, isBookmarkOnly = false) {
                         title: bookmarkTitle,
                         spaceName: tab.spaceName || space.name,
                         pinnedUrl: tabElement.dataset.pinnedUrl || tabUrl,
-                        bookmarkId: tabElement.dataset.bookmarkId || null,
-                        adoptTab
+                        bookmarkId: tabElement.dataset.bookmarkId || null
                     };
 
                     // Prepare context for BookmarkUtils
@@ -4095,74 +4087,15 @@ async function cleanTemporaryTabs(spaceId) {
     }, 8000);
 }
 
-// Tabs opened since the sidebar loaded that have not reached their first page yet, each with
-// the promise of its space assignment.
-const newlyOpenedTabs = new Map();
-const isBlankPage = url => !url || url === 'about:blank' || /^(chrome:\/\/newtab|chrome-search:\/\/)/.test(url);
-
-async function waitWhileOpeningBookmark() {
-    const deadline = Date.now() + 2000;
-    while (isOpeningBookmark && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 50));
-}
-
 async function handleTabCreated(tab) {
-    if (!sidebarReady || isCreatingSpace || tab.pinned || tab.windowId !== currentWindow?.id) return;
-    const placed = (async () => {
-        await waitWhileOpeningBookmark();
-        if (isOpeningBookmark) return;
-        await pendingSpaceSaves;
-        const next = await spaceRequest('get');
-        await adoptStoredSpaces(next);
-    })();
-    newlyOpenedTabs.set(tab.id, placed.catch(() => {}));
-    await placed;
-}
-
-let favoriteJoins = Promise.resolve();
-
-// A new tab whose first page is exactly a closed favorite's link opens as that favorite, as
-// if the favorite had been clicked. Any other link, even the same page with a different
-// query, stays its own tab, and a favorite that is already open keeps its tab.
-async function joinMatchingFavorite(tabId, url) {
-    const space = ownerOf(spaces, tabId);
-    if (!space?.temporaryTabs.includes(tabId)) return;
-    const tab = await chrome.tabs.get(tabId).catch(() => null);
-    if (!tab || tab.pinned || !BookmarkUtils.isSameLink(tab.url || tab.pendingUrl, url)) return;
-    const bookmarksIn = node => node.url ? [node] : node.children.flatMap(bookmarksIn);
-    const matches = bookmarksIn(await getSpaceBookmarkTree(space)).filter(node => BookmarkUtils.isSameLink(node.url, url));
-    if (!matches.length) return;
-    await waitWhileOpeningBookmark();
-    if (isOpeningBookmark) return;
-    isOpeningBookmark = true;
-    try {
-        const bindings = await Utils.getPinnedTabStates();
-        const openIds = new Set((await getOwnedTabs(space.id)).map(owned => bindings[owned.id]?.bookmarkId));
-        const bookmark = matches.find(node => !openIds.has(node.id));
-        if (!bookmark || bindings[tabId]?.bookmarkId) return;
-        const spaceElement = getSpaceElement(space.id);
-        spaceElement?.querySelector(`[data-tab-type="temporary"] [data-tab-id="${tabId}"]`)?.remove();
-        const row = spaceElement?.querySelector(`.bookmark-only[data-bookmark-id="${bookmark.id}"]`) || null;
-        const context = { spaces, activeSpaceId, currentWindow, saveSpaces, createTabElement, activateTabInDOM, Utils, persistSpaceTabOrder };
-        await BookmarkUtils.openBookmarkAsTab({
-            url: bookmark.url, title: bookmark.title || 'Bookmark', spaceName: space.name,
-            pinnedUrl: bookmark.url, bookmarkId: bookmark.id, adoptTab: tab, activate: tab.active
-        }, space.id, row, context, /*isPinned=*/true);
-    } finally {
-        isOpeningBookmark = false;
-        refreshCoordinator.schedule();
-    }
+    if (!sidebarReady || isCreatingSpace || isOpeningBookmark || tab.pinned || tab.windowId !== currentWindow?.id) return;
     await pendingSpaceSaves;
-    await refreshActiveSpaceUI();
+    const next = await spaceRequest('get');
+    await adoptStoredSpaces(next);
 }
 
 
 function handleTabUpdate(tabId, changeInfo, tab) {
-    if (changeInfo.url && newlyOpenedTabs.has(tabId) && !isBlankPage(changeInfo.url)) {
-        const placed = newlyOpenedTabs.get(tabId);
-        newlyOpenedTabs.delete(tabId);
-        favoriteJoins = favoriteJoins.then(() => placed).then(() => joinMatchingFavorite(tabId, changeInfo.url))
-            .catch(error => Logger.warn('Could not open the new tab as its favorite:', error));
-    }
     if (isOpeningBookmark) {
         return;
     }
@@ -4288,7 +4221,6 @@ function handleTabUpdate(tabId, changeInfo, tab) {
 
 async function handleTabRemove(tabId) {
     Logger.log('Tab removed:', tabId);
-    newlyOpenedTabs.delete(tabId);
     editorSessions.dispose('tab', tabId);
     await Utils.removePinnedTabState(tabId);
     // Get tab element before removing it

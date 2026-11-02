@@ -2,11 +2,11 @@
 
 ## 1.2.0
 
-An Arc-style space bar, favorites that match only their exact link, a clearer drop indicator and a polish pass, with no new permissions.
+An Arc-style space bar, favorites that only own the tab they opened, a clearer drop indicator and a polish pass, with no new permissions.
 
 - **The space bar works like Arc's.** Each space shows as its icon, or a dot if it has none; the current space is full strength and the name shows on hover, so every space stays in view. Prefer names? Settings → Space bar shows → Names gives full-name chips, which scroll sideways when they don't all fit and fade the edge that has more.
 - **Right-click a space** in the bar for Change Space Icon, Rename Space, Theme Color, New Folder and Delete Space.
-- **A tab joins a favorite only on exactly its link.** Opening a link that is exactly a closed favorite's link opens it as that favorite. The same page with a different link (another video, another search) stays its own tab, and clicking a favorite no longer takes over such a tab.
+- **A favorite only owns the tab it opened.** Clicking a closed favorite always opens it in its own new tab. A tab you opened yourself is never taken over or linked to a favorite, even when it shows the same page, so two links never show as one favorite.
 - **New Tab** is a slimmer button, about the height of a tab row.
 - **Close buttons follow Arc:** an open favorite shows − (close the tab, keep the favorite); a closed favorite shows × (remove it); ordinary tabs keep ×.
 - **Copy current tab URL** now has a default shortcut, ⌥⇧C (Alt+Shift+C). Chrome will not give an extension ⌘⇧C as a default because its developer tools use it, but you can choose it at chrome://extensions/shortcuts; the install guide's Shortcuts step now says so for anyone coming from Arc.
