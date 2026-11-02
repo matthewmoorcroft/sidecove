@@ -4,7 +4,7 @@ import { SpaceStore, applySpacePatch, ownerOf } from '../../space-store.js';
 import { syncSpaceGroups } from '../../tab-group-sync.js';
 import { Utils } from '../../utils.js';
 
-let local, session, sync, tabs, mutations, groups;
+let local, session, sync, tabs, mutations, groups, focusedWindow;
 const area = data => ({
     async get(keys) {
         const names = typeof keys === 'string' ? [keys] : Array.isArray(keys) ? keys : Object.keys(keys || data);
@@ -15,7 +15,7 @@ const area = data => ({
 const space = (id, ids = []) => ({ id, spaceUuid: id, name: id, color: 'blue', bookmarkFolderId: id, spaceBookmarks: [], temporaryTabs: ids });
 beforeEach(() => {
     local = { spaceModelVersion: 2, spaces: [space('a', [1]), space('b', [2])] };
-    session = { spaceSession: true }; sync = {}; mutations = []; groups = [];
+    session = { spaceSession: true }; sync = {}; mutations = []; groups = []; focusedWindow = 1;
     tabs = [{ id: 1, windowId: 1, url: 'https://one.test/', groupId: -1 }, { id: 2, windowId: 1, url: 'https://two.test/', groupId: -1 }];
     const event = () => ({ listeners: [], addListener(fn) { this.listeners.push(fn); }, emit(...args) { this.listeners.forEach(fn => fn(...args)); } });
     globalThis.chrome = {
@@ -25,7 +25,8 @@ beforeEach(() => {
             group: async args => { mutations.push(['group', args]); const id = args.groupId ?? 100 + groups.length; if (!groups.some(g => g.id === id)) groups.push({ id, windowId: 1 }); tabs.filter(t => args.tabIds.includes(t.id)).forEach(t => t.groupId = id); return id; },
             move: async (...args) => mutations.push(['move', ...args]) },
         tabGroups: { onRemoved: event(), onUpdated: event(), query: async () => groups, update: async (id, attrs) => { mutations.push(['update', id, attrs]); Object.assign(groups.find(g => g.id === id), attrs); } },
-        bookmarks: { search: async () => [{ id: 'root' }], getChildren: async () => [], create: async ({ title }) => ({ id: title, title }) }
+        bookmarks: { search: async () => [{ id: 'root' }], getChildren: async () => [], create: async ({ title }) => ({ id: title, title }) },
+        windows: { onFocusChanged: event(), get: async id => ({ id, focused: id === focusedWindow }) }
     };
 });
 test('independent default ignores group identity and order and retains empty spaces', async () => {
@@ -228,4 +229,36 @@ test('space order follows the order of space folders under the Sidecove folder',
     const after = await store.dispatch({ action: 'get' });
     assert.deepEqual(after.map(s => s.id), ['a', 'b']);
     assert.deepEqual(local.spaces.map(s => s.id), ['a', 'b']);
+});
+
+// A link from another app can open a window Sidecove has no space for yet.
+const newTabIn = async (store, windowId, id) => {
+    const tab = { id, windowId, url: `https://new-${id}.test/` };
+    tabs.push(tab);
+    await store.run(async () => { store.track(tab); await store.persist(); });
+    return ownerOf(local.spaces, id).id;
+};
+test('a tab in a window with no space of its own goes to the space last chosen, not the default', async () => {
+    const store = new SpaceStore();
+    await store.dispatch({ action: 'activate', spaceId: 'b', windowId: 1 });
+    assert.equal(await newTabIn(store, 2, 30), 'b');
+    // The choice survives the background worker restarting.
+    assert.equal(await newTabIn(new SpaceStore(), 3, 31), 'b');
+});
+test('a panel starting up in a window does not change the space last chosen', async () => {
+    const store = new SpaceStore();
+    await store.dispatch({ action: 'activate', spaceId: 'b', windowId: 1 });
+    await store.dispatch({ action: 'activate', spaceId: 'a', windowId: 2, initial: true });
+    assert.equal(await newTabIn(store, 3, 32), 'b');
+});
+test('a tab changing in an unfocused window does not count as the space in use; focusing a window does', async () => {
+    tabs.push({ id: 5, windowId: 2, url: 'https://five.test/' });
+    local.spaces[0].temporaryTabs.push(5);
+    const store = new SpaceStore(); store.install();
+    await store.dispatch({ action: 'activate', spaceId: 'b', windowId: 1 });
+    await store.dispatch({ action: 'activate', spaceId: 'b', windowId: 2, initial: true });
+    chrome.tabs.onActivated.emit({ tabId: 5, windowId: 2 }); await store.run(() => {});
+    assert.equal(await newTabIn(store, 3, 33), 'b');
+    chrome.windows.onFocusChanged.emit(2); await store.run(() => {});
+    assert.equal(await newTabIn(store, 4, 34), 'a');
 });

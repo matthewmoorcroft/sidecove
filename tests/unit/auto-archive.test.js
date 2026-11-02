@@ -38,6 +38,7 @@ function startBackground() {
             query: async () => structuredClone(tabs), get: async id => structuredClone(tabs.find(t => t.id === id)),
             remove: async id => { removed.push(id); tabs = tabs.filter(t => t.id !== id); } },
         tabGroups: { onRemoved: event(), onUpdated: event(), query: async () => [] },
+        windows: { onFocusChanged: event(), get: async id => ({ id, focused: true }) },
         bookmarks: { search: async () => [{ id: 'root' }], getChildren: async () => [], getSubTree: async () => [{ id: 'root', children: [] }] }
     };
     runInNewContext(source, {

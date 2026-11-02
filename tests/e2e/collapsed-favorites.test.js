@@ -67,3 +67,15 @@ test('favorites hidden by collapsing the Favorites section cannot be clicked or 
     await page.mouse.click(spots[0].x, spots[0].y);
     await page.waitForFunction(count => chrome.tabs.query({}).then(tabs => tabs.length === count + 1), { polling: 100 }, before);
 });
+
+test('New Folder with Favorites collapsed opens the section so the new folder can be named', async () => {
+    await page.bringToFront();
+    await page.$eval('.space.active .space-toggle-chevron', button => button.click());
+    await page.waitForSelector('.space.active .pinned-tabs.collapsed');
+    await page.$eval('.space.active .new-folder-btn', button => button.click());
+    await page.waitForSelector('.space.active .pinned-tabs:not(.collapsed)');
+    await page.waitForFunction(() => document.activeElement?.matches('.space.active .pinned-tabs .folder-name-input, .space.active .pinned-tabs input'), { polling: 100 });
+    await page.keyboard.type('Named while collapsed');
+    await page.keyboard.press('Enter');
+    await page.waitForFunction(async () => (await chrome.bookmarks.search({ title: 'Named while collapsed' })).length === 1, { polling: 100 });
+});

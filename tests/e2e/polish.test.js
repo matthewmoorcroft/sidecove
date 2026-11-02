@@ -202,6 +202,7 @@ test('New Tab is a plain row lined up with the tabs, and readable in every space
         const text = el => ratio(over(rgba(getComputedStyle(el).color), bg), bg);
         return { newTab: text(document.getElementById('newTabBtn')), title: text(document.querySelector(`.space.active .tab[data-tab-id="${id}"] .tab-title-display`)) };
     }, tabId);
+    const original = await page.evaluate(async () => (await chrome.runtime.sendMessage({ type: 'spaceStore', action: 'get' })).spaces[0].color);
     const short = [];
     for (const scheme of ['light', 'dark']) {
         await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }]);
@@ -217,6 +218,10 @@ test('New Tab is a plain row lined up with the tabs, and readable in every space
         }
     }
     await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: 'light' }]);
+    await page.evaluate(async color => {
+        const { spaces } = await chrome.runtime.sendMessage({ type: 'spaceStore', action: 'get' });
+        await chrome.runtime.sendMessage({ type: 'spaceStore', action: 'patch', before: spaces, after: spaces.map((s, i) => i === 0 ? { ...s, color } : s) });
+    }, original);
     await page.evaluate(id => chrome.tabs.remove(id), tabId);
     expect(short).toEqual([]);
 });

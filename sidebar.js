@@ -816,7 +816,7 @@ async function initSidebar() {
     const activeTab = allTabs.find(t => t.active && t.windowId === currentWindow.id);
     activeChromeTabId = activeTab?.id;
     const { activeSpaces = {} } = await chrome.storage.session.get('activeSpaces');
-    await setActiveSpace(activeSpaces[currentWindow.id] || ownerOf(spaces, activeTab?.id)?.id || spaces[0]?.id, false);
+    await setActiveSpace(activeSpaces[currentWindow.id] || ownerOf(spaces, activeTab?.id)?.id || spaces[0]?.id, false, { initial: true });
     previousSpaceId = activeSpaceId;
     setupDOMElements(createNewSpace, () => spaces);
     sidebarReady = true;
@@ -1724,7 +1724,7 @@ function clearFolderOpenTimer() {
     currentHoveredFolder = null;
 }
 
-async function setActiveSpace(spaceId, updateTab = true) {
+async function setActiveSpace(spaceId, updateTab = true, { initial = false } = {}) {
     const space = spaces.find(s => s.id === spaceId);
     if (!space) return;
     if (activeSpaceId && activeSpaceId !== spaceId) {
@@ -1736,7 +1736,7 @@ async function setActiveSpace(spaceId, updateTab = true) {
     if (activeSpaceId !== spaceId) clearSelection();
     activeSpaceId = spaceId;
     await pendingSpaceSaves;
-    await spaceRequest('activate', { windowId: currentWindow.id, spaceId });
+    await spaceRequest('activate', { windowId: currentWindow.id, spaceId, initial });
     await activateSpaceInDOM(spaceId, spaces, updateSpaceSwitcher);
     await refreshActiveSpaceUI();
     if (updateTab) {
@@ -2678,6 +2678,8 @@ function setupPlaceholderDragAndDrop(placeholderContainer, pinnedContainer) {
 }
 
 async function createNewFolder(spaceElement, parentFolderElement = null) {
+    // The new folder goes into Favorites; a collapsed section would hide it and its name field.
+    if (spaceElement.querySelector('.pinned-tabs.collapsed')) spaceElement.querySelector('.space-toggle-chevron')?.click();
     const space = spaces.find(s => s.id === spaceElement.dataset.spaceId);
     const spaceFolder = await getSpaceBookmarkFolder(space);
     const parentId = parentFolderElement?.dataset.bookmarkId || spaceFolder.id;

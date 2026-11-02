@@ -635,7 +635,8 @@ describe('space icons and the chip strip', () => {
         expect(state.names.filter(n => !n.shown || !n.fits)).toEqual([]);
         expect([state.before, state.after]).toEqual([false, true]);
         await page.$eval('#spaceSwitcher', el => { el.scrollLeft = el.scrollWidth; });
-        await page.waitForFunction(() => document.getElementById('spaceSwitcher').classList.contains('more-before'), { polling: 100 });
+        // Both fades settle once the scroll reaches the end.
+        await page.waitForFunction(() => { const el = document.getElementById('spaceSwitcher'); return el.classList.contains('more-before') && !el.classList.contains('more-after'); }, { polling: 100, timeout: 3000 }).catch(() => {});
         state = await strip();
         expect([state.before, state.after]).toEqual([true, false]);
         await page.setViewport({ width: 1400, height: 800 });

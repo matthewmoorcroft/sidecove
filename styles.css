@@ -840,7 +840,6 @@ h3 {
 }
 
 .new-tab-btn:hover {
-    background: color-mix(in srgb, var(--space-bg-color, #ccc) 62%, white);
     color: #333;
 }
 
@@ -1241,7 +1240,8 @@ h3 {
     position: relative;
 }
 
-.tab:hover {
+.tab:hover,
+.new-tab-btn:hover {
     background: color-mix(in srgb, var(--space-bg-color, #ccc) 62%, white);
 }
 
@@ -2430,7 +2430,8 @@ h3 {
     }
 
     .tab:hover,
-    .folder-header:hover {
+    .folder-header:hover,
+    .new-tab-btn:hover {
         background: var(--space-bg-color-dark, rgba(255, 255, 255, 0.1));
     }
 
@@ -2491,7 +2492,6 @@ h3 {
     }
 
     .new-tab-btn:hover {
-        background: var(--space-bg-color-dark, rgba(255, 255, 255, 0.1));
         color: #ECEFF1;
     }
 

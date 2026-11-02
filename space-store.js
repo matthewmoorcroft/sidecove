@@ -164,7 +164,7 @@ export class SpaceStore {
         const openerSpace = isNewTabPage ? null : ownerOf(this.spaces, tab.openerTabId);
         // A window with no space of its own yet (such as one Chrome opens for a link from another
         // app) uses the space last in use in any window; the default space is for when there
-        // is none, as right after Chrome starts.
+        // is none yet.
         const space = this.spaces.find(s => s.id === restored?.spaceId) || openerSpace
             || this.spaces.find(s => s.id === this.active[tab.windowId])
             || this.spaces.find(s => s.id === this.lastActive)
@@ -231,7 +231,11 @@ export class SpaceStore {
                     this.spaces = applySpacePatch(this.spaces, message.before, message.after);
                     if (!this.spaces.length) this.spaces.push(await this.makeSpace(this.defaultSpaceName));
                     break;
-                case 'activate': this.active[message.windowId] = message.spaceId; this.lastActive = message.spaceId; break;
+                case 'activate':
+                    this.active[message.windowId] = message.spaceId;
+                    // A panel starting up reports its window's space; only a real switch is "last used".
+                    if (!message.initial) this.lastActive = message.spaceId;
+                    break;
                 case 'assign': {
                     const target = this.spaces.find(s => s.id === message.spaceId);
                     if (target) {
@@ -285,9 +289,16 @@ export class SpaceStore {
                 if (space.lastTab === removed) space.lastTab = added;
             }
         }));
-        chrome.tabs.onActivated.addListener(info => handle(() => {
+        chrome.tabs.onActivated.addListener(info => handle(async () => {
             const space = ownerOf(this.spaces, info.tabId);
-            if (space) { space.lastTab = info.tabId; this.active[info.windowId] = space.id; this.lastActive = space.id; }
+            if (!space) return;
+            space.lastTab = info.tabId;
+            this.active[info.windowId] = space.id;
+            // A tab changing in a window you are not looking at is not the space in use.
+            if (await chrome.windows.get(info.windowId).then(win => win.focused, () => false)) this.lastActive = space.id;
+        }));
+        chrome.windows.onFocusChanged.addListener(windowId => handle(() => {
+            if (this.spaces.some(s => s.id === this.active[windowId])) this.lastActive = this.active[windowId];
         }));
         chrome.storage.onChanged.addListener((changes, area) => {
             if (area === 'local' && (changes.pinnedTabStatesById || changes.tabNameOverridesById)) handle(() => {});
