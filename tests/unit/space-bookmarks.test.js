@@ -92,13 +92,14 @@ test('removing a favorite returns the snapshot needed to undo it', async () => {
     assert.equal(await removeSpacePin({ bookmarkFolderId: 'space' }, { bookmarkId: 'missing' }), null);
 });
 
-test('favorite adoption prefers the exact URL over an earlier same-key tab and never takes a bound tab', () => {
-    const tabs = [{ id: 1, url: 'https://v.test/watch?v=A' }, { id: 2, url: 'https://v.test/watch?v=B' }, { id: 3, url: 'https://v.test/watch?v=A' }];
+test('a favorite adopts only an unbound tab on exactly its link', () => {
+    const tabs = [{ id: 1, url: 'https://v.test/watch?v=A' }, { id: 2, url: 'https://v.test/watch?v=B' }, { id: 3, url: 'https://v.test/watch?v=A' }, { id: 4, url: 'https://w.test/' }];
     const bindings = { 1: { bookmarkId: 'other' } };
-    const key = Utils.getPinnedUrlKey.bind(Utils);
-    assert.equal(BookmarkUtils.findAdoptableTab(tabs, bindings, 'https://v.test/watch?v=A', key).id, 3);
-    assert.equal(BookmarkUtils.findAdoptableTab(tabs, bindings, 'https://v.test/watch?v=C', key).id, 2);
-    assert.equal(BookmarkUtils.findAdoptableTab(tabs, bindings, 'https://w.test/', key), null);
+    assert.equal(BookmarkUtils.findAdoptableTab(tabs, bindings, 'https://v.test/watch?v=A').id, 3);
+    // Same page, different video: a different link, so it is not taken over.
+    assert.equal(BookmarkUtils.findAdoptableTab(tabs, bindings, 'https://v.test/watch?v=C'), null);
+    assert.equal(BookmarkUtils.findAdoptableTab(tabs, bindings, 'https://v.test/watch?v=A#t=5'), null);
+    assert.equal(BookmarkUtils.findAdoptableTab(tabs, bindings, 'https://w.test'), tabs[3]);
 });
 
 test('adopting a renamed tab replaces its custom name with the favorite title without opening a duplicate', async () => {

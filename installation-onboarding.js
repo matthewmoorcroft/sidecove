@@ -84,10 +84,13 @@ async function loadShortcuts() {
         ['quickPinToggle', 'Pin / unpin a tab', platform.os === 'mac' ? '⌥+D' : 'Alt+D'],
         ['NextTabInSpace', 'Next tab in space', platform.os === 'mac' ? '⌥+J' : 'Alt+J'],
         ['PrevTabInSpace', 'Previous tab in space', platform.os === 'mac' ? '⌥+K' : 'Alt+K'],
-        ['copyCurrentUrl', 'Copy current URL', `${mod}+Shift+C`]
+        // Chrome will not give an extension Cmd/Ctrl+Shift+C by default, but accepts it when
+        // the person sets it themselves, so Arc's key is offered as a tip.
+        ['copyCurrentUrl', 'Copy current URL', platform.os === 'mac' ? '⌥+Shift+C' : 'Alt+Shift+C',
+            `Coming from Arc? Use Customize shortcuts below to set it to ${mod}+Shift+C instead.`]
     ];
     $('shortcuts').replaceChildren();
-    for (const [name, label, suggestion] of recommendations) {
+    for (const [name, label, suggestion, tip] of recommendations) {
         const card = document.createElement('li');
         card.className = 'shortcut-card';
         const recommendation = document.createElement('span');
@@ -103,6 +106,12 @@ async function loadShortcuts() {
         current.className = 'shortcut-description';
         current.textContent = `Currently set: ${commands.find(command => command.name === name)?.shortcut || 'Not assigned'}`;
         card.append(recommendation, key, title, current);
+        if (tip) {
+            const note = document.createElement('p');
+            note.className = 'shortcut-description shortcut-tip';
+            note.textContent = tip;
+            card.append(note);
+        }
         $('shortcuts').append(card);
     }
 }

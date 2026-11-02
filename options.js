@@ -102,6 +102,7 @@ async function saveOptions() {
     syncTabGroups: getCheckboxValue(document.getElementById('syncTabGroups'), false),
     invertTabOrder: getCheckboxValue(document.getElementById('invertTabOrder'), true),
     showAllOpenTabsInCollapsedFolders: getCheckboxValue(document.getElementById('showAllOpenTabsInCollapsedFolders'), false),
+    spaceSwitcherStyle: document.getElementById('spaceSwitcherStyle')?.value === 'names' ? 'names' : 'icons',
     colorOverrides: Object.keys(colorOverrides).length > 0 ? colorOverrides : null,
     debugLoggingEnabled: getCheckboxValue(document.getElementById('debugLoggingEnabled'), false)
   };
@@ -147,6 +148,8 @@ async function restoreOptions() {
   setCheckboxValue(document.getElementById('invertTabOrder'), settings.invertTabOrder, true);
   setCheckboxValue(document.getElementById('showAllOpenTabsInCollapsedFolders'), settings.showAllOpenTabsInCollapsedFolders, false);
   setCheckboxValue(document.getElementById('debugLoggingEnabled'), settings.debugLoggingEnabled, false);
+  const spaceSwitcherStyle = document.getElementById('spaceSwitcherStyle');
+  if (spaceSwitcherStyle) spaceSwitcherStyle.value = settings.spaceSwitcherStyle === 'names' ? 'names' : 'icons';
 
   // Restore number input
   const autoArchiveIdleMinutesInput = document.getElementById('autoArchiveIdleMinutes');
@@ -245,6 +248,7 @@ function debouncedSave() {
 function setupAutoSave() {
   // Auto-save for dropdown
   addListenerIfExists('defaultSpaceName', 'change', saveOptions);
+  addListenerIfExists('spaceSwitcherStyle', 'change', saveOptions);
 
   // Auto-save for checkboxes (most just save immediately)
   const checkboxIds = ['syncTabGroups', 'invertTabOrder', 'showAllOpenTabsInCollapsedFolders', 'debugLoggingEnabled'];

@@ -369,6 +369,8 @@ describe('Space Management', () => {
           for (const btn of switcherBtns) {
             if (btn.classList.contains('active')) {
               const style = window.getComputedStyle(btn);
+              // The icon bar, as in Arc, marks the current space at full strength without a fill.
+              if (btn.closest('.icons-only')) return +style.opacity === 1;
               return style.backgroundColor !== '' && style.backgroundColor !== 'rgba(0, 0, 0, 0)';
             }
           }
@@ -858,6 +860,9 @@ describe('Space Management', () => {
     test('should reflect color change on active space-switcher button', async () => {
       try {
         logTestStep('Verifying color reflects on space-switcher button...');
+        // Name chips are filled with the space colour; the default icon bar has no fill.
+        await sidebarPage.evaluate(() => chrome.storage.sync.set({ spaceSwitcherStyle: 'names' }));
+        await sidebarPage.waitForSelector('#spaceSwitcher:not(.icons-only)');
 
         // Force-show the dropdown and apply red color
         await showSpaceOptionsDropdown(sidebarPage);
@@ -879,6 +884,8 @@ describe('Space Management', () => {
           for (const btn of switcherBtns) {
             if (btn.classList.contains('active')) {
               const style = window.getComputedStyle(btn);
+              // The icon bar, as in Arc, marks the current space at full strength without a fill.
+              if (btn.closest('.icons-only')) return +style.opacity === 1;
               return style.backgroundColor !== '' && style.backgroundColor !== 'rgba(0, 0, 0, 0)';
             }
           }
@@ -915,6 +922,7 @@ describe('Space Management', () => {
         expect(greenBgColor).not.toBeNull();
         expect(greenBgColor).not.toBe('rgba(0, 0, 0, 0)');
         logTestStep(`✓ Switcher button color updated to green (${greenBgColor})`);
+        await sidebarPage.evaluate(() => chrome.storage.sync.set({ spaceSwitcherStyle: 'icons' }));
       } catch (error) {
         await takeScreenshotOnFailure(sidebarPage, 'color-switcher-reflect-failure');
         throw error;

@@ -538,8 +538,8 @@ async function activatePinnedTabByURL(bookmarkUrl, targetSpaceId, spaceName, boo
                 spaceName: spaceName,
                 pinnedUrl: bookmarkUrl,
                 bookmarkId: bookmark.id,
-                // An explicit activation adopts one unbound open tab with the same URL.
-                adoptTab: BookmarkUtils.findAdoptableTab(tabs, bindings, bookmark.url || bookmarkUrl, Utils.getPinnedUrlKey.bind(Utils))
+                // An explicit activation adopts one unbound open tab on exactly the same link.
+                adoptTab: BookmarkUtils.findAdoptableTab(tabs, bindings, bookmark.url || bookmarkUrl)
             };
 
             // Prepare context for BookmarkUtils
@@ -589,6 +589,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 refreshActiveSpaceUITimeout = null;
                 refreshActiveSpaceUI();
             }, 50);
+        }
+
+        if (areaName === 'sync' && changes.spaceSwitcherStyle) {
+            applySpaceSwitcherStyle(changes.spaceSwitcherStyle.newValue);
         }
 
         if (areaName === 'sync' && changes.showAllOpenTabsInCollapsedFolders) {
@@ -786,6 +790,7 @@ async function initSidebar() {
     const settings = await Utils.getSettings();
     defaultSpaceName = settings.defaultSpaceName || 'Home';
     showAllOpenTabsInCollapsedFolders = Boolean(settings.showAllOpenTabsInCollapsedFolders);
+    applySpaceSwitcherStyle(settings.spaceSwitcherStyle);
     currentWindow = await chrome.windows.getCurrent({ populate: false });
     spaces = await spaceRequest('get');
     spaceSaveQueue.reset(spaces);
@@ -1297,6 +1302,10 @@ async function updateSpaceSwitcher() {
             Logger.log("clicked for active", space);
             await setActiveSpace(space.id);
         });
+        button.addEventListener('contextmenu', event => {
+            event.preventDefault();
+            showSpaceChipMenu(space, button, event.clientX, event.clientY);
+        });
 
         // --- Drag Event Listeners for Buttons ---
         button.addEventListener('dragstart', (e) => {
@@ -1349,8 +1358,39 @@ async function updateSpaceSwitcher() {
     revealActiveSpaceChip();
 }
 
-// The chip's text stays the space name; without an icon the compact chip shows the name's
-// first letter through CSS.
+// As in Arc, right-clicking a space's chip offers the space's own actions. Renaming and a new
+// folder happen in the space itself, so those switch to it first.
+function showSpaceChipMenu(space, chip, x, y) {
+    const spaceElement = () => getSpaceElement(space.id);
+    const inSpace = async action => {
+        if (space.id !== activeSpaceId) await setActiveSpace(space.id);
+        action(spaceElement());
+    };
+    const setColor = color => {
+        const select = spaceElement()?.querySelector('.space-color-select');
+        if (!select) return;
+        select.value = color;
+        select.dispatchEvent(new Event('change'));
+    };
+    showMenu(x, y, [
+        { label: 'Change Space Icon…', action: () => showSpaceIconPicker(space, chip) },
+        { label: 'Rename Space…', action: () => inSpace(element => element?.querySelector('.space-name')?.select()) },
+        { label: 'Theme Color', submenu: [...spaceElement().querySelectorAll('.space-color-select option')].map(option => ({ label: option.textContent, action: () => setColor(option.value) })) },
+        'separator',
+        { label: 'New Folder', action: () => inSpace(element => element && createNewFolder(element)) },
+        'separator',
+        { label: 'Delete Space', action: () => spaceElement()?.querySelector('.delete-space-btn')?.click() }
+    ], 'tab-context-menu');
+}
+
+// Arc shows each space as its icon, or a dot when it has none, and its name on hover; the
+// 'names' setting shows full names instead. The name stays in the chip for screen readers.
+function applySpaceSwitcherStyle(style) {
+    spaceSwitcher.classList.toggle('icons-only', style !== 'names');
+    updateSpaceChipDensity();
+    revealActiveSpaceChip();
+}
+
 function fillSpaceChip(button, name, icon) {
     button.title = name;
     button.classList.toggle('has-icon', Boolean(icon));
@@ -3337,10 +3377,10 @@ async function createTabElement(tab, isPinned = false, isBookmarkOnly = false) {
                         isOpeningBookmark = false;
                         return;
                     }
-                    // An explicit click adopts one unbound open tab with the same URL.
+                    // An explicit click adopts one unbound open tab on exactly the same link.
                     const adoptTab = isPinned && clickedBookmarkId ? BookmarkUtils.findAdoptableTab(
                         allTabs.filter(t => ownerOf(spaces, t.id)?.id === activeSpaceId),
-                        bindings, tabElement.dataset.pinnedUrl || tabUrl, Utils.getPinnedUrlKey.bind(Utils)) : null;
+                        bindings, tabElement.dataset.pinnedUrl || tabUrl) : null;
 
                     // Check if tab is in archive and restore it
                     const archivedTabs = await Utils.getArchivedTabs();
@@ -4051,17 +4091,59 @@ async function cleanTemporaryTabs(spaceId) {
     }, 8000);
 }
 
+// Tabs opened since the sidebar loaded that have not reached their first page yet, each with
+// the promise of its space assignment.
+const newlyOpenedTabs = new Map();
+const isBlankPage = url => !url || url === 'about:blank' || /^(chrome:\/\/newtab|chrome-search:\/\/)/.test(url);
+
 async function handleTabCreated(tab) {
     if (!sidebarReady || isCreatingSpace || isOpeningBookmark || tab.pinned || tab.windowId !== currentWindow?.id) return;
-    await pendingSpaceSaves;
-    const next = await spaceRequest('get');
-    await adoptStoredSpaces(next);
+    const placed = (async () => {
+        await pendingSpaceSaves;
+        const next = await spaceRequest('get');
+        await adoptStoredSpaces(next);
+    })();
+    newlyOpenedTabs.set(tab.id, placed.catch(() => {}));
+    await placed;
+}
+
+// A new tab whose first page is exactly a closed favorite's link opens as that favorite, as
+// if the favorite had been clicked. Any other link, even the same page with a different
+// query, stays its own tab, and a favorite that is already open keeps its tab.
+async function joinMatchingFavorite(tabId, url) {
+    const space = ownerOf(spaces, tabId);
+    if (!space?.temporaryTabs.includes(tabId) || isOpeningBookmark) return;
+    const tab = await chrome.tabs.get(tabId).catch(() => null);
+    if (!tab || tab.pinned || !BookmarkUtils.isSameLink(tab.url || tab.pendingUrl, url)) return;
+    const spaceElement = getSpaceElement(space.id);
+    const row = [...(spaceElement?.querySelectorAll('.bookmark-only[data-bookmark-id]') || [])]
+        .find(element => BookmarkUtils.isSameLink(element.dataset.url, url));
+    const bookmark = row && await getSpaceBookmarkById(space, row.dataset.bookmarkId);
+    if (!bookmark) return;
+    const context = { spaces, activeSpaceId, currentWindow, saveSpaces, createTabElement, activateTabInDOM, Utils, persistSpaceTabOrder };
+    isOpeningBookmark = true;
+    try {
+        spaceElement.querySelector(`[data-tab-type="temporary"] [data-tab-id="${tabId}"]`)?.remove();
+        await BookmarkUtils.openBookmarkAsTab({
+            url: bookmark.url, title: bookmark.title || 'Bookmark', spaceName: space.name,
+            pinnedUrl: bookmark.url, bookmarkId: bookmark.id, adoptTab: tab, activate: tab.active
+        }, space.id, row, context, /*isPinned=*/true);
+    } finally {
+        isOpeningBookmark = false;
+        refreshCoordinator.schedule();
+    }
 }
 
 
 function handleTabUpdate(tabId, changeInfo, tab) {
     if (isOpeningBookmark) {
         return;
+    }
+    if (changeInfo.url && newlyOpenedTabs.has(tabId) && !isBlankPage(changeInfo.url)) {
+        const placed = newlyOpenedTabs.get(tabId);
+        newlyOpenedTabs.delete(tabId);
+        placed.then(() => joinMatchingFavorite(tabId, changeInfo.url))
+            .catch(error => Logger.warn('Could not open the new tab as its favorite:', error));
     }
     chrome.windows.getCurrent({ populate: false }, async (currentWindow) => {
         if (tab.windowId !== currentWindow.id) return;
@@ -4185,6 +4267,7 @@ function handleTabUpdate(tabId, changeInfo, tab) {
 
 async function handleTabRemove(tabId) {
     Logger.log('Tab removed:', tabId);
+    newlyOpenedTabs.delete(tabId);
     editorSessions.dispose('tab', tabId);
     await Utils.removePinnedTabState(tabId);
     // Get tab element before removing it

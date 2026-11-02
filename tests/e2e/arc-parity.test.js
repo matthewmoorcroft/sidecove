@@ -530,7 +530,60 @@ describe('space icons and the chip strip', () => {
         await page.waitForFunction(async () => (await chrome.storage.local.get('spaces')).spaces.find(s => s.name === 'Music')?.icon === null, { polling: 100 });
     });
 
-    test('chips keep their full names; the strip scrolls and fades the edge that has more chips', async () => {
+    test('by default the bar shows each space as its icon, or a dot without one, with its name on hover', async () => {
+        await page.waitForSelector('#spaceSwitcher.icons-only');
+        await page.$eval('.space.active .space-icon-button', button => button.click());
+        await page.evaluate(() => [...document.querySelectorAll('#spaceIconPicker .space-icon-choice')].find(b => b.textContent === '🎵').click());
+        await page.waitForFunction(() => document.querySelector('#spaceSwitcher button.active .space-chip-icon')?.textContent === '🎵', { polling: 100 });
+        const chips = await page.$$eval('#spaceSwitcher button[data-space-id]', buttons => buttons.map(b => {
+            const name = b.querySelector('.space-chip-name');
+            const dot = getComputedStyle(b, '::before');
+            return {
+                hint: b.title === name.textContent,
+                nameHidden: name.getBoundingClientRect().width <= 1,
+                small: b.getBoundingClientRect().width <= 32,
+                mark: b.classList.contains('has-icon') ? 'icon' : dot.content !== 'none' && parseFloat(dot.width) > 0 ? 'dot' : 'nothing'
+            };
+        }));
+        expect(chips.length).toBeGreaterThan(3);
+        expect(chips.filter(c => !c.hint || !c.nameHidden || !c.small || c.mark === 'nothing')).toEqual([]);
+        expect(chips.some(c => c.mark === 'icon') && chips.some(c => c.mark === 'dot')).toBe(true);
+        const active = await page.$eval('#spaceSwitcher button.active', b => +getComputedStyle(b).opacity);
+        const inactive = await page.$eval('#spaceSwitcher button:not(.active)', b => +getComputedStyle(b).opacity);
+        expect(active).toBeGreaterThan(inactive);
+    });
+
+    test('right-clicking a chip offers its space\'s icon, name, colour, new folder and delete', async () => {
+        const chipOf = name => page.evaluate(name => {
+            const chip = [...document.querySelectorAll('#spaceSwitcher button[data-space-id]')].find(b => b.title === name);
+            const r = chip.getBoundingClientRect();
+            chip.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: r.left + 4, clientY: r.top + 4 }));
+        }, name);
+        const pick = label => page.evaluate(label => [...document.querySelectorAll('#tab-context-menu .context-menu-item')].find(el => el.firstChild.textContent === label).click(), label);
+        await chipOf('Home');
+        await page.waitForSelector('#tab-context-menu');
+        expect(await page.$$eval('#tab-context-menu > .context-menu-item', items => items.map(el => el.firstChild.textContent)))
+            .toEqual(['Change Space Icon…', 'Rename Space…', 'Theme Color', 'New Folder', 'Delete Space']);
+        await pick('Rename Space…');
+        await page.waitForFunction(() => document.querySelector('.space.active .space-name')?.value === 'Home'
+            && document.activeElement === document.querySelector('.space.active .space-name'), { polling: 100 });
+        await page.evaluate(() => document.activeElement.blur());
+        await chipOf('Home');
+        await page.waitForSelector('#tab-context-menu');
+        await pick('Blue');
+        await page.waitForFunction(async () => (await chrome.storage.local.get('spaces')).spaces.find(s => s.name === 'Home')?.color === 'blue', { polling: 100 });
+        await chipOf('Music');
+        await page.waitForSelector('#tab-context-menu');
+        await pick('Change Space Icon…');
+        await page.waitForSelector('#spaceIconPicker .space-icon-choice');
+        await page.keyboard.press('Escape');
+    });
+
+    test('with the Names setting, chips keep their full names; the strip scrolls and fades the edge that has more chips', async () => {
+        // Switching spaces above activated another tab; scroll events need the panel in front.
+        await page.bringToFront();
+        await page.evaluate(() => chrome.storage.sync.set({ spaceSwitcherStyle: 'names' }));
+        await page.waitForSelector('#spaceSwitcher:not(.icons-only)');
         const strip = () => page.evaluate(() => {
             const el = document.getElementById('spaceSwitcher');
             const names = [...el.querySelectorAll('button[data-space-id]')].map(b => {
@@ -552,5 +605,7 @@ describe('space icons and the chip strip', () => {
         await page.setViewport({ width: 1400, height: 800 });
         await page.waitForFunction(() => { const el = document.getElementById('spaceSwitcher'); return !el.classList.contains('more-before') && !el.classList.contains('more-after'); }, { polling: 100 });
         await page.setViewport({ width: 360, height: 800 });
+        await page.evaluate(() => chrome.storage.sync.set({ spaceSwitcherStyle: 'icons' }));
+        await page.waitForSelector('#spaceSwitcher.icons-only');
     });
 });

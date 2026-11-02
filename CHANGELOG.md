@@ -2,10 +2,12 @@
 
 ## Unreleased
 
-- **Space chips keep their names.** When they don't all fit, the strip scrolls sideways instead of shrinking the chips to initials, and fades the edge that has more spaces beyond it.
+- **The space bar works like Arc's.** Each space shows as its icon, or a dot if it has none; the current space is full strength and the name shows on hover, so every space stays in view. Prefer names? Settings → Space bar shows → Names gives full-name chips, which scroll sideways when they don't all fit and fade the edge that has more.
+- **Right-click a space** in the bar for Change Space Icon, Rename Space, Theme Color, New Folder and Delete Space.
+- **A tab joins a favorite only on exactly its link.** Opening a link that is exactly a closed favorite's link opens it as that favorite. The same page with a different link (another video, another search) stays its own tab, and clicking a favorite no longer takes over such a tab.
 - **New Tab** is a slimmer button, about the height of a tab row.
 - **Close buttons follow Arc:** an open favorite shows − (close the tab, keep the favorite); a closed favorite shows × (remove it); ordinary tabs keep ×.
-- **Copy current tab URL** now has a default shortcut, ⌥⇧C (Alt+Shift+C). Chrome keeps ⌘⇧C for its developer tools, so it cannot be an extension default; you can still choose another key at chrome://extensions/shortcuts.
+- **Copy current tab URL** now has a default shortcut, ⌥⇧C (Alt+Shift+C). Chrome will not give an extension ⌘⇧C as a default because its developer tools use it, but you can choose it at chrome://extensions/shortcuts; the install guide's Shortcuts step now says so for anyone coming from Arc.
 
 ## 1.2.0
 

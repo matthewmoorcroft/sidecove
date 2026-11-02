@@ -998,6 +998,61 @@ h3 {
     text-overflow: ellipsis;
 }
 
+/* As in Arc: a row of icons, or a dot for a space without one, spread across the bar. The
+   active space is full strength and the name shows on hover. */
+.space-switcher.icons-only {
+    gap: 2px;
+    justify-content: space-between;
+}
+
+.space-switcher.icons-only button {
+    width: 30px;
+    min-width: 30px;
+    height: 30px;
+    padding: 0;
+    border-radius: 8px;
+    background-color: transparent;
+    opacity: 0.5;
+    transition: opacity 0.15s ease, background-color 0.15s ease;
+}
+
+.space-switcher.icons-only button:hover {
+    background-color: rgba(0, 0, 0, 0.06);
+    opacity: 0.85;
+}
+
+.space-switcher.icons-only button.active {
+    background-color: transparent;
+    box-shadow: none;
+    opacity: 1;
+}
+
+.space-switcher.icons-only .space-chip-icon {
+    font-size: 18px;
+}
+
+.space-switcher.icons-only .space-chip-name {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+.space-switcher.icons-only button:not(.has-icon)::before {
+    content: '';
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background-color: currentColor;
+}
+
+.space-switcher.icons-only button.active:not(.has-icon)::before {
+    width: 11px;
+    height: 11px;
+}
+
 /* Space icon in the header: an emoji, or a faint placeholder on hover. */
 .space-icon-button {
     flex: none;
@@ -2395,6 +2450,14 @@ h3 {
 
     .space-switcher button.active {
         color: #000000;
+    }
+
+    .space-switcher.icons-only button.active {
+        color: #ECEFF1;
+    }
+
+    .space-switcher.icons-only button:hover {
+        background-color: rgba(255, 255, 255, 0.1);
     }
 
     .tab-title-display,

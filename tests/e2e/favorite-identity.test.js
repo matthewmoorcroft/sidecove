@@ -191,6 +191,16 @@ test('native pinning does not hide its same-URL favorite', async () => {
 });
 
 test('closed URL twins render once each and a temporary reorder preserves every bookmark', async () => {
+    // A tab opened straight onto a closed favorite's exact link opens as that favorite, so this
+    // ordinary tab starts on another page and then goes to the twins' link.
+    const temp = await page.evaluate(async ({ url, spaceId }) => {
+        const tab = await chrome.tabs.create({ url: `${url}?before`, active: false });
+        await chrome.runtime.sendMessage({ type: 'spaceStore', action: 'assign', tabId: tab.id, spaceId });
+        return tab.id;
+    }, { url, spaceId: fixture.spaceId });
+    await page.waitForFunction(async ({ id, url }) => (await chrome.tabs.get(id)).url === `${url}?before`, { polling: 100 }, { id: temp, url });
+    await page.evaluate(({ id, url }) => chrome.tabs.update(id, { url }), { id: temp, url });
+    await page.waitForFunction(async ({ id, url }) => (await chrome.tabs.get(id)).url === url, { polling: 100 }, { id: temp, url });
     const ids = await page.evaluate(async ({ folderId, url }) => {
         const a = await chrome.bookmarks.create({ parentId: folderId, url, title: 'Closed twin A' });
         const folder = await chrome.bookmarks.create({ parentId: folderId, title: 'Nested twins' });
@@ -202,11 +212,6 @@ test('closed URL twins render once each and a temporary reorder preserves every 
         await page.waitForSelector(`.space.active .bookmark-only[data-bookmark-id="${id}"]`);
         expect(await page.$$eval(`.space.active .tab[data-bookmark-id="${id}"]`, els => els.length)).toBe(1);
     }
-    const temp = await page.evaluate(async ({ url, spaceId }) => {
-        const tab = await chrome.tabs.create({ url, active: false });
-        await chrome.runtime.sendMessage({ type: 'spaceStore', action: 'assign', tabId: tab.id, spaceId });
-        return tab.id;
-    }, { url, spaceId: fixture.spaceId });
     await page.waitForFunction(id => {
         const el = document.querySelector(`.space.active .tab[data-tab-id="${id}"]`);
         if (!el) return false;
@@ -241,10 +246,8 @@ test('external bookmark creation, rename and deletion update the open sidebar', 
 
 test('clicking an unloaded favorite adopts an open unbound tab with its URL instead of duplicating it', async () => {
     const adoptUrl = `${url}adopt`;
-    const id = await page.evaluate(async ({ folderId, adoptUrl }) =>
-        (await chrome.bookmarks.create({ parentId: folderId, url: adoptUrl, title: 'Adopt me' })).id,
-    { folderId: fixture.folderId, adoptUrl });
-    await page.waitForSelector(`.space.active .bookmark-only[data-bookmark-id="${id}"]`);
+    // The tab is open before the favorite exists; one opened afterwards on its exact link
+    // would open as the favorite straight away.
     const open = await page.evaluate(async ({ adoptUrl, spaceId }) => {
         const tab = await chrome.tabs.create({ url: adoptUrl, active: false });
         await chrome.runtime.sendMessage({ type: 'spaceStore', action: 'assign', tabId: tab.id, spaceId });
@@ -252,6 +255,10 @@ test('clicking an unloaded favorite adopts an open unbound tab with its URL inst
     }, { adoptUrl, spaceId: fixture.spaceId });
     await page.waitForFunction(id => document.querySelector(`.space.active [data-tab-type="temporary"] .tab[data-tab-id="${id}"]`), { polling: 100 }, open);
     await page.waitForFunction(async ({ open, adoptUrl }) => (await chrome.tabs.get(open)).url === adoptUrl, { polling: 100 }, { open, adoptUrl });
+    const id = await page.evaluate(async ({ folderId, adoptUrl }) =>
+        (await chrome.bookmarks.create({ parentId: folderId, url: adoptUrl, title: 'Adopt me' })).id,
+    { folderId: fixture.folderId, adoptUrl });
+    await page.waitForSelector(`.space.active .bookmark-only[data-bookmark-id="${id}"]`);
 
     await page.$eval(`.space.active .bookmark-only[data-bookmark-id="${id}"]`, el => el.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 })));
     await page.waitForFunction(async ({ open, id }) => {

@@ -43,6 +43,7 @@ kbd { font-family: inherit; }
 .shortcut-title { font-size: 16px; font-weight: 600; line-height: 1.4; margin: 0 0 8px; color: #30282c; }
 .shortcut-description { color: #635b63; font-size: 13px; line-height: 1.5; margin: 0; overflow-wrap: anywhere; }
 .shortcuts .secondary { margin-top: 16px; }
+.shortcut-tip { margin-top: 8px; font-style: italic; }
 .launch { text-align: center; padding-top: 28px; }
 .handoff { max-width: 570px; margin: 15vh auto 0; }
 .handoff > img { margin-bottom: 24px; }

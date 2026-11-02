@@ -133,6 +133,7 @@ export const BookmarkUtils = {
      * @param {string} bookmarkData.title - Bookmark title
      * @param {string} bookmarkData.spaceName - Space name the bookmark belongs to
      * @param {Object} [bookmarkData.adoptTab] - Open tab to adopt instead of creating one (see findAdoptableTab)
+     * @param {boolean} [bookmarkData.activate=true] - false leaves an adopted background tab in the background
      * @param {string} targetSpaceId - Space ID to open the tab in
      * @param {HTMLElement} replaceElement - DOM element to replace with active tab element (optional)
      * @param {Object} context - Context object with required functions and data
@@ -214,16 +215,18 @@ export const BookmarkUtils = {
                 bookmarkId: bookmarkData.bookmarkId || null
             };
             const activeTabElement = await createTabElement(activeTabData, true, false);
-            activeTabElement.classList.add('active');
+            if (bookmarkData.activate !== false) activeTabElement.classList.add('active');
             replaceElement.replaceWith(activeTabElement);
         }
 
-        // Ensure the tab is actually active
-        await chrome.tabs.update(newTab.id, { active: true });
+        if (bookmarkData.activate !== false) {
+            // Ensure the tab is actually active
+            await chrome.tabs.update(newTab.id, { active: true });
 
-        // Visually activate the tab
-        if (activateTabInDOM) {
-            activateTabInDOM(newTab.id);
+            // Visually activate the tab
+            if (activateTabInDOM) {
+                activateTabInDOM(newTab.id);
+            }
         }
 
         Logger.log('[BookmarkUtils] Successfully opened bookmark as tab:', newTab.id);
@@ -232,18 +235,25 @@ export const BookmarkUtils = {
 
     /**
      * Find an open tab an explicit favorite click may adopt instead of opening a duplicate.
-     * Only unbound tabs whose URL key matches qualify, preferring an exact URL;
-     * callers pass tabs already limited to the target window and space.
+     * Only an unbound tab on exactly the favorite's link qualifies: another video or page on
+     * the same path is a different link and stays its own tab. Callers pass tabs already
+     * limited to the target window and space.
      * @param {Array} tabs - Candidate Chrome tabs in the target window and space
      * @param {Object} bindings - pinnedTabStatesById map
      * @param {string} bookmarkUrl - The favorite's URL
-     * @param {Function} getUrlKey - Normalizes URLs for comparison
      * @returns {Object|null} The tab to adopt, if any
      */
-    findAdoptableTab(tabs, bindings, bookmarkUrl, getUrlKey) {
-        const targetKey = getUrlKey(bookmarkUrl);
-        const matches = tabs.filter(t => t.url && !bindings[t.id]?.bookmarkId && getUrlKey(t.url) === targetKey);
-        return matches.find(t => t.url === bookmarkUrl) || matches[0] || null;
+    findAdoptableTab(tabs, bindings, bookmarkUrl) {
+        return tabs.find(t => !bindings[t.id]?.bookmarkId && this.isSameLink(t.url, bookmarkUrl)) || null;
+    },
+
+    /**
+     * Whether two links are the same page, query and fragment included, once both are in the
+     * form Chrome stores (so "https://a.test" and "https://a.test/" match).
+     */
+    isSameLink(a, b) {
+        if (!a || !b) return false;
+        try { return new URL(a).href === new URL(b).href; } catch { return a === b; }
     },
 
     /**

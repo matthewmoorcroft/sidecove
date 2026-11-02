@@ -176,10 +176,36 @@ test('New Tab is a slim button, about the height of a tab row', async () => {
     expect(height).toBeLessThanOrEqual(36);
 });
 
-// Chrome keeps Cmd/Ctrl+Shift+C for DevTools and will not assign it to an extension, so
-// the default is Alt+Shift+C, beside Sidecove's Alt+S and Alt+D.
+// Chrome keeps Cmd/Ctrl+Shift+C for DevTools and will not make it an extension's default
+// (a person can still choose it on chrome://extensions/shortcuts), so the default is
+// Alt+Shift+C, beside Sidecove's Alt+S and Alt+D.
 test('Copy current tab URL has a default shortcut', async () => {
     const commands = await page.evaluate(() => chrome.commands.getAll());
     const copy = commands.find(command => command.name === 'copyCurrentUrl');
     expect(copy.shortcut).toMatch(/^(⌥⇧C|Alt\+Shift\+C)$/);
+});
+
+test('the install guide offers Arc\'s Copy URL key for anyone who wants it', async () => {
+    const guide = await browser.newPage();
+    await guide.goto(`chrome-extension://${extensionId}/installation-onboarding.html`, { waitUntil: 'domcontentloaded' });
+    await guide.waitForFunction(() => [...document.querySelectorAll('#shortcuts .shortcut-card')].some(card => card.textContent.includes('Copy current URL')), { polling: 100 });
+    const card = await guide.evaluate(() => {
+        const copy = [...document.querySelectorAll('#shortcuts .shortcut-card')].find(card => card.textContent.includes('Copy current URL'));
+        return { key: copy.querySelector('.shortcut-key').textContent, tip: copy.querySelector('.shortcut-tip')?.textContent || '' };
+    });
+    await guide.close();
+    expect(card.key).toMatch(/^(⌥|Alt)\+Shift\+C$/);
+    expect(card.tip).toMatch(/Arc.*(⌘|Ctrl)\+Shift\+C/);
+});
+
+test('Settings switches the space bar between icons and names', async () => {
+    const options = await browser.newPage();
+    await options.goto(`chrome-extension://${extensionId}/options.html`, { waitUntil: 'domcontentloaded' });
+    await options.waitForSelector('#spaceSwitcherStyle');
+    expect(await options.$eval('#spaceSwitcherStyle', select => select.value)).toBe('icons');
+    await options.select('#spaceSwitcherStyle', 'names');
+    await page.waitForSelector('#spaceSwitcher:not(.icons-only)');
+    await options.select('#spaceSwitcherStyle', 'icons');
+    await page.waitForSelector('#spaceSwitcher.icons-only');
+    await options.close();
 });
