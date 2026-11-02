@@ -44,7 +44,7 @@ export function normalizeSpaceIcon(value) {
 // Whether text is a single emoji, as opposed to a letter or a word to search for.
 export function isTypedEmoji(text) {
     const icon = normalizeSpaceIcon(text);
-    return Boolean(icon) && !spaceSymbol(icon) && /\p{Extended_Pictographic}|\p{Regional_Indicator}/u.test(icon);
+    return Boolean(icon) && !spaceSymbol(icon) && /\p{Extended_Pictographic}|\p{Regional_Indicator}|⃣/u.test(icon);
 }
 
 // Symbols and emoji whose names or keywords start with every word of the query; all of

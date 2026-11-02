@@ -56,6 +56,9 @@ test('every symbol is drawn only from plain shapes', () => {
 test('only a single emoji counts as typed; letters and words are searched', () => {
     assert.equal(isTypedEmoji('🎷'), true);
     assert.equal(isTypedEmoji('🇬🇧'), true);
+    assert.equal(isTypedEmoji('1️⃣'), true);
+    assert.equal(isTypedEmoji('#️⃣'), true);
+    assert.equal(isTypedEmoji('1'), false);
     assert.equal(isTypedEmoji('W'), false);
     assert.equal(isTypedEmoji('jazz'), false);
 });
