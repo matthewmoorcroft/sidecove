@@ -72,10 +72,18 @@ test('New Folder with Favorites collapsed opens the section so the new folder ca
     await page.bringToFront();
     await page.$eval('.space.active .space-toggle-chevron', button => button.click());
     await page.waitForSelector('.space.active .pinned-tabs.collapsed');
+    const before = await page.$$eval('.space.active .folder', els => els.map(el => el.dataset.bookmarkId));
     await page.$eval('.space.active .new-folder-btn', button => button.click());
     await page.waitForSelector('.space.active .pinned-tabs:not(.collapsed)');
-    await page.waitForFunction(() => document.activeElement?.matches('.space.active .pinned-tabs .folder-name-input, .space.active .pinned-tabs input'), { polling: 100 });
-    await page.keyboard.type('Named while collapsed');
-    await page.keyboard.press('Enter');
-    await page.waitForFunction(async () => (await chrome.bookmarks.search({ title: 'Named while collapsed' })).length === 1, { polling: 100 });
+    // The new folder's name field is on screen, not inside a hidden section, and naming works.
+    const id = await page.waitForFunction(before => {
+        const folder = [...document.querySelectorAll('.space.active .folder')].find(el => el.dataset.bookmarkId && !before.includes(el.dataset.bookmarkId));
+        const input = folder?.querySelector(':scope > .folder-header .folder-name');
+        return input && getComputedStyle(input).visibility === 'visible' && input.getBoundingClientRect().height > 0 ? folder.dataset.bookmarkId : null;
+    }, { polling: 100 }, before).then(handle => handle.jsonValue());
+    await page.$eval(`.space.active .folder[data-bookmark-id="${id}"] > .folder-header .folder-name`, input => {
+        input.value = 'Named while collapsed';
+        input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    });
+    await page.waitForFunction(async id => (await chrome.bookmarks.get(id))[0].title === 'Named while collapsed', { polling: 100 }, id);
 });

@@ -455,6 +455,8 @@ describe('Bookmarks and Pinned Tabs', () => {
       try {
         await sidebarPage.reload();
         await sidebarPage.waitForSelector('.space.active .folder-header');
+        // Right after a reload the stylesheet may not be applied yet.
+        await sidebarPage.waitForFunction(() => getComputedStyle(document.querySelector('.space.active .folder-header')).cursor !== '', { polling: 100, timeout: 5000 }).catch(() => {});
         const cursors = await sidebarPage.$eval('.space.active .folder-header', header => ({
           header: getComputedStyle(header).cursor,
           title: getComputedStyle(header.querySelector('.folder-title')).cursor,
