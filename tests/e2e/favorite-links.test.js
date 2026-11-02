@@ -6,6 +6,7 @@ import { launchBrowserWithExtension, openSidebar } from './helpers/extension-hel
 let browser, page, server, base, fixture;
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const favoriteRow = () => `.space.active [data-tab-type="pinned"] .tab[data-bookmark-id="${fixture.bookmarkId}"]`;
+const otherFavoriteRow = () => `.space.active [data-tab-type="pinned"] .tab[data-bookmark-id="${fixture.otherId}"]`;
 const temporaryRow = id => `.space.active [data-tab-type="temporary"] .tab[data-tab-id="${id}"]`;
 const bindingOf = id => page.evaluate(async id => (await chrome.storage.local.get('pinnedTabStatesById')).pinnedTabStatesById?.[id]?.bookmarkId || null, id);
 const openTab = url => page.evaluate(async url => (await chrome.tabs.create({ url, active: false })).id, url);
@@ -26,7 +27,8 @@ beforeAll(async () => {
     fixture = await page.evaluate(async base => {
         const { spaces } = await chrome.runtime.sendMessage({ type: 'spaceStore', action: 'get' });
         const bookmark = await chrome.bookmarks.create({ parentId: spaces[0].bookmarkFolderId, title: 'Video first', url: `${base}/watch?v=first` });
-        return { bookmarkId: bookmark.id };
+        const other = await chrome.bookmarks.create({ parentId: spaces[0].bookmarkFolderId, title: 'Video third', url: `${base}/watch?v=third` });
+        return { bookmarkId: bookmark.id, otherId: other.id };
     }, base);
     await page.reload({ waitUntil: 'domcontentloaded' });
     await page.waitForSelector(`${favoriteRow()}.bookmark-only`);
@@ -90,9 +92,29 @@ test('several tabs opened at once on a closed favorite\'s link give it one tab; 
     const bound = await Promise.all(ids.map(bindingOf));
     expect(bound.filter(Boolean)).toEqual([fixture.bookmarkId]);
     expect(await page.$$(favoriteRow())).toHaveLength(1);
+    expect(await page.$(`${favoriteRow()}[data-tab-id="${ids[bound.indexOf(fixture.bookmarkId)]}"]`)).not.toBeNull();
     for (const id of ids.filter((id, index) => !bound[index])) expect(await page.$(temporaryRow(id))).not.toBeNull();
     await page.evaluate(ids => chrome.tabs.remove(ids), ids);
     await page.waitForSelector(`${favoriteRow()}.bookmark-only`);
+});
+
+test('the favorite row shows the joined tab when another link opens at the same moment', async () => {
+    for (const gap of [0, 10, 20]) {
+        const [joined, other] = await page.evaluate(async ({ base, gap }) => {
+            const first = await chrome.tabs.create({ url: `${base}/watch?v=first`, active: false });
+            await new Promise(resolve => setTimeout(resolve, gap));
+            const second = await chrome.tabs.create({ url: `${base}/elsewhere-${gap}`, active: false });
+            return [first.id, second.id];
+        }, { base, gap });
+        await page.waitForFunction(async id => (await chrome.storage.local.get('pinnedTabStatesById')).pinnedTabStatesById?.[id]?.bookmarkId, { polling: 50 }, joined);
+        await sleep(1200);
+        expect([gap, Boolean(await page.$(`${favoriteRow()}[data-tab-id="${joined}"]`))]).toEqual([gap, true]);
+        expect(await page.$(temporaryRow(joined))).toBeNull();
+        expect(await page.$(temporaryRow(other))).not.toBeNull();
+        await page.evaluate(ids => chrome.tabs.remove(ids), [joined, other]);
+        await page.waitForSelector(`${favoriteRow()}.bookmark-only`);
+        await sleep(300);
+    }
 });
 
 test('a tab that later navigates to a closed favorite\'s link stays an ordinary tab', async () => {
@@ -105,4 +127,21 @@ test('a tab that later navigates to a closed favorite\'s link stays an ordinary 
     expect(await page.$(temporaryRow(id))).not.toBeNull();
     expect(await page.$(`${favoriteRow()}.bookmark-only`)).not.toBeNull();
     await page.evaluate(id => chrome.tabs.remove(id), id);
+});
+
+test('a tab opened on a favorite\'s link while another favorite is opening still opens as its favorite', async () => {
+    const id = await page.evaluate(async ({ selector, url }) => {
+        document.querySelector(selector).click();
+        await new Promise(resolve => setTimeout(resolve, 5));
+        return (await chrome.tabs.create({ url, active: false })).id;
+    }, { selector: `${favoriteRow()}.bookmark-only`, url: `${base}/watch?v=third` });
+    await page.waitForSelector(`${otherFavoriteRow()}[data-tab-id="${id}"]`);
+    await page.waitForSelector(`${favoriteRow()}[data-tab-id]`);
+    expect(await bindingOf(id)).toBe(fixture.otherId);
+    expect(await page.$(temporaryRow(id))).toBeNull();
+    await page.bringToFront();
+    const opened = await page.$eval(favoriteRow(), row => Number(row.dataset.tabId));
+    await page.evaluate(ids => chrome.tabs.remove(ids), [id, opened]);
+    await page.waitForSelector(`${favoriteRow()}.bookmark-only`);
+    await page.waitForSelector(`${otherFavoriteRow()}.bookmark-only`);
 });

@@ -562,6 +562,8 @@ async function activatePinnedTabByURL(bookmarkUrl, targetSpaceId, spaceName, boo
                 isOpeningBookmark = false;
                 refreshCoordinator.schedule();
             }
+            await pendingSpaceSaves;
+            await refreshActiveSpaceUI();
         }
     } catch (error) {
         Logger.error("[PinnedTabActivator] Error activating pinned tab:", error);
@@ -4098,9 +4100,16 @@ async function cleanTemporaryTabs(spaceId) {
 const newlyOpenedTabs = new Map();
 const isBlankPage = url => !url || url === 'about:blank' || /^(chrome:\/\/newtab|chrome-search:\/\/)/.test(url);
 
+async function waitWhileOpeningBookmark() {
+    const deadline = Date.now() + 2000;
+    while (isOpeningBookmark && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 50));
+}
+
 async function handleTabCreated(tab) {
-    if (!sidebarReady || isCreatingSpace || isOpeningBookmark || tab.pinned || tab.windowId !== currentWindow?.id) return;
+    if (!sidebarReady || isCreatingSpace || tab.pinned || tab.windowId !== currentWindow?.id) return;
     const placed = (async () => {
+        await waitWhileOpeningBookmark();
+        if (isOpeningBookmark) return;
         await pendingSpaceSaves;
         const next = await spaceRequest('get');
         await adoptStoredSpaces(next);
@@ -4121,13 +4130,15 @@ async function joinMatchingFavorite(tabId, url) {
     if (!tab || tab.pinned || !BookmarkUtils.isSameLink(tab.url || tab.pendingUrl, url)) return;
     const bookmarksIn = node => node.url ? [node] : node.children.flatMap(bookmarksIn);
     const matches = bookmarksIn(await getSpaceBookmarkTree(space)).filter(node => BookmarkUtils.isSameLink(node.url, url));
-    if (!matches.length || isOpeningBookmark) return;
+    if (!matches.length) return;
+    await waitWhileOpeningBookmark();
+    if (isOpeningBookmark) return;
     isOpeningBookmark = true;
     try {
         const bindings = await Utils.getPinnedTabStates();
         const openIds = new Set((await getOwnedTabs(space.id)).map(owned => bindings[owned.id]?.bookmarkId));
         const bookmark = matches.find(node => !openIds.has(node.id));
-        if (!bookmark) return;
+        if (!bookmark || bindings[tabId]?.bookmarkId) return;
         const spaceElement = getSpaceElement(space.id);
         spaceElement?.querySelector(`[data-tab-type="temporary"] [data-tab-id="${tabId}"]`)?.remove();
         const row = spaceElement?.querySelector(`.bookmark-only[data-bookmark-id="${bookmark.id}"]`) || null;
@@ -4140,6 +4151,8 @@ async function joinMatchingFavorite(tabId, url) {
         isOpeningBookmark = false;
         refreshCoordinator.schedule();
     }
+    await pendingSpaceSaves;
+    await refreshActiveSpaceUI();
 }
 
 
