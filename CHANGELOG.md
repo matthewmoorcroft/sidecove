@@ -5,6 +5,8 @@
 An Arc-style space bar, favorites that only own the tab they opened, a clearer drop indicator and a polish pass, with no new permissions.
 
 - **The space bar works like Arc's.** Each space shows as its icon, or a dot if it has none; the current space is full strength and the name shows on hover, so every space stays in view. Prefer names? Settings → Space bar shows → Names gives full-name chips, which scroll sideways when they don't all fit and fade the edge that has more.
+- **Monochrome space symbols, as in Arc.** The icon picker leads with 58 line symbols drawn in one ink tinted by the space colour, with emoji below. Its search box now finds both by name or keyword ("music", "travel", "money"), and a typed emoji still works. The symbols' shapes come from Lucide (ISC licence, see THIRD_PARTY_NOTICES.md) and ship inside the extension.
+- **Switching spaces is instant.** The background and every row take the new space's colours in the same frame, instead of parts of the panel briefly showing as highlighted patches.
 - **Right-click a space** in the bar for Change Space Icon, Rename Space, Theme Color, New Folder and Delete Space.
 - **A favorite only owns the tab it opened.** Clicking a closed favorite always opens it in its own new tab. A tab you opened yourself is never taken over or linked to a favorite, even when it shows the same page, so two links never show as one favorite.
 - **New Tab** is a slimmer button, about the height of a tab row.

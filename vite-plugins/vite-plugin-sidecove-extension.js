@@ -77,6 +77,9 @@ function getExtensionPlugins(isDev = false) {
         if (await fs.pathExists('README.md')) {
           await fs.copy('README.md', `${outDir}/README.md`);
         }
+        if (await fs.pathExists('THIRD_PARTY_NOTICES.md')) {
+          await fs.copy('THIRD_PARTY_NOTICES.md', `${outDir}/THIRD_PARTY_NOTICES.md`);
+        }
 
         console.log(`✅ Main extension files built to ${outDir}/`);
         console.log(`🎉 Sidecove extension build complete!`);

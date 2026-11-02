@@ -209,3 +209,32 @@ test('Settings switches the space bar between icons and names', async () => {
     await page.waitForSelector('#spaceSwitcher.icons-only');
     await options.close();
 });
+
+test('a space switch takes the new colours in its first frame, with nothing fading from the old space', async () => {
+    await page.bringToFront();
+    const created = await page.evaluate(async () => {
+        const before = (await chrome.runtime.sendMessage({ type: 'spaceStore', action: 'get' })).spaces;
+        return before.length;
+    });
+    // Two spaces in different colours.
+    for (const [name, color] of [['Switch A', 'blue'], ['Switch B', 'red']]) {
+        await page.$eval('#addSpaceBtn', b => b.click());
+        await page.$eval('#newSpaceName', (el, name) => { el.value = name; el.dispatchEvent(new Event('input', { bubbles: true })); }, name);
+        await page.$eval('#spaceColor', (el, color) => { el.value = color; }, color);
+        await page.$eval('#createSpaceBtn', b => b.click());
+        await page.waitForFunction(name => document.querySelector('.space.active .space-name')?.value === name, { polling: 100 }, name);
+    }
+    expect(created).toBeGreaterThan(0);
+    await sleep(600);
+    await page.bringToFront();
+    const frames = await page.evaluate(() => new Promise(resolve => {
+        const container = document.getElementById('sidebar-container');
+        const chip = [...document.querySelectorAll('#spaceSwitcher button')].find(b => b.title === 'Switch A');
+        chip.click();
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+            const first = getComputedStyle(container).backgroundColor;
+            setTimeout(() => resolve({ first, settled: getComputedStyle(container).backgroundColor }), 600);
+        }));
+    }));
+    expect(frames.first).toBe(frames.settled);
+});

@@ -293,13 +293,14 @@ h3 {
     display: none;
 }
 
-.space.active {
-    animation: sidecove-space-in 0.18s ease-out;
-}
-
-@keyframes sidecove-space-in {
-    from { opacity: 0; transform: translateY(3px); }
-    to { opacity: 1; transform: none; }
+/* A space switch lands at once: the background and every row take the new space's colours
+   in the same frame. Fading them separately showed parts of the panel as highlighted
+   patches in the old or new colour. */
+.sidebar-container.switching-space,
+.sidebar-container.switching-space *,
+.sidebar-container.switching-space *::before,
+.sidebar-container.switching-space *::after {
+    transition: none !important;
 }
 
 .space {
@@ -989,6 +990,7 @@ h3 {
 }
 
 .space-chip-icon {
+    display: inline-flex;
     font-size: 15px;
     line-height: 1;
 }
@@ -1006,6 +1008,7 @@ h3 {
 }
 
 .space-switcher.icons-only button {
+    color: color-mix(in srgb, var(--space-bg-color-dark, #888) 45%, #1f2933);
     width: 30px;
     min-width: 30px;
     height: 30px;
@@ -1098,6 +1101,36 @@ h3 {
     height: 18px;
 }
 
+/* A monochrome symbol takes the colour of the text around it. */
+.space-symbol {
+    width: 1em;
+    height: 1em;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.space-icon-results {
+    max-height: 264px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+}
+
+.space-icon-heading {
+    margin: 4px 4px 2px;
+    font-size: 11px;
+    font-weight: 600;
+    opacity: 0.6;
+}
+
+.space-icon-empty {
+    margin: 8px 4px;
+    font-size: 12px;
+    opacity: 0.6;
+}
+
 .space-icon-picker {
     position: fixed;
     z-index: 1001;
@@ -1105,6 +1138,7 @@ h3 {
     padding: 8px;
     border-radius: 12px;
     background: #fff;
+    color: #30363d;
     box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(0, 0, 0, 0.06);
     display: flex;
     flex-direction: column;
@@ -1123,6 +1157,7 @@ h3 {
     border: none;
     border-radius: 8px;
     background: none;
+    color: inherit;
     font-size: 18px;
     cursor: pointer;
     transition: background-color 0.12s ease, transform 0.12s ease;
@@ -2452,8 +2487,9 @@ h3 {
         color: #000000;
     }
 
+    .space-switcher.icons-only button,
     .space-switcher.icons-only button.active {
-        color: #ECEFF1;
+        color: color-mix(in srgb, var(--space-bg-color, #888) 35%, #ECEFF1);
     }
 
     .space-switcher.icons-only button:hover {
@@ -2481,6 +2517,7 @@ h3 {
 
     .space-icon-picker {
         background: #2a2a2a;
+        color: #ECEFF1;
         box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.08);
     }
 

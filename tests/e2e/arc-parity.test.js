@@ -553,6 +553,31 @@ describe('space icons and the chip strip', () => {
         expect(active).toBeGreaterThan(inactive);
     });
 
+    test('the icon picker searches symbols and emoji, and a symbol draws in one ink tinted by the space', async () => {
+        await page.bringToFront();
+        await page.$eval('.space.active .space-icon-button', button => button.click());
+        await page.waitForSelector('#spaceIconPicker .space-icon-custom');
+        const shown = () => page.$$eval('#spaceIconPicker .space-icon-choice', choices => choices.map(c => c.title || c.textContent));
+        await page.type('#spaceIconPicker .space-icon-custom', 'music');
+        expect(await shown()).toEqual(expect.arrayContaining(['Music', '🎵']));
+        await page.$eval('#spaceIconPicker .space-icon-custom', input => { input.value = ''; });
+        await page.type('#spaceIconPicker .space-icon-custom', 'zzzz');
+        expect(await page.$eval('#spaceIconPicker .space-icon-empty', el => el.textContent)).toBe('No icons match');
+        await page.$eval('#spaceIconPicker .space-icon-custom', input => { input.value = ''; });
+        await page.type('#spaceIconPicker .space-icon-custom', 'plane');
+        await page.keyboard.press('Enter');
+        await page.waitForSelector('#spaceSwitcher button.active .space-chip-icon svg.space-symbol');
+        const ink = await page.$eval('#spaceSwitcher button.active', chip => ({
+            stroke: getComputedStyle(chip.querySelector('svg.space-symbol')).stroke,
+            chip: getComputedStyle(chip).color,
+            header: Boolean(document.querySelector('.space.active .space-icon-button svg.space-symbol'))
+        }));
+        expect(ink.header).toBe(true);
+        expect(ink.stroke).toBe(ink.chip);
+        expect(ink.chip).not.toBe('rgb(0, 0, 0)');
+        await page.waitForFunction(async () => (await chrome.storage.local.get('spaces')).spaces.find(s => s.name === 'Music')?.icon === 'symbol:plane', { polling: 100 });
+    });
+
     test('right-clicking a chip offers its space\'s icon, name, colour, new folder and delete', async () => {
         const chipOf = name => page.evaluate(name => {
             const chip = [...document.querySelectorAll('#spaceSwitcher button[data-space-id]')].find(b => b.title === name);

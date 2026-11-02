@@ -162,7 +162,18 @@ export function activateTabInDOM(tabId) {
     }
 }
 
+let switchingSpaceFrame = 0;
+
 export function activateSpaceInDOM(spaceId, spaces, updateSpaceSwitcher) {
+    // Colours change at once for a switch (see .switching-space), then transitions return
+    // for hover and press once the new space has been drawn.
+    const container = document.getElementById('sidebar-container');
+    container?.classList.add('switching-space');
+    cancelAnimationFrame(switchingSpaceFrame);
+    switchingSpaceFrame = requestAnimationFrame(() => {
+        switchingSpaceFrame = requestAnimationFrame(() => container?.classList.remove('switching-space'));
+    });
+
     // Show/hide space containers
     document.querySelectorAll('.space').forEach(s => {
         const isActive = s.dataset.spaceId === String(spaceId);
