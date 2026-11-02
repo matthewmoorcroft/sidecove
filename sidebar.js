@@ -1457,9 +1457,10 @@ function fillSpaceChip(button, name, icon) {
 // Chips keep their full names; when they do not all fit, the strip scrolls and fades
 // whichever edge still has chips beyond it.
 function updateSpaceChipDensity() {
+    // A couple of pixels of slack: on some screens the strip stops a fraction short of its end.
     const hidden = spaceSwitcher.scrollWidth - spaceSwitcher.clientWidth;
-    spaceSwitcher.classList.toggle('more-before', hidden > 1 && spaceSwitcher.scrollLeft > 1);
-    spaceSwitcher.classList.toggle('more-after', hidden > 1 && spaceSwitcher.scrollLeft < hidden - 1);
+    spaceSwitcher.classList.toggle('more-before', hidden > 2 && spaceSwitcher.scrollLeft > 2);
+    spaceSwitcher.classList.toggle('more-after', hidden > 2 && spaceSwitcher.scrollLeft < hidden - 2);
 }
 spaceSwitcher.addEventListener('scroll', updateSpaceChipDensity, { passive: true });
 window.addEventListener('resize', () => {

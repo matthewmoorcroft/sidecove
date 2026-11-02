@@ -728,7 +728,8 @@ h3 {
 }
 
 .pinned-tabs {
-    transition: all 0.2s ease;
+    /* Visible at once when expanding, so New Folder can focus its name field straight away. */
+    transition: all 0.2s ease, visibility 0s;
     /* overflow: hidden;
     max-height: 500px;  */
     opacity: 1;
@@ -743,6 +744,7 @@ h3 {
     /* Collapsed favorites stay out of the way: no clicks, hover or keyboard focus. */
     overflow: hidden;
     visibility: hidden;
+    transition: all 0.2s ease, visibility 0s 0.2s;
 }
 
 .temp-header {

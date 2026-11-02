@@ -634,9 +634,14 @@ describe('space icons and the chip strip', () => {
         expect(state.overflow).toBe(true);
         expect(state.names.filter(n => !n.shown || !n.fits)).toEqual([]);
         expect([state.before, state.after]).toEqual([false, true]);
-        await page.$eval('#spaceSwitcher', el => { el.scrollLeft = el.scrollWidth; });
-        // Both fades settle once the scroll reaches the end.
-        await page.waitForFunction(() => { const el = document.getElementById('spaceSwitcher'); return el.classList.contains('more-before') && !el.classList.contains('more-after'); }, { polling: 100, timeout: 3000 }).catch(() => {});
+        // Chips can still be widening as their names render, so keep scrolling to the end until
+        // the strip settles there; then only the start has more chips beyond it.
+        await page.bringToFront();
+        await page.waitForFunction(() => {
+            const el = document.getElementById('spaceSwitcher');
+            el.scrollLeft = el.scrollWidth;
+            return el.classList.contains('more-before') && !el.classList.contains('more-after');
+        }, { polling: 100, timeout: 5000 });
         state = await strip();
         expect([state.before, state.after]).toEqual([true, false]);
         await page.setViewport({ width: 1400, height: 800 });
