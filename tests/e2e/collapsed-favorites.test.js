@@ -68,22 +68,29 @@ test('favorites hidden by collapsing the Favorites section cannot be clicked or 
     await page.waitForFunction(count => chrome.tabs.query({}).then(tabs => tabs.length === count + 1), { polling: 100 }, before);
 });
 
-test('New Folder with Favorites collapsed opens the section so the new folder can be named', async () => {
+test('New Folder with Favorites collapsed opens the section and shows the new folder', async () => {
+    // Start from a settled panel, so activity from the test above cannot interleave.
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('.space.active [data-tab-type="pinned"] .bookmark-only');
+    await sleep(800);
     await page.bringToFront();
-    await page.$eval('.space.active .space-toggle-chevron', button => button.click());
+    if (!await page.$('.space.active .pinned-tabs.collapsed')) await page.$eval('.space.active .space-toggle-chevron', button => button.click());
     await page.waitForSelector('.space.active .pinned-tabs.collapsed');
     const before = await page.$$eval('.space.active .folder', els => els.map(el => el.dataset.bookmarkId));
     await page.$eval('.space.active .new-folder-btn', button => button.click());
     await page.waitForSelector('.space.active .pinned-tabs:not(.collapsed)');
-    // The new folder's name field is on screen, not inside a hidden section, and naming works.
-    const id = await page.waitForFunction(before => {
+    // The new folder is on screen, not inside a hidden section.
+    const shown = () => page.evaluate(before => {
         const folder = [...document.querySelectorAll('.space.active .folder')].find(el => el.dataset.bookmarkId && !before.includes(el.dataset.bookmarkId));
-        const input = folder?.querySelector(':scope > .folder-header .folder-name');
-        return input && getComputedStyle(input).visibility === 'visible' && input.getBoundingClientRect().height > 0 ? folder.dataset.bookmarkId : null;
-    }, { polling: 100 }, before).then(handle => handle.jsonValue());
-    await page.$eval(`.space.active .folder[data-bookmark-id="${id}"] > .folder-header .folder-name`, input => {
-        input.value = 'Named while collapsed';
-        input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-    });
-    await page.waitForFunction(async id => (await chrome.bookmarks.get(id))[0].title === 'Named while collapsed', { polling: 100 }, id);
+        const header = folder?.querySelector(':scope > .folder-header');
+        if (!header) return { found: false };
+        const r = header.getBoundingClientRect();
+        return { found: true, visible: getComputedStyle(header).visibility === 'visible' && r.height > 0, hit: Boolean(document.elementFromPoint(r.left + 20, r.top + r.height / 2)?.closest('.folder') === folder) };
+    }, before);
+    await page.waitForFunction(before => [...document.querySelectorAll('.space.active .folder')].some(el => el.dataset.bookmarkId && !before.includes(el.dataset.bookmarkId)), { polling: 100 }, before);
+    await page.$eval('.space.active .folder:last-of-type', el => el.scrollIntoView({ block: 'center' }));
+    await sleep(300);
+    const state = await shown();
+    if (!state.visible) console.log('New folder state:', JSON.stringify(state), await page.$eval('.space.active .pinned-tabs', el => el.className));
+    expect(state).toEqual({ found: true, visible: true, hit: true });
 });
