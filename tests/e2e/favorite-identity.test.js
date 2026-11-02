@@ -251,6 +251,9 @@ test('moving the associated folder out of the Sidecove folder keeps live tabs vi
     }, { url, spaceId: fixture.spaceId });
     await page.waitForSelector(row(live));
     await page.waitForSelector(row(favorite));
+    // Pin once the tab has its URL, or the favorite has none.
+    await page.waitForFunction(async ({ favorite, target }) => (await chrome.tabs.get(favorite)).url === target,
+        { polling: 100 }, { favorite, target: `${url}folder-recovery-favorite` });
     await toggle(favorite);
     await page.waitForFunction(id => document.querySelector(`.space.active [data-tab-type="pinned"] .tab[data-tab-id="${id}"][data-bookmark-id]`),
         { polling: 100 }, favorite);
@@ -279,7 +282,10 @@ test('degraded rendering keeps fallback favorites in bookmark order above invert
         return ids;
     }, { url, spaceId: fixture.spaceId });
     for (const id of [f1, f2, t1, t2]) await page.waitForSelector(row(id));
-    for (const id of [f1, f2]) {
+    for (const [id, suffix] of [[f1, 'degraded-f1'], [f2, 'degraded-f2']]) {
+        // Pin once the tab has its URL, or the favorite has none.
+        await page.waitForFunction(async ({ id, target }) => (await chrome.tabs.get(id)).url === target,
+            { polling: 100 }, { id, target: `${url}${suffix}` });
         await toggle(id);
         await page.waitForFunction(id => document.querySelector(`.space.active [data-tab-type="pinned"] .tab[data-tab-id="${id}"][data-bookmark-id]`),
             { polling: 100 }, id);
