@@ -572,6 +572,17 @@ describe('space icons and the chip strip', () => {
         await page.waitForSelector('#tab-context-menu');
         await pick('Blue');
         await page.waitForFunction(async () => (await chrome.storage.local.get('spaces')).spaces.find(s => s.name === 'Home')?.color === 'blue', { polling: 100 });
+        const sidebarColor = async () => {
+            await page.waitForFunction(() => document.getElementById('sidebar-container').getAnimations().length === 0, { polling: 100 });
+            return page.$eval('#sidebar-container', el => getComputedStyle(el).backgroundColor);
+        };
+        const homeColor = await sidebarColor();
+        await chipOf('Music');
+        await page.waitForSelector('#tab-context-menu');
+        await pick('Red');
+        await page.waitForFunction(async () => (await chrome.storage.local.get('spaces')).spaces.find(s => s.name === 'Music')?.color === 'red', { polling: 100 });
+        expect(await activeSpaceName()).toBe('Home');
+        expect(await sidebarColor()).toBe(homeColor);
         await chipOf('Music');
         await page.waitForSelector('#tab-context-menu');
         await pick('Change Space Icon…');

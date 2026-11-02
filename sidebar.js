@@ -906,8 +906,10 @@ function createSpaceElement(space) {
 
 
         // Update space background color
-        sidebarContainer.style.setProperty('--space-bg-color', `var(--chrome-${newColor}-color, rgba(255, 255, 255, 0.1))`);
-        sidebarContainer.style.setProperty('--space-bg-color-dark', `var(--chrome-${space.color}-color-dark, rgba(255, 255, 255, 0.1))`);
+        if (space.id === activeSpaceId) {
+            sidebarContainer.style.setProperty('--space-bg-color', `var(--chrome-${newColor}-color, rgba(255, 255, 255, 0.1))`);
+            sidebarContainer.style.setProperty('--space-bg-color-dark', `var(--chrome-${space.color}-color-dark, rgba(255, 255, 255, 0.1))`);
+        }
 
         saveSpaces();
         await updateSpaceSwitcher();
@@ -4112,14 +4114,14 @@ async function handleTabCreated(tab) {
 // query, stays its own tab, and a favorite that is already open keeps its tab.
 async function joinMatchingFavorite(tabId, url) {
     const space = ownerOf(spaces, tabId);
-    if (!space?.temporaryTabs.includes(tabId) || isOpeningBookmark) return;
+    if (!space?.temporaryTabs.includes(tabId)) return;
     const tab = await chrome.tabs.get(tabId).catch(() => null);
     if (!tab || tab.pinned || !BookmarkUtils.isSameLink(tab.url || tab.pendingUrl, url)) return;
     const spaceElement = getSpaceElement(space.id);
     const row = [...(spaceElement?.querySelectorAll('.bookmark-only[data-bookmark-id]') || [])]
         .find(element => BookmarkUtils.isSameLink(element.dataset.url, url));
     const bookmark = row && await getSpaceBookmarkById(space, row.dataset.bookmarkId);
-    if (!bookmark) return;
+    if (!bookmark || isOpeningBookmark || !row.isConnected) return;
     const context = { spaces, activeSpaceId, currentWindow, saveSpaces, createTabElement, activateTabInDOM, Utils, persistSpaceTabOrder };
     isOpeningBookmark = true;
     try {
@@ -4136,14 +4138,14 @@ async function joinMatchingFavorite(tabId, url) {
 
 
 function handleTabUpdate(tabId, changeInfo, tab) {
-    if (isOpeningBookmark) {
-        return;
-    }
     if (changeInfo.url && newlyOpenedTabs.has(tabId) && !isBlankPage(changeInfo.url)) {
         const placed = newlyOpenedTabs.get(tabId);
         newlyOpenedTabs.delete(tabId);
         placed.then(() => joinMatchingFavorite(tabId, changeInfo.url))
             .catch(error => Logger.warn('Could not open the new tab as its favorite:', error));
+    }
+    if (isOpeningBookmark) {
+        return;
     }
     chrome.windows.getCurrent({ populate: false }, async (currentWindow) => {
         if (tab.windowId !== currentWindow.id) return;
