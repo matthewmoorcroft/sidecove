@@ -9,6 +9,7 @@ An Arc-style space bar, favorites that only own the tab they opened, a clearer d
 - **Switching spaces is instant.** The background and every row take the new space's colours in the same frame, instead of parts of the panel briefly showing as highlighted patches.
 - **Right-click a space** in the bar for Change Space Icon, Rename Space, Theme Color, New Folder and Delete Space.
 - **A favorite only owns the tab it opened.** Clicking a closed favorite always opens it in its own new tab. A tab you opened yourself is never taken over or linked to a favorite, even when it shows the same page, so two links never show as one favorite.
+- **Collapsed favorites stay hidden.** Collapsing a space's Favorites section used to leave its links invisible but still clickable, so clicking the empty space below could open one, and Tab could still reach them. They now take no clicks or keyboard focus while collapsed.
 - **New Tab looks like Arc's:** a plain row with a grey plus and text, no button box, lined up with the tabs and the same height as a tab row.
 - **Close buttons follow Arc:** an open favorite shows − (close the tab, keep the favorite); a closed favorite shows × (remove it); ordinary tabs keep ×.
 - **Copy current tab URL** now has a default shortcut, ⌥⇧C (Alt+Shift+C). Chrome will not give an extension ⌘⇧C as a default because its developer tools use it, but you can choose it at chrome://extensions/shortcuts; the install guide's Shortcuts step now says so for anyone coming from Arc.
