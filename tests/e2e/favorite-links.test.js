@@ -82,3 +82,27 @@ test('a favorite that is already open keeps its tab when another tab opens the s
     await page.evaluate(id => chrome.tabs.remove(id), second);
     await closeFavoriteTab();
 });
+
+test('several tabs opened at once on a closed favorite\'s link give it one tab; the others stay their own', async () => {
+    const ids = await page.evaluate(async url => (await Promise.all([url, url, url, url].map(link => chrome.tabs.create({ url: link, active: false })))).map(tab => tab.id), `${base}/watch?v=first`);
+    await page.waitForSelector(`${favoriteRow()}[data-tab-id]`);
+    await sleep(1000);
+    const bound = await Promise.all(ids.map(bindingOf));
+    expect(bound.filter(Boolean)).toEqual([fixture.bookmarkId]);
+    expect(await page.$$(favoriteRow())).toHaveLength(1);
+    for (const id of ids.filter((id, index) => !bound[index])) expect(await page.$(temporaryRow(id))).not.toBeNull();
+    await page.evaluate(ids => chrome.tabs.remove(ids), ids);
+    await page.waitForSelector(`${favoriteRow()}.bookmark-only`);
+});
+
+test('a tab that later navigates to a closed favorite\'s link stays an ordinary tab', async () => {
+    const id = await openTab(`${base}/watch?v=second`);
+    await page.waitForSelector(temporaryRow(id));
+    await sleep(500);
+    await page.evaluate(({ id, url }) => chrome.tabs.update(id, { url }), { id, url: `${base}/watch?v=first` });
+    await sleep(800);
+    expect(await bindingOf(id)).toBeNull();
+    expect(await page.$(temporaryRow(id))).not.toBeNull();
+    expect(await page.$(`${favoriteRow()}.bookmark-only`)).not.toBeNull();
+    await page.evaluate(id => chrome.tabs.remove(id), id);
+});

@@ -4109,6 +4109,8 @@ async function handleTabCreated(tab) {
     await placed;
 }
 
+let favoriteJoins = Promise.resolve();
+
 // A new tab whose first page is exactly a closed favorite's link opens as that favorite, as
 // if the favorite had been clicked. Any other link, even the same page with a different
 // query, stays its own tab, and a favorite that is already open keeps its tab.
@@ -4117,15 +4119,19 @@ async function joinMatchingFavorite(tabId, url) {
     if (!space?.temporaryTabs.includes(tabId)) return;
     const tab = await chrome.tabs.get(tabId).catch(() => null);
     if (!tab || tab.pinned || !BookmarkUtils.isSameLink(tab.url || tab.pendingUrl, url)) return;
-    const spaceElement = getSpaceElement(space.id);
-    const row = [...(spaceElement?.querySelectorAll('.bookmark-only[data-bookmark-id]') || [])]
-        .find(element => BookmarkUtils.isSameLink(element.dataset.url, url));
-    const bookmark = row && await getSpaceBookmarkById(space, row.dataset.bookmarkId);
-    if (!bookmark || isOpeningBookmark || !row.isConnected) return;
-    const context = { spaces, activeSpaceId, currentWindow, saveSpaces, createTabElement, activateTabInDOM, Utils, persistSpaceTabOrder };
+    const bookmarksIn = node => node.url ? [node] : node.children.flatMap(bookmarksIn);
+    const matches = bookmarksIn(await getSpaceBookmarkTree(space)).filter(node => BookmarkUtils.isSameLink(node.url, url));
+    if (!matches.length || isOpeningBookmark) return;
     isOpeningBookmark = true;
     try {
-        spaceElement.querySelector(`[data-tab-type="temporary"] [data-tab-id="${tabId}"]`)?.remove();
+        const bindings = await Utils.getPinnedTabStates();
+        const openIds = new Set((await getOwnedTabs(space.id)).map(owned => bindings[owned.id]?.bookmarkId));
+        const bookmark = matches.find(node => !openIds.has(node.id));
+        if (!bookmark) return;
+        const spaceElement = getSpaceElement(space.id);
+        spaceElement?.querySelector(`[data-tab-type="temporary"] [data-tab-id="${tabId}"]`)?.remove();
+        const row = spaceElement?.querySelector(`.bookmark-only[data-bookmark-id="${bookmark.id}"]`) || null;
+        const context = { spaces, activeSpaceId, currentWindow, saveSpaces, createTabElement, activateTabInDOM, Utils, persistSpaceTabOrder };
         await BookmarkUtils.openBookmarkAsTab({
             url: bookmark.url, title: bookmark.title || 'Bookmark', spaceName: space.name,
             pinnedUrl: bookmark.url, bookmarkId: bookmark.id, adoptTab: tab, activate: tab.active
@@ -4141,7 +4147,7 @@ function handleTabUpdate(tabId, changeInfo, tab) {
     if (changeInfo.url && newlyOpenedTabs.has(tabId) && !isBlankPage(changeInfo.url)) {
         const placed = newlyOpenedTabs.get(tabId);
         newlyOpenedTabs.delete(tabId);
-        placed.then(() => joinMatchingFavorite(tabId, changeInfo.url))
+        favoriteJoins = favoriteJoins.then(() => placed).then(() => joinMatchingFavorite(tabId, changeInfo.url))
             .catch(error => Logger.warn('Could not open the new tab as its favorite:', error));
     }
     if (isOpeningBookmark) {
