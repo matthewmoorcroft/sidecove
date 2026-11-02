@@ -104,6 +104,9 @@ test('favorite demotion keeps the captured middle temporary position after refre
     const [favorite, left, right] = ids;
     await page.waitForSelector(row(favorite));
     await page.waitForSelector(row(right));
+    // Pin once the tab has its URL, or the favorite has none.
+    await page.waitForFunction(async ({ favorite, target }) => (await chrome.tabs.get(favorite)).url === target,
+        { polling: 100 }, { favorite, target: `${url}demote-favorite` });
     await toggle(favorite);
     await page.waitForFunction(id => document.querySelector(`.space.active [data-tab-type="pinned"] .tab[data-tab-id="${id}"]`),
         { polling: 100 }, favorite);
