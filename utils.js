@@ -20,6 +20,31 @@ import { Logger } from './logger.js';
 const MAX_ARCHIVED_TABS = 100;
 const ARCHIVED_TABS_KEY = 'archivedTabs';
 
+// Hosts whose pinned-tab URL key keeps the query string. Some apps use the query
+// string as the page's identity (e.g. localhost:6969/?focused=<chat id>, one
+// pinned tab per chat), which the default origin+pathname key collapses into a
+// single pinned entry. Cached because getPinnedUrlKey is synchronous; refreshed
+// from chrome.storage.sync on change.
+let pinMatchFullQueryHosts = [];
+
+export async function refreshPinMatchFullQueryHosts() {
+    try {
+        const result = await chrome.storage.sync.get({ pinMatchFullQueryHosts: [] });
+        if (Array.isArray(result.pinMatchFullQueryHosts)) {
+            pinMatchFullQueryHosts = result.pinMatchFullQueryHosts.map(host => String(host).trim().toLowerCase()).filter(Boolean);
+        }
+    } catch {
+        // Storage unavailable (unit tests, offscreen contexts); keep the cached list.
+    }
+}
+
+if (typeof chrome !== 'undefined' && chrome.storage?.onChanged) {
+    refreshPinMatchFullQueryHosts();
+    chrome.storage.onChanged.addListener((changes, area) => {
+        if (area === 'sync' && changes.pinMatchFullQueryHosts) refreshPinMatchFullQueryHosts();
+    });
+}
+
 const Utils = {
 
     async focusTab(tabId) {
@@ -72,12 +97,19 @@ const Utils = {
 
     // URL comparison key for pinned tabs:
     // intentionally ignore query params + hash to avoid treating benign changes (e.g. Google Docs) as "navigated away".
+    // Hosts listed in the pinMatchFullQueryHosts setting keep their query string,
+    // because for them the query string is the page's identity.
     getPinnedUrlKey: function (url) {
         if (!url) return '';
         // Each local lesson/run is a distinct practice tab, even though it shares a page.
         if (isPracticeUrl(url)) return url;
         try {
             const u = new URL(url);
+            const hostPort = u.port ? `${u.hostname}:${u.port}` : u.hostname;
+            // A bare hostname entry matches any port on that host.
+            if (pinMatchFullQueryHosts.includes(hostPort) || pinMatchFullQueryHosts.includes(u.hostname)) {
+                return `${u.origin}${u.pathname}${u.search}`;
+            }
             return `${u.origin}${u.pathname}`;
         } catch {
             // Fallback for non-standard URLs
@@ -96,6 +128,7 @@ const Utils = {
             debugLoggingEnabled: false, // Default: disabled (controls debug logging)
             showAllOpenTabsInCollapsedFolders: false, // Default: Arc behavior (only show active tab in collapsed folder)
             spaceSwitcherStyle: 'icons', // Default: Arc behavior (icons, or a dot for a space without one); 'names' shows full names
+            pinMatchFullQueryHosts: [], // Default: none (pinned URL keys ignore query strings, as before)
         };
         const result = await chrome.storage.sync.get(defaultSettings);
         Logger.log("Retrieved settings:", result);

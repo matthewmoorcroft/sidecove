@@ -86,6 +86,17 @@
             </div>
         </section>
 
+        <section class="options-section" aria-labelledby="pinMatchingHeading">
+            <h2 id="pinMatchingHeading" class="options-section-title">Pinned tab matching</h2>
+            <div class="options-setting-item options-setting-field">
+                <div class="options-setting-copy">
+                    <label for="pinMatchFullQueryHosts" class="options-label">Hosts that keep query strings</label>
+                    <p id="pinMatchFullQueryHostsDescription" class="options-description">Comma-separated hosts (optionally host:port) whose URLs are distinguished by their query string, so each URL pins as its own entry. For example: localhost:6969</p>
+                </div>
+                <input type="text" id="pinMatchFullQueryHosts" class="options-input" placeholder="localhost:6969" spellcheck="false" autocomplete="off" aria-describedby="pinMatchFullQueryHostsDescription">
+            </div>
+        </section>
+
         <section class="options-section" aria-labelledby="archiveHeading">
             <h2 id="archiveHeading" class="options-section-title">Auto-archiving</h2>
             <div class="options-setting-item options-setting-toggle">

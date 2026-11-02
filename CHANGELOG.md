@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Pinned tab matching setting:** hosts listed under Settings → Pinned tab matching (e.g. `localhost:6969`) keep their query string when matching pinned tabs, so URLs like `localhost:6969/?focused=<chat id>` pin as one entry per URL instead of collapsing into a single pinned tab. Other hosts keep the old behavior.
+
 ## 1.2.0
 
 An Arc-style space bar, favorites that only own the tab they opened, a clearer drop indicator and a polish pass, with no new permissions.

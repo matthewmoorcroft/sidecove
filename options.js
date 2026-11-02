@@ -47,6 +47,15 @@ function setCheckboxValue(element, value, defaultValue) {
   }
 }
 
+// Parse the pinned-tab-matching host list: comma or whitespace separated,
+// optional :port (e.g. "localhost:6969, docs.corp.example.com").
+function parseHostList(value) {
+  return (value || '')
+    .split(/[\s,]+/)
+    .map(host => host.trim().toLowerCase())
+    .filter(Boolean);
+}
+
 // Helper to add event listener if element exists
 function addListenerIfExists(elementId, event, handler) {
   const element = document.getElementById(elementId);
@@ -103,6 +112,7 @@ async function saveOptions() {
     invertTabOrder: getCheckboxValue(document.getElementById('invertTabOrder'), true),
     showAllOpenTabsInCollapsedFolders: getCheckboxValue(document.getElementById('showAllOpenTabsInCollapsedFolders'), false),
     spaceSwitcherStyle: document.getElementById('spaceSwitcherStyle')?.value === 'names' ? 'names' : 'icons',
+    pinMatchFullQueryHosts: parseHostList(document.getElementById('pinMatchFullQueryHosts')?.value),
     colorOverrides: Object.keys(colorOverrides).length > 0 ? colorOverrides : null,
     debugLoggingEnabled: getCheckboxValue(document.getElementById('debugLoggingEnabled'), false)
   };
@@ -150,6 +160,12 @@ async function restoreOptions() {
   setCheckboxValue(document.getElementById('debugLoggingEnabled'), settings.debugLoggingEnabled, false);
   const spaceSwitcherStyle = document.getElementById('spaceSwitcherStyle');
   if (spaceSwitcherStyle) spaceSwitcherStyle.value = settings.spaceSwitcherStyle === 'names' ? 'names' : 'icons';
+
+  // Restore pinned-tab-matching host list
+  const pinMatchFullQueryHostsInput = document.getElementById('pinMatchFullQueryHosts');
+  if (pinMatchFullQueryHostsInput) {
+    pinMatchFullQueryHostsInput.value = (settings.pinMatchFullQueryHosts || []).join(', ');
+  }
 
   // Restore number input
   const autoArchiveIdleMinutesInput = document.getElementById('autoArchiveIdleMinutes');
