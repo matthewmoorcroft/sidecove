@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 1.2.0
+
+An Arc-style space bar, favorites that match only their exact link, a clearer drop indicator and a polish pass, with no new permissions.
 
 - **The space bar works like Arc's.** Each space shows as its icon, or a dot if it has none; the current space is full strength and the name shows on hover, so every space stays in view. Prefer names? Settings → Space bar shows → Names gives full-name chips, which scroll sideways when they don't all fit and fade the edge that has more.
 - **Right-click a space** in the bar for Change Space Icon, Rename Space, Theme Color, New Folder and Delete Space.
@@ -8,16 +10,11 @@
 - **New Tab** is a slimmer button, about the height of a tab row.
 - **Close buttons follow Arc:** an open favorite shows − (close the tab, keep the favorite); a closed favorite shows × (remove it); ordinary tabs keep ×.
 - **Copy current tab URL** now has a default shortcut, ⌥⇧C (Alt+Shift+C). Chrome will not give an extension ⌘⇧C as a default because its developer tools use it, but you can choose it at chrome://extensions/shortcuts; the install guide's Shortcuts step now says so for anyone coming from Arc.
-
-## 1.2.0
-
-A clearer drop indicator and a polish pass, with no new permissions.
-
 - **Drop indicator:** while you drag a tab, favorite or folder, one line shows exactly where it will land. The line starts at the indent of the level it lands at, and the folder it would go into is highlighted, so a top-level drop and a drop into a nested folder look clearly different. It also shows at the end of a list, where there used to be no line.
 - **Favorites grid:** tiles fill the row while there are few and wrap at an even size, so a lone tile on a new row no longer stretches across it (upstream issue #42).
 - **Menus:** the tab menu and the space menu share one rounded, shadowed look with tighter rows and a short pop-in. In dark mode the space menu and its colour swatches are dark too.
 - **Hover and press:** rows, folder headers, favorites and New Tab respond with a clearer hover and a slight press. In dark mode, hovering a row or folder header darkens it so its title stays readable. The active tab and the active space chip stand out more clearly.
-- **Space switch:** the new space fades in. Chips that still overflow fade out at the right edge only while they overflow.
+- **Space switch:** the new space fades in.
 - **Keyboard:** Tab no longer moves focus into the hidden New Space form or archive list, which used to scroll the whole sidebar out of place. Close, remove and folder toggle buttons show when they have keyboard focus.
 - Animations respect the system's reduce-motion setting.
 - **Guided tour:** Next and the other tour buttons now have light text on a deep fill of the space colour, at least 4.5:1 contrast in every space colour in light and dark, so Next no longer looks disabled. Stepping through the tour no longer flashes a scroll bar under the card.
