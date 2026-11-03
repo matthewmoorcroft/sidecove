@@ -279,6 +279,9 @@ function setupAutoSave() {
   // Auto-save for number input (with debounce)
   addListenerIfExists('autoArchiveIdleMinutes', 'input', debouncedSave);
 
+  // Auto-save for the pinned-tab-matching host list (with debounce)
+  addListenerIfExists('pinMatchFullQueryHosts', 'input', debouncedSave);
+
   // Auto-save for color pickers (with debounce)
   COLOR_NAMES.forEach(colorName => {
     addListenerIfExists(getColorPickerId(colorName), 'input', debouncedSave);
