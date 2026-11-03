@@ -20,7 +20,7 @@ Sidecove: Arc-style Spaces and Vertical Tabs for Chrome
 ----------------------------------------------------------------------
 SUMMARY (the manifest "description"; 132 characters at most)
 ----------------------------------------------------------------------
-Spaces, pinned tabs and favourites in Chrome's side panel, for people moving from Arc. Auto-archives idle tabs. Free, no tracking.
+Spaces, pinned tabs and favourites in Chrome's side panel, for people moving from Arc. Optional auto-archive. Free, no tracking.
 
 ----------------------------------------------------------------------
 DETAILED DESCRIPTION
@@ -32,17 +32,18 @@ Sidecove is for people moving from Arc to Chrome, and for anyone who wants verti
 SPACES
 - Separate your tabs into spaces, such as Work, Home or a project. Each space has its own colour and icon, chosen from line symbols or emoji.
 - The space bar shows every space as an icon, or as a name chip if you prefer names. Switch with a click, the keyboard, or your mouse's side buttons.
-- Move a tab, favourite or folder to another space by dropping it on the space's icon.
+- Move a tab, pinned tab or folder to another space by dropping it on the space's icon.
 - New tabs open in the space you are using, including links opened from other apps.
 
-PINNED TABS AND FAVOURITES
-- Each space keeps its own pinned tabs, favourites and nested folders (up to four levels deep).
-- Favourites sit in a grid at the top of the space. An open favourite shows a minus button that closes the tab and keeps the favourite; a closed one opens in its own new tab.
-- Hold one tab over a favourite for a moment and drop it to make a folder of the two.
-- Pinned tabs and favourites are stored as ordinary Chrome bookmarks in a folder called "Sidecove", so they sync with your Google account through Chrome and you can see them in the bookmark manager.
+FAVOURITES AND PINNED TABS
+- Favourites are the row of site icons at the top. They are Chrome's own pinned tabs and follow you into every space.
+- Pinned tabs belong to a single space. Each space keeps its own pinned tabs and nested folders (up to four levels deep).
+- An open pinned tab shows a minus button that closes the tab and keeps the pin; a closed one opens in its own new tab.
+- Hold one tab over a pinned tab for a moment and drop it to make a folder of the two.
+- Spaces, folders and pinned tabs are stored as ordinary Chrome bookmarks in a folder called "Sidecove". If you are signed in to Chrome with sync on, Chrome syncs them with your Google account, and you can see them in the bookmark manager.
 
 KEEPS TABS TIDY
-- Auto-archive closes tabs you have not used for a while (you choose how long, or turn it off). Favourites are never closed this way.
+- Auto-archive is optional and off until you turn it on in Settings. It then closes tabs you have not used for the time you choose. Favourites and pinned tabs are never closed this way.
 - Archived tabs are listed so you can open them again.
 - Clean All closes a space's temporary tabs into the archive, with Undo.
 - Search your open tabs, pinned tabs and favourites across every space (Cmd or Ctrl+F).
@@ -50,10 +51,10 @@ KEEPS TABS TIDY
 
 KEYBOARD SHORTCUTS
 - Alt+S opens and closes the side panel.
-- Alt+D pins or unpins the current tab.
+- Alt+D pins or unpins the current tab (with the side panel open).
 - Alt+Shift+C copies the current tab's address.
 - With the sidebar focused: Ctrl+1 to Ctrl+8 jump to a space, Ctrl+9 to the last one, Ctrl+Shift+[ and ] step through them.
-- Shortcuts for next and previous space, next and previous tab in a space, and a numbered space can be set at chrome://extensions/shortcuts.
+- Shortcuts for next and previous space, next and previous tab in a space, and a numbered space can be set at chrome://extensions/shortcuts, where you can also change the ones above. The pin and tab shortcuts need the side panel open.
 
 HOW IT DIFFERS FROM ARC
 - Sidecove is an extension, not a browser. You keep Chrome, your profile, your other extensions and your Google account.
@@ -61,7 +62,8 @@ HOW IT DIFFERS FROM ARC
 - It does not copy everything Arc does, and it cannot import data from Arc. If you already use Chrome tab groups, it can offer to turn them into spaces.
 
 PRIVATE AND OPEN
-- Sidecove sends nothing to any server: no accounts, no analytics, no tracking. It reads your tabs' titles and addresses only to show and manage them in the sidebar. Pinned tabs and favourites sync only through Chrome's own bookmark sync.
+- Sidecove sends nothing to any server, ours or anyone else's: no accounts, no analytics, no tracking, no advertising. It reads your tabs' titles, addresses and icons, and your bookmarks, only to show and manage them in the sidebar, and tab groups when you turn on syncing spaces to them.
+- Your spaces, folders and pinned tabs are kept as Chrome bookmarks and your settings in Chrome's storage. Chrome may sync those through your Google account, as it does for any bookmark or extension setting.
 - Free, and open source under the GPL-3.0 licence. Source code, issues and release notes: https://github.com/matthewmoorcroft/sidecove
 
 Sidecove is an independent project. It is not made by, endorsed by or affiliated with The Browser Company or the Arc browser. Arc is a trademark of The Browser Company.

@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Sidecove: Arc-style Spaces and Vertical Tabs for Chrome",
   "version": "1.2.0",
-  "description": "Spaces, pinned tabs and favourites in Chrome's side panel, for people moving from Arc. Auto-archives idle tabs. Free, no tracking.",
+  "description": "Spaces, pinned tabs and favourites in Chrome's side panel, for people moving from Arc. Optional auto-archive. Free, no tracking.",
   "permissions": [
     "tabs",
     "tabGroups",
