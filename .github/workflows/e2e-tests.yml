@@ -35,7 +35,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)
+          TAG=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName 2>/dev/null || true)
+          if [ -z "$TAG" ]; then
+            echo "No release in $GITHUB_REPOSITORY (a fork?): the upgrade test relabels this build instead."
+            exit 0
+          fi
           echo "Latest release: $TAG"
           git fetch --depth=1 origin tag "$TAG"
           mkdir -p "$RUNNER_TEMP/sidecove-previous"

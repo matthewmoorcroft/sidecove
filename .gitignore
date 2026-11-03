@@ -36,7 +36,7 @@ lerna-debug.log*
 
 .config/
 
-# Local agent settings (CLAUDE.md is committed: it links to AGENTS.md)
+# Local agent settings
 .claude/*
 
 # Testing

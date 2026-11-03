@@ -7,7 +7,9 @@ import { launchBrowserWithExtension, openSidebar } from './helpers/extension-hel
 // Updating from the latest release keeps every space, favorite and setting. An unpacked
 // extension's ID comes from its folder, so the update replaces the files in one folder and
 // reuses the profile. CI points SIDECOVE_PREVIOUS_BUILD at a build of the latest release tag;
-// without it the current build is installed first under version 1.1.0.
+// without it the current build is installed first, relabelled as version 1.1.0. Until a
+// release PR bumps the version, the latest release has this build's version too, so the
+// update is relabelled X.Y.Z.1 for Chrome to run its update path.
 const dist = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../dist');
 const manifestVersion = dir => JSON.parse(fs.readFileSync(path.join(dir, 'manifest.json'), 'utf8')).version;
 let root, extensionDir, profileDir;
@@ -73,11 +75,13 @@ test('a profile from the latest release keeps its spaces, favorites and settings
     expect(before.spaces.map(space => space.name)).toEqual(expect.arrayContaining(['Home', 'Work']));
     await browser.close();
 
-    install(dist);
+    const sameVersion = manifestVersion(dist) === previousVersion;
+    const updatedVersion = sameVersion ? `${previousVersion}.1` : manifestVersion(dist);
+    install(dist, sameVersion ? updatedVersion : null);
     ({ browser, extensionId } = await launchBrowserWithExtension({ extensionPath: extensionDir, userDataDir: profileDir }));
     try {
         page = await openSidebar(browser, extensionId);
-        expect(await page.evaluate(() => chrome.runtime.getManifest().version)).toBe(manifestVersion(dist));
+        expect(await page.evaluate(() => chrome.runtime.getManifest().version)).toBe(updatedVersion);
         expect(await snapshot(page)).toEqual(before);
         const chips = await page.$$eval('#spaceSwitcher button[data-space-id]', buttons => buttons.map(button => button.textContent.trim()));
         expect(chips.some(text => text.endsWith('Work'))).toBe(true);

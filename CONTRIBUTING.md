@@ -4,7 +4,7 @@ Thanks for helping. This page covers setting up, building, testing and releasing
 
 ## Setup
 
-You need Node.js (the version in `.nvmrc`; 20 or later works), npm, Git and Google Chrome.
+You need Node.js 22 or later (CI uses the version in `.nvmrc`), npm, Git and Google Chrome.
 
 ```bash
 git clone https://github.com/matthewmoorcroft/sidecove.git
@@ -34,7 +34,7 @@ To try a build, open `chrome://extensions/`, turn on **Developer mode**, click *
 
 1. Fork the repository and create a branch, for example `git checkout -b feature/your-feature-name`.
 2. Keep each pull request to one change. Follow the style of the code around it and add or update tests.
-3. Add a line to `CHANGELOG.md` under `Unreleased` for anything a user would notice, in plain words.
+3. Add a line to `CHANGELOG.md` under `Unreleased`, in plain words. If users will not notice the change, say so in that line.
 4. Open the pull request against `main`, describe what changed and why, and link any related issue. CI must pass.
 
 Never add a permission, host permission or content script without saying so in the pull request title: Sidecove's permissions were approved in a security review, and a new one needs another.
