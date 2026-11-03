@@ -581,9 +581,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             applyColorOverrides();
         }
 
-        // Re-render active space when tab order inversion setting changes
-        if (areaName === 'sync' && changes.invertTabOrder) {
-            Logger.log('invertTabOrder changed, refreshing active space UI...');
+        // Re-render active space when a setting that changes what the list shows changes
+        if (areaName === 'sync' && (changes.invertTabOrder || changes.pinMatchFullQueryHosts)) {
+            Logger.log('Tab list setting changed, refreshing active space UI...');
             if (refreshActiveSpaceUITimeout) clearTimeout(refreshActiveSpaceUITimeout);
             refreshActiveSpaceUITimeout = setTimeout(() => {
                 refreshActiveSpaceUITimeout = null;
