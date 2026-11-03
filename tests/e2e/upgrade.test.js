@@ -14,6 +14,10 @@ const dist = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../d
 const manifestVersion = dir => JSON.parse(fs.readFileSync(path.join(dir, 'manifest.json'), 'utf8')).version;
 const currentVersion = manifestVersion(dist);
 const previousBuilds = (process.env.SIDECOVE_PREVIOUS_BUILD || '').split(path.delimiter).filter(Boolean);
+// CI always provides real release builds; relabelling the current build there would hide a broken setup.
+if (!previousBuilds.length && process.env.CI) {
+    throw new Error('SIDECOVE_PREVIOUS_BUILD is empty in CI: the workflow did not build any earlier release.');
+}
 if (!previousBuilds.length) {
     console.warn(`SIDECOVE_PREVIOUS_BUILD is not set, so this relabels the current build as ${FALLBACK_PREVIOUS_VERSION} instead of installing a release.`);
 }
@@ -26,8 +30,8 @@ const newer = (a, b) => {
     }
     return false;
 };
-// Chrome only runs its update path for a higher version. Until a release PR bumps the
-// version, the latest release has this build's version, so the update is labelled one step up.
+// Chrome only runs its update path for a higher version. Until the version is bumped for the
+// next release, the latest release has this build's version, so the update is labelled one step up.
 // A build older than the release would be a downgrade, which proves nothing about updating.
 const updateVersion = previous => {
     if (newer(currentVersion, previous)) return currentVersion;
@@ -125,7 +129,7 @@ test.each(cases)('a profile from %s keeps its spaces, favorites and settings aft
     }
 
     const updatedVersion = updateVersion(previousVersion);
-    install(dist, updatedVersion === currentVersion ? null : updatedVersion);
+    install(dist, updatedVersion);
     ({ browser, extensionId } = await launchBrowserWithExtension({
         extensionPath: extensionDir,
         userDataDir: profileDir

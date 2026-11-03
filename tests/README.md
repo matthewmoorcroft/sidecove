@@ -178,7 +178,7 @@ test('should create a new space', async () => {
 ### Environment Variables
 
 - `HEADED=true` (or `DEBUG=true`) - Show the browser instead of running headless
-- `SIDECOVE_TEST_EXTENSION_PATH` - Path to the built extension (default: `./dist`)
+- `SIDECOVE_TEST_EXTENSION_PATH` - Path to the built extension for suites that launch through `launchBrowserWithExtension()` (default: `./dist`). `global-setup.js` and `upgrade.test.js` always use `./dist`.
 - `SIDECOVE_PREVIOUS_BUILD` - `dist/` folders of earlier releases for `upgrade.test.js`, separated by the path delimiter (`:` on macOS and Linux, `;` on Windows)
 - `CI` - Running in CI environment
 
