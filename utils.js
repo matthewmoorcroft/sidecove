@@ -27,11 +27,26 @@ const ARCHIVED_TABS_KEY = 'archivedTabs';
 // from chrome.storage.sync on change.
 let pinMatchFullQueryHosts = [];
 
+// Reduce a typed or pasted entry ("localhost:6969", "http://localhost:6969/",
+// "example.com:443") to the URL.host form getPinnedUrlKey compares against, or
+// null when it is not a host. Shared by the options page and the cache refresh.
+export function normalizePinMatchHost(entry) {
+    const text = String(entry ?? '').trim();
+    if (!text) return null;
+    // A bare entry has no scheme; read an explicit :443 as https so URL.host drops it.
+    const scheme = /:443(\/|$)/.test(text) ? 'https' : 'http';
+    try {
+        return new URL(text.includes('://') ? text : `${scheme}://${text}`).host || null;
+    } catch {
+        return null;
+    }
+}
+
 export async function refreshPinMatchFullQueryHosts() {
     try {
         const result = await chrome.storage.sync.get({ pinMatchFullQueryHosts: [] });
         if (Array.isArray(result.pinMatchFullQueryHosts)) {
-            pinMatchFullQueryHosts = result.pinMatchFullQueryHosts.map(host => String(host).trim().toLowerCase()).filter(Boolean);
+            pinMatchFullQueryHosts = result.pinMatchFullQueryHosts.map(normalizePinMatchHost).filter(Boolean);
         }
     } catch {
         // Storage unavailable (unit tests, offscreen contexts); keep the cached list.
@@ -105,9 +120,8 @@ const Utils = {
         if (isPracticeUrl(url)) return url;
         try {
             const u = new URL(url);
-            const hostPort = u.port ? `${u.hostname}:${u.port}` : u.hostname;
             // A bare hostname entry matches any port on that host.
-            if (pinMatchFullQueryHosts.includes(hostPort) || pinMatchFullQueryHosts.includes(u.hostname)) {
+            if (pinMatchFullQueryHosts.includes(u.host) || pinMatchFullQueryHosts.includes(u.hostname)) {
                 return `${u.origin}${u.pathname}${u.search}`;
             }
             return `${u.origin}${u.pathname}`;

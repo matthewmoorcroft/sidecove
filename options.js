@@ -12,7 +12,7 @@
  * - Provides real-time feedback for setting changes
  */
 
-import { Utils } from './utils.js';
+import { Utils, normalizePinMatchHost } from './utils.js';
 import { LocalStorage } from './localstorage.js';
 import { Logger } from './logger.js';
 
@@ -48,11 +48,12 @@ function setCheckboxValue(element, value, defaultValue) {
 }
 
 // Parse the pinned-tab-matching host list: comma or whitespace separated,
-// optional :port (e.g. "localhost:6969, docs.corp.example.com").
+// optional :port (e.g. "localhost:6969, docs.corp.example.com"). Pasted URLs are
+// reduced to their host; entries that are not a host are dropped.
 function parseHostList(value) {
   return (value || '')
     .split(/[\s,]+/)
-    .map(host => host.trim().toLowerCase())
+    .map(normalizePinMatchHost)
     .filter(Boolean);
 }
 
