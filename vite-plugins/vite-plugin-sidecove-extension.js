@@ -1,22 +1,25 @@
 import { resolve } from 'path';
 import fs from 'fs-extra';
 
+// Extension source lives in src/; the HTML pages at its top level build to the root of dist/.
+const srcDir = resolve(process.cwd(), 'src');
+
 /**
  * Get shared input configuration for Sidecove
  */
 function getExtensionInputs() {
   return {
-    sidebar: resolve(process.cwd(), 'sidebar.html'),
-    'tutorial-practice': resolve(process.cwd(), 'tutorial-practice.html'),
-    options: resolve(process.cwd(), 'options.html'),
-    onboarding: resolve(process.cwd(), 'onboarding.html'),
-    'installation-onboarding': resolve(process.cwd(), 'installation-onboarding.html'),
-    background: resolve(process.cwd(), 'background.js'),
-    'sidebar-script': resolve(process.cwd(), 'sidebar.js'),
-    'options-script': resolve(process.cwd(), 'options.js'),
-    'onboarding-script': resolve(process.cwd(), 'onboarding.js'),
-    'installation-onboarding-script': resolve(process.cwd(), 'installation-onboarding.js'),
-    offscreen: resolve(process.cwd(), 'offscreen.html'),
+    sidebar: resolve(srcDir, 'sidebar.html'),
+    'tutorial-practice': resolve(srcDir, 'tutorial-practice.html'),
+    options: resolve(srcDir, 'options.html'),
+    onboarding: resolve(srcDir, 'onboarding.html'),
+    'installation-onboarding': resolve(srcDir, 'installation-onboarding.html'),
+    background: resolve(srcDir, 'background/background.js'),
+    'sidebar-script': resolve(srcDir, 'sidebar/sidebar.js'),
+    'options-script': resolve(srcDir, 'options/options.js'),
+    'onboarding-script': resolve(srcDir, 'onboarding/onboarding.js'),
+    'installation-onboarding-script': resolve(srcDir, 'onboarding/installation-onboarding.js'),
+    offscreen: resolve(srcDir, 'offscreen.html'),
   };
 }
 
@@ -67,8 +70,8 @@ function getExtensionPlugins(isDev = false) {
           await fs.copy('assets', `${outDir}/assets`);
         }
 
-        if (await fs.pathExists('styles.css')) {
-          await fs.copy('styles.css', `${outDir}/styles.css`);
+        if (await fs.pathExists('src/shared/styles.css')) {
+          await fs.copy('src/shared/styles.css', `${outDir}/styles.css`);
         }
 
         if (await fs.pathExists('LICENSE')) {
@@ -96,8 +99,9 @@ export function createSidecoveConfig(options = {}) {
   const outDir = isDev ? 'dist-dev' : 'dist';
 
   const config = {
+    root: srcDir,
     build: {
-      outDir,
+      outDir: resolve(process.cwd(), outDir),
       emptyOutDir: true,
       rollupOptions: {
         input: getExtensionInputs(),
@@ -124,7 +128,7 @@ export function createSidecoveConfig(options = {}) {
   if (isDev) {
     config.mode = 'development';
     config.build.watch = {
-      include: ['**/*.js', '**/*.html', '**/*.css', 'manifest.json']
+      include: ['src/**/*.js', 'src/**/*.html', 'src/**/*.css', 'assets/**', 'manifest.json']
     };
   }
 

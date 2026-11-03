@@ -4,7 +4,7 @@ Sidecove includes the following third-party material.
 
 ## Lucide
 
-The monochrome space symbols in `space-symbols.js` are shapes from [Lucide](https://lucide.dev) v1.61.0.
+The monochrome space symbols in `src/sidebar/space-symbols.js` are shapes from [Lucide](https://lucide.dev) v1.61.0.
 
 ```
 ISC License

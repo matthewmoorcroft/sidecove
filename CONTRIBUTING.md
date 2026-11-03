@@ -12,6 +12,10 @@ cd sidecove
 npm ci
 ```
 
+## Where things live
+
+Extension code is in `src/`, split by the extension context it runs in: `background/` (the service worker), `sidebar/`, `options/`, `onboarding/` and `offscreen/`, with `shared/` for modules two or more of them import. The HTML pages sit at the top of `src/`. Images and the font are in `assets/`. Unit tests in `tests/unit/` mirror the `src/` folders. [AGENTS.md](AGENTS.md) has the full rules for where new code goes and what must not change; `CLAUDE.md` links to it.
+
 ## Build and load
 
 - `npm run build`: production build to `dist/`.
