@@ -23,7 +23,7 @@ Vite, no framework, no runtime dependencies.
   `shared/styles.css` is the stylesheet the side panel and the settings page both load.
 - A new sidebar feature gets its own folder, `src/sidebar/features/<feature>/`. The entry file
   `src/sidebar/sidebar.js` only wires features together: do not add feature logic to it, and
-  move logic out of it when you change it.
+  when you change logic in it, move that logic out into its feature's folder.
 - Put pure logic (no `chrome.*`, no DOM) in its own module so it can be unit tested. Pass
   `chrome` in as an argument where a module needs it, as `background/url-copy.js` does.
 - HTML pages live at the top of `src/` and build to the top of `dist/`. Their file names are
@@ -31,8 +31,8 @@ Vite, no framework, no runtime dependencies.
 - Images and the font live in `assets/` at the repository root and are copied to `dist/assets/`.
 - Imports flow inwards only: a context may import `shared/`; `shared/` never imports a context;
   contexts never import each other.
-- Prefer a new small file over growing a large one. If a file passes about 400 lines, split it
-  by feature in the same change.
+- Prefer a new small file over growing a large one. When a change adds to a file of more than
+  about 400 lines, split the part it touches out by feature in the same change.
 
 ## Invariants (do not break these)
 
