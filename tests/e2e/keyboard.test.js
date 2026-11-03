@@ -109,6 +109,23 @@ describe('Keyboard Shortcuts', () => {
             }
         });
 
+        test('offers the most recently used tab command without claiming a key', async () => {
+            try {
+                const command = await sidebarPage.evaluate(async () => {
+                    const allCommands = await chrome.commands.getAll();
+                    return allCommands.find(cmd => cmd.name === 'RecentTabInSpace') || null;
+                });
+
+                expect(command).not.toBeNull();
+                expect(command.description).toContain('most recently used');
+                // Chrome allows four suggested keys and Sidecove uses three; people assign this one.
+                expect(command.shortcut).toBe('');
+            } catch (error) {
+                await takeScreenshotOnFailure(sidebarPage, 'recent-tab-command-failure');
+                throw error;
+            }
+        });
+
         test('should have descriptions for all custom commands', async () => {
             try {
                 logTestStep('Verifying command descriptions...');

@@ -2,6 +2,7 @@
 
 ## Unreleased (1.3.0)
 
+- **Most recently used tab shortcut:** a new command, "Switch to the most recently used tab in this space", jumps back to the tab you used last in the current space, as Ctrl+Tab does in Arc. Press it again in quick succession (under a second apart) to go further back through the tabs you used; each space keeps its own order. Chrome keeps Ctrl+Tab for itself, so the command has no default key: assign one at chrome://extensions/shortcuts. It needs no new permission, and the order is kept in memory for the browser session only.
 - **Pinned tab matching setting:** hosts listed under Settings → Pinned tab matching (e.g. `localhost:6969`) keep their query string when matching pinned tabs, so URLs like `localhost:6969/?focused=<chat id>` pin as one entry per URL instead of collapsing into a single pinned tab. Other hosts keep the old behavior.
 - **Repository cleanup, part 1 (housekeeping):** removed the outdated Cursor rules, stale test notes and five unused development packages; developer documentation moved to CONTRIBUTING.md; CI runs on one current Node version and on every pull request, and the upgrade test now starts from the latest release. The extension itself, its permissions and your data are unchanged.
 - **Repository cleanup, part 2 (layout):** the source code moved into `src/`, one folder per part of the extension (background, sidebar, settings, onboarding, offscreen, shared), and AGENTS.md (with CLAUDE.md linking to it) sets out where new code goes and what must not change. The built extension is the same file for file.

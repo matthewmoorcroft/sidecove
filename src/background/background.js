@@ -52,6 +52,7 @@ import { copyCurrentTabUrlWithFallback } from './url-copy.js';
 import { parseSpaceCommand, switchSpaceWithoutSidebar } from '../shared/space-navigation.js';
 import { registerAutoArchive, TAB_ACTIVITY_STORAGE_KEY } from './auto-archive.js';
 import { openOnboardingIfDue } from './onboarding-lifecycle.js';
+import { RECENT_TAB_COMMAND, registerRecentTab } from './recent-tab.js';
 
 // Helper to handle async message responses with consistent error handling
 function handleAsyncMessage(handler, sendResponse, errorContext, defaultErrorData = {}) {
@@ -66,6 +67,9 @@ function handleAsyncMessage(handler, sendResponse, errorContext, defaultErrorDat
     })();
     return true; // Indicates async response
 }
+
+// Most recently used tab shortcut: keeps the use order and returns the command handler.
+const onRecentTabCommand = registerRecentTab({ spaceStore });
 
 // Configure Chrome side panel behavior
 chrome.sidePanel
@@ -106,6 +110,8 @@ chrome.commands.onCommand.addListener(async function (command) {
         Logger.log('sending');
         // Send a message to the sidebar
         chrome.runtime.sendMessage({ command: 'PrevTabInSpace' });
+    } else if (command === RECENT_TAB_COMMAND) {
+        await onRecentTabCommand();
     } else if (command === 'copyCurrentUrl') {
         await copyCurrentTabUrlWithFallback();
     } else {

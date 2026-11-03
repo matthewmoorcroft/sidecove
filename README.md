@@ -18,6 +18,7 @@ Sidecove is an independent project, not affiliated with or endorsed by The Brows
 - Multi-select with Cmd or Ctrl click and Shift click to move, pin, archive, close or file several tabs at once
 - Search open tabs and favorites across spaces (Cmd or Ctrl+F)
 - Keyboard and mouse side-button space switching
+- A shortcut for the most recently used tab in the current space, like Arc's Ctrl+Tab (assign a key at `chrome://extensions/shortcuts`; Chrome keeps Ctrl+Tab for itself)
 - Auto-archive for idle tabs, and Clean All with Undo
 
 See [CHANGELOG.md](CHANGELOG.md) for what changed in each version.

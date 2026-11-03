@@ -44,6 +44,9 @@
     "PrevTabInSpace": {
       "description": "Navigates to prev tab in space"
     },
+    "RecentTabInSpace": {
+      "description": "Switch to the most recently used tab in this space"
+    },
     "copyCurrentUrl": {
       "suggested_key": {
         "default": "Alt+Shift+C"
