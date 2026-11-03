@@ -51,3 +51,15 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+## Varela Round
+
+The interface font `assets/varela-round.ttf` is [Varela Round](https://github.com/alefalefalef/Varela-Round-Hebrew/), shipped inside the extension so no font is loaded from the web.
+
+```
+Copyright 2023 The Varela Round Project Authors (https://github.com/alefalefalef/Varela-Round-Hebrew/), with Reserved Font Names 'Varela' and ‘Varela Round’.
+
+This Font Software is licensed under the SIL Open Font License, Version 1.1.
+```
+
+The full licence text ships next to the font as `assets/varela-round-LICENSE.txt`.

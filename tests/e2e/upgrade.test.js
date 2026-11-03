@@ -4,11 +4,12 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { launchBrowserWithExtension, openSidebar } from './helpers/extension-helper.js';
 
-// Updating from 1.1.0 keeps every space, favorite and setting. An unpacked extension's ID
-// comes from its folder, so the update replaces the files in one folder and reuses the
-// profile. CI points SIDECOVE_PREVIOUS_BUILD at a real 1.1.0 build; without it the current
-// build is installed first under version 1.1.0.
+// Updating from the latest release keeps every space, favorite and setting. An unpacked
+// extension's ID comes from its folder, so the update replaces the files in one folder and
+// reuses the profile. CI points SIDECOVE_PREVIOUS_BUILD at a build of the latest release tag;
+// without it the current build is installed first under version 1.1.0.
 const dist = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../dist');
+const manifestVersion = dir => JSON.parse(fs.readFileSync(path.join(dir, 'manifest.json'), 'utf8')).version;
 let root, extensionDir, profileDir;
 
 function install(from, version = null) {
@@ -44,13 +45,14 @@ afterAll(() => {
     fs.rmSync(root, { recursive: true, force: true });
 });
 
-test('a 1.1.0 profile keeps its spaces, favorites and settings after updating', async () => {
+test('a profile from the latest release keeps its spaces, favorites and settings after updating', async () => {
     const previous = process.env.SIDECOVE_PREVIOUS_BUILD;
-    if (!previous) console.warn('SIDECOVE_PREVIOUS_BUILD is not set, so this relabels the current build as 1.1.0 instead of installing the real 1.1.0.');
+    if (!previous) console.warn('SIDECOVE_PREVIOUS_BUILD is not set, so this relabels the current build as 1.1.0 instead of installing the latest release.');
     install(previous || dist, previous ? null : '1.1.0');
+    const previousVersion = manifestVersion(extensionDir);
     let { browser, extensionId } = await launchBrowserWithExtension({ extensionPath: extensionDir, userDataDir: profileDir });
     let page = await openSidebar(browser, extensionId);
-    expect(await page.evaluate(() => chrome.runtime.getManifest().version)).toBe('1.1.0');
+    expect(await page.evaluate(() => chrome.runtime.getManifest().version)).toBe(previousVersion);
     await page.$eval('#addSpaceBtn', button => button.click());
     await page.$eval('#newSpaceName', input => {
         input.value = 'Work';
@@ -75,7 +77,7 @@ test('a 1.1.0 profile keeps its spaces, favorites and settings after updating', 
     ({ browser, extensionId } = await launchBrowserWithExtension({ extensionPath: extensionDir, userDataDir: profileDir }));
     try {
         page = await openSidebar(browser, extensionId);
-        expect(await page.evaluate(() => chrome.runtime.getManifest().version)).toBe('1.2.0');
+        expect(await page.evaluate(() => chrome.runtime.getManifest().version)).toBe(manifestVersion(dist));
         expect(await snapshot(page)).toEqual(before);
         const chips = await page.$$eval('#spaceSwitcher button[data-space-id]', buttons => buttons.map(button => button.textContent.trim()));
         expect(chips.some(text => text.endsWith('Work'))).toBe(true);

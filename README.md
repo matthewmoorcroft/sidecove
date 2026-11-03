@@ -22,123 +22,13 @@ Sidecove is an independent project, not affiliated with or endorsed by The Brows
 
 See [CHANGELOG.md](CHANGELOG.md) for what changed in each version.
 
-## Development Setup
+## Install
 
-### Prerequisites
+1. Download `sidecove-extension.zip` from the latest [GitHub release](https://github.com/matthewmoorcroft/sidecove/releases/latest) and unzip it.
+2. Open `chrome://extensions/` and turn on **Developer mode** (top right).
+3. Click **Load unpacked** and choose the unzipped folder.
 
-- Node.js (v16 or higher)
-- npm or yarn
-- Google Chrome or Chromium-based browser
-- Git (for version control)
-- Basic knowledge of HTML, CSS, and JavaScript
-
-### Quick Start
-
-1. **Clone and Install**
-   ```bash
-   git clone https://github.com/matthewmoorcroft/sidecove.git
-   cd sidecove
-   npm install
-   ```
-
-2. **Development Build**
-   ```bash
-   npm run dev
-   ```
-   This creates a `dist-dev/` folder with source maps for debugging and watches for file changes.
-
-3. **Production Build**
-   ```bash
-   npm run build
-   ```
-   This creates an optimized `dist/` folder ready for distribution.
-
-4. **Create Distribution Package**
-   ```bash
-   npm run build:zip
-   ```
-   This builds the extension and creates `sidecove-extension.zip` for Chrome Web Store submission.
-
-### Loading the Extension in Chrome
-
-1. **Open Chrome Extensions page**
-   - Navigate to `chrome://extensions/`
-   - Or go to Menu → More Tools → Extensions
-
-2. **Enable Developer Mode**
-   - Toggle the "Developer mode" switch in the top right corner
-
-3. **Load the Extension**
-   - Click "Load unpacked"
-   - Select the `dist/` or `dist-dev/` directory
-   - The extension should now appear in your browser
-
-### Development Workflow
-
-1. **Make Changes**
-   - Edit source files in the root directory
-   - For development: `npm run dev` (watches for changes)
-   - For production testing: `npm run build`
-
-2. **Reload Extension**
-   - Go to `chrome://extensions/`
-   - Click the refresh icon on the Sidecove extension card
-   - Or use Ctrl+R in the extension's popup/sidebar
-
-3. **Debug**
-   - Use Chrome DevTools for the extension pages
-   - Check the extension's service worker in `chrome://extensions/`
-   - View console logs in the extension's background page
-
-### Build Scripts
-
-- `npm run dev` - Development build with file watching
-- `npm run build` - Production build
-- `npm run build:zip` - Build and create zip package
-- `npm run zip` - Create zip from existing build
-- `npm run clean` - Remove all build artifacts
-- `npm run preview` - Preview the built extension
-- `npm run info` - Display build information and status
-- `npm run release <type>` - Create a new release (patch/minor/major/x.y.z)
-
-### Release Process
-
-The project uses automated releases via GitHub Actions. To create a new release:
-
-1. **Prepare your changes**
-   ```bash
-   # Make sure all changes are committed
-   git status
-   ```
-
-2. **Create a release**
-   ```bash
-   # For bug fixes (2.2.0 → 2.2.1)
-   npm run release patch
-   
-   # For new features (2.2.0 → 2.3.0)
-   npm run release minor
-   
-   # For breaking changes (2.2.0 → 3.0.0)
-   npm run release major
-   
-   # For specific version
-   npm run release 2.5.0
-   ```
-
-3. **Automated process**
-   - Updates `package.json` and `manifest.json` versions
-   - Builds and tests the extension
-   - Creates a git tag and pushes to GitHub
-   - GitHub Actions automatically:
-     - Builds the extension
-     - Generates release notes from commits
-     - Creates a GitHub release
-     - Attaches the zip file and SHA256 checksum
-
-4. **Monitor the release**
-   - Check the [Actions tab](https://github.com/matthewmoorcroft/sidecove/actions) for build status
-   - Review the generated release at [Releases](https://github.com/matthewmoorcroft/sidecove/releases)
+Sidecove needs Chrome 116 or later, for the side panel features it uses.
 
 ## Issues and Feature Requests
 
@@ -172,43 +62,7 @@ We use GitHub Issues to track bugs and feature requests. Before creating a new i
 
 ## Contributing
 
-We welcome contributions! Here's how you can help:
-
-1. Fork the Repository
-   - Create a fork of this repository on GitHub
-
-2. Create a Branch
-   ```bash
-   git checkout -b feature/your-feature-name
-   ```
-
-3. Make Your Changes
-   - Write clean, documented code
-   - Follow existing code style
-   - Test your changes thoroughly
-
-4. Commit Your Changes
-   ```bash
-   git commit -m "Add: brief description of your changes"
-   ```
-
-5. Push to Your Fork
-   ```bash
-   git push origin feature/your-feature-name
-   ```
-
-6. Submit a Pull Request
-   - Create a Pull Request from your fork to our main repository
-   - Provide a clear description of the changes
-   - Reference any related issues
-
-### Contribution Guidelines
-
-- Write meaningful commit messages
-- Update documentation as needed
-- Add comments to your code where necessary
-- Test your changes before submitting
-- Follow existing code style and conventions
+Contributions are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) covers setting up, building, testing and opening a pull request.
 
 ## License
 
@@ -276,10 +130,6 @@ in Chrome's bookmark manager reorders the chips, and dragging a chip moves its
 folder. On the first load after updating, space order follows the bookmark folder
 order, so a chip order set by dragging before this change resets once; dragging
 chips afterwards moves the folders and the order sticks.
-
-Run `npm run test:unit` for storage, migration, and sync regression tests. Browser
-coverage lives in `tests/e2e/independent-spaces.test.js` alongside the space, tab,
-bookmark, and drag-and-drop suites.
 
 With **Sync spaces to Chrome tab groups** off, right-click a folder and choose **New Folder** to create a child folder. Spaces support up to four folder levels. Turning sync on disables new nested-folder creation and preserves existing folders.
 
