@@ -28,6 +28,8 @@ See [CHANGELOG.md](CHANGELOG.md) for what changed in each version.
 2. Open `chrome://extensions/` and turn on **Developer mode** (top right).
 3. Click **Load unpacked** and choose the unzipped folder.
 
+To update, unzip the new release over the same folder and click the reload icon on the Sidecove card in `chrome://extensions/`. Chrome identifies an unpacked extension by its folder, so loading a copy from a new folder starts with empty spaces and settings.
+
 Sidecove needs Chrome 116 or later, for the side panel features it uses.
 
 ## Issues and Feature Requests

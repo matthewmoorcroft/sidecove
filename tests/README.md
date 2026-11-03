@@ -179,7 +179,7 @@ test('should create a new space', async () => {
 
 - `HEADED=true` (or `DEBUG=true`) - Show the browser instead of running headless
 - `SIDECOVE_TEST_EXTENSION_PATH` - Path to the built extension (default: `./dist`)
-- `SIDECOVE_PREVIOUS_BUILD` - `dist/` folders of earlier releases for `upgrade.test.js`, separated by `:`
+- `SIDECOVE_PREVIOUS_BUILD` - `dist/` folders of earlier releases for `upgrade.test.js`, separated by the path delimiter (`:` on macOS and Linux, `;` on Windows)
 - `CI` - Running in CI environment
 
 ### Jest Configuration

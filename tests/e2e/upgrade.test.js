@@ -11,8 +11,8 @@ import { launchBrowserWithExtension, openSidebar } from './helpers/extension-hel
 // is installed first, relabelled as FALLBACK_PREVIOUS_VERSION.
 const FALLBACK_PREVIOUS_VERSION = '1.1.0';
 const dist = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../dist');
-const currentVersion = JSON.parse(fs.readFileSync(path.join(dist, 'manifest.json'), 'utf8')).version;
 const manifestVersion = dir => JSON.parse(fs.readFileSync(path.join(dir, 'manifest.json'), 'utf8')).version;
+const currentVersion = manifestVersion(dist);
 const previousBuilds = (process.env.SIDECOVE_PREVIOUS_BUILD || '').split(path.delimiter).filter(Boolean);
 if (!previousBuilds.length) {
     console.warn(`SIDECOVE_PREVIOUS_BUILD is not set, so this relabels the current build as ${FALLBACK_PREVIOUS_VERSION} instead of installing a release.`);
@@ -28,8 +28,12 @@ const newer = (a, b) => {
 };
 // Chrome only runs its update path for a higher version. Until a release PR bumps the
 // version, the latest release has this build's version, so the update is labelled one step up.
+// A build older than the release would be a downgrade, which proves nothing about updating.
 const updateVersion = previous => {
     if (newer(currentVersion, previous)) return currentVersion;
+    if (newer(previous, currentVersion)) {
+        throw new Error(`This build (${currentVersion}) is older than release ${previous}; update the branch from main.`);
+    }
     const next = parts(previous);
     if (next.length < 4) next.push(1);
     else next[3]++;
@@ -89,32 +93,36 @@ test.each(cases)('a profile from %s keeps its spaces, favorites and settings aft
         extensionPath: extensionDir,
         userDataDir: profileDir
     });
-    let page = await openSidebar(browser, extensionId);
-    expect(await page.evaluate(() => chrome.runtime.getManifest().version)).toBe(previousVersion);
-    await page.$eval('#addSpaceBtn', button => button.click());
-    await page.$eval('#newSpaceName', input => {
-        input.value = 'Work';
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-    });
-    await page.$eval('#spaceColor', select => {
-        select.value = 'blue';
-    });
-    await page.$eval('#createSpaceBtn', button => button.click());
-    await page.waitForFunction(
-        () => document.querySelector('#spaceSwitcher button.active')?.textContent.includes('Work'),
-        { polling: 100 }
-    );
-    await page.evaluate(async () => {
-        const { spaces } = await chrome.runtime.sendMessage({ type: 'spaceStore', action: 'get' });
-        const work = spaces.find(space => space.name === 'Work');
-        const folder = await chrome.bookmarks.create({ parentId: work.bookmarkFolderId, title: 'Projects' });
-        await chrome.bookmarks.create({ parentId: folder.id, title: 'Roadmap', url: 'https://example.com/roadmap' });
-        await chrome.bookmarks.create({ parentId: work.bookmarkFolderId, title: 'Docs', url: 'https://example.com/docs' });
-        await chrome.storage.sync.set({ defaultSpaceName: 'Work', autoArchiveEnabled: true, autoArchiveIdleMinutes: 90 });
-    });
-    const before = await snapshot(page);
-    expect(before.spaces.map(space => space.name)).toEqual(expect.arrayContaining(['Home', 'Work']));
-    await browser.close();
+    let page, before;
+    try {
+        page = await openSidebar(browser, extensionId);
+        expect(await page.evaluate(() => chrome.runtime.getManifest().version)).toBe(previousVersion);
+        await page.$eval('#addSpaceBtn', button => button.click());
+        await page.$eval('#newSpaceName', input => {
+            input.value = 'Work';
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+        await page.$eval('#spaceColor', select => {
+            select.value = 'blue';
+        });
+        await page.$eval('#createSpaceBtn', button => button.click());
+        await page.waitForFunction(
+            () => document.querySelector('#spaceSwitcher button.active')?.textContent.includes('Work'),
+            { polling: 100 }
+        );
+        await page.evaluate(async () => {
+            const { spaces } = await chrome.runtime.sendMessage({ type: 'spaceStore', action: 'get' });
+            const work = spaces.find(space => space.name === 'Work');
+            const folder = await chrome.bookmarks.create({ parentId: work.bookmarkFolderId, title: 'Projects' });
+            await chrome.bookmarks.create({ parentId: folder.id, title: 'Roadmap', url: 'https://example.com/roadmap' });
+            await chrome.bookmarks.create({ parentId: work.bookmarkFolderId, title: 'Docs', url: 'https://example.com/docs' });
+            await chrome.storage.sync.set({ defaultSpaceName: 'Work', autoArchiveEnabled: true, autoArchiveIdleMinutes: 90 });
+        });
+        before = await snapshot(page);
+        expect(before.spaces.map(space => space.name)).toEqual(expect.arrayContaining(['Home', 'Work']));
+    } finally {
+        await browser.close();
+    }
 
     const updatedVersion = updateVersion(previousVersion);
     install(dist, updatedVersion === currentVersion ? null : updatedVersion);

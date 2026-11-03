@@ -36,18 +36,19 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if ! TAG=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName 2>release-error.txt); then
-            if grep -q 'release not found' release-error.txt; then
-              echo "No release in $GITHUB_REPOSITORY (a fork?): the upgrade test relabels this build instead."
-              exit 0
-            fi
-            cat release-error.txt
-            exit 1
+          ERRORS="$RUNNER_TEMP/release-error.txt"
+          if ! TAG=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName 2>"$ERRORS"); then
+            grep -q 'release not found' "$ERRORS" || { cat "$ERRORS"; exit 1; }
+            echo "No release in $GITHUB_REPOSITORY (a fork?): only v1.1.0, if its tag is here."
+            TAG=""
           fi
           BUILDS=""
-          for RELEASE in $(printf '%s\n' "$TAG" v1.1.0 | sort -u); do
+          for RELEASE in $(printf '%s\n' $TAG v1.1.0 | sort -u); do
+            if ! git fetch --depth=1 origin tag "$RELEASE"; then
+              echo "No $RELEASE tag here; skipping it."
+              continue
+            fi
             echo "Building $RELEASE"
-            git fetch --depth=1 origin tag "$RELEASE"
             mkdir -p "$RUNNER_TEMP/sidecove-$RELEASE"
             git archive "$RELEASE" | tar -x -C "$RUNNER_TEMP/sidecove-$RELEASE"
             (cd "$RUNNER_TEMP/sidecove-$RELEASE" && PUPPETEER_SKIP_DOWNLOAD=1 npm ci && npm run build)
