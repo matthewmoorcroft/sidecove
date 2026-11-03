@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Separate light and dark mode colours:** Settings → Colors now has a Light and a Dark picker for each colour, and the sidebar uses the one that matches the system theme. A colour picked for daytime no longer sits behind dark-mode text at night. Colours set before this change are kept as the light mode values; dark mode starts from its built-in defaults (#14).
 - **Pinned tab matching setting:** hosts listed under Settings → Pinned tab matching (e.g. `localhost:6969`) keep their query string when matching pinned tabs, so URLs like `localhost:6969/?focused=<chat id>` pin as one entry per URL instead of collapsing into a single pinned tab. Other hosts keep the old behavior.
 
 ## 1.2.0

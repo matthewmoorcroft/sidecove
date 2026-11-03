@@ -27,6 +27,7 @@ import { archiveAndCloseTabs, reopenClosedTabs } from './clean-all.js';
 import { loadFolderCollapsed, saveFolderCollapsed } from './folder-state.js';
 import { FOLDER_CLOSED_ICON, FOLDER_CLOSED_DOTS_ICON, FOLDER_OPEN_ICON, SPEAKER_ICON, SPEAKER_MUTED_ICON, SPACE_ICON_PLACEHOLDER } from './icons.js';
 import { normalizeSpaceIcon, spaceSymbol, searchSpaceIcons, isTypedEmoji } from './space-icons.js';
+import { applyOverrideProperties } from './color-overrides.js';
 import { audioState } from './tab-audio.js';
 import { Selection, selectionGesture } from './selection.js';
 import { searchEntries } from './tab-search.js';
@@ -223,27 +224,8 @@ async function applyColorOverrides() {
         const settings = await Utils.getSettings();
         Logger.log('Applying color overrides, settings:', settings);
 
-        const root = document.documentElement;
-
-        // Clear any existing overrides first
-        const colorNames = ['grey', 'blue', 'red', 'yellow', 'green', 'pink', 'purple', 'cyan'];
-        colorNames.forEach(colorName => {
-            root.style.removeProperty(`--user-chrome-${colorName}-color`);
-        });
-
-        // Apply new overrides if they exist
-        if (settings.colorOverrides && Object.keys(settings.colorOverrides).length > 0) {
-            Logger.log('Found color overrides:', settings.colorOverrides);
-            Object.keys(settings.colorOverrides).forEach(colorName => {
-                const colorValue = settings.colorOverrides[colorName];
-                if (colorValue) {
-                    root.style.setProperty(`--user-chrome-${colorName}-color`, colorValue);
-                    Logger.log(`Applied color override: --user-chrome-${colorName}-color = ${colorValue}`);
-                }
-            });
-        } else {
-            Logger.log('No color overrides found in settings');
-        }
+        // Light-mode and dark-mode overrides; CSS picks the one for the system theme.
+        applyOverrideProperties(document.documentElement, settings.colorOverrides, settings.colorOverridesDarkMode);
 
         // Re-apply colors to all existing spaces
         reapplySpaceColors();
@@ -574,9 +556,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     Logger.log('DOM loaded, initializing sidebar...');
     await applyColorOverrides();
 
+    // The space background is set from resolved colours, so refresh it when the system
+    // theme changes; light and dark mode can have different colours.
+    matchMedia('(prefers-color-scheme: dark)').addEventListener('change', reapplySpaceColors);
+
     // Listen for storage changes to re-apply colors when they're updated
     chrome.storage.onChanged.addListener((changes, areaName) => {
-        if (areaName === 'sync' && changes.colorOverrides) {
+        if (areaName === 'sync' && (changes.colorOverrides || changes.colorOverridesDarkMode)) {
             Logger.log('Color overrides changed, re-applying...');
             applyColorOverrides();
         }

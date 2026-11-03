@@ -521,17 +521,21 @@ describe('Options Page', () => {
           const buttons = document.querySelectorAll('.color-reset-btn');
           return Array.from(buttons).map(btn => ({
             colorAttr: btn.dataset.color,
+            mode: btn.dataset.mode,
             text: btn.textContent.trim(),
           }));
         });
 
+        // One reset per colour for light mode and one for dark mode.
         const expectedColors = ['grey', 'blue', 'red', 'yellow', 'green', 'pink', 'purple', 'cyan'];
-        expect(resetButtons.length).toBe(expectedColors.length);
+        expect(resetButtons.length).toBe(expectedColors.length * 2);
 
         for (const color of expectedColors) {
-          const btn = resetButtons.find(b => b.colorAttr === color);
-          expect(btn).toBeDefined();
-          expect(btn.text).toBe('Reset');
+          for (const mode of ['light', 'dark']) {
+            const btn = resetButtons.find(b => b.colorAttr === color && b.mode === mode);
+            expect(btn).toBeDefined();
+            expect(btn.text).toBe('Reset');
+          }
         }
 
         logTestStep(`All ${resetButtons.length} color reset buttons present`);
@@ -571,7 +575,7 @@ describe('Options Page', () => {
 
         // Click reset button for blue
         await optionsPage.evaluate(() => {
-          const resetBtn = document.querySelector('.color-reset-btn[data-color="blue"]');
+          const resetBtn = document.querySelector('.color-reset-btn[data-color="blue"][data-mode="light"]');
           if (resetBtn) resetBtn.click();
         });
         await delay(800);
@@ -584,6 +588,30 @@ describe('Options Page', () => {
         logTestStep(`Color reset from ${customColor} back to default ${defaultBlue}`);
       } catch (error) {
         await takeScreenshotOnFailure(optionsPage, 'color-reset-failure');
+        throw error;
+      }
+    });
+
+    test('should save a dark mode colour separately from the light mode one', async () => {
+      try {
+        logTestStep('Changing the dark mode blue picker...');
+        await optionsPage.evaluate(() => chrome.storage.sync.set({ colorOverrides: null, colorOverridesDarkMode: null }));
+        await optionsPage.evaluate((color) => {
+          const picker = document.getElementById('colorBlueDark');
+          picker.value = color;
+          picker.dispatchEvent(new Event('input', { bubbles: true }));
+        }, '#112233');
+        await optionsPage.waitForFunction(async () => (await chrome.storage.sync.get('colorOverridesDarkMode')).colorOverridesDarkMode?.blue === '#112233', { polling: 100 });
+
+        const stored = await optionsPage.evaluate(() => chrome.storage.sync.get(['colorOverrides', 'colorOverridesDarkMode']));
+        expect(stored).toEqual({ colorOverrides: null, colorOverridesDarkMode: { blue: '#112233' } });
+
+        logTestStep('Resetting the dark mode blue picker...');
+        await optionsPage.evaluate(() => document.querySelector('.color-reset-btn[data-color="blue"][data-mode="dark"]').click());
+        await optionsPage.waitForFunction(async () => (await chrome.storage.sync.get('colorOverridesDarkMode')).colorOverridesDarkMode === null, { polling: 100 });
+        expect(await optionsPage.evaluate(() => document.getElementById('colorBlueDark').value)).toBe('#235d8b');
+      } catch (error) {
+        await takeScreenshotOnFailure(optionsPage, 'color-dark-mode-failure');
         throw error;
       }
     });

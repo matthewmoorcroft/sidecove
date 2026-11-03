@@ -138,7 +138,8 @@ const Utils = {
             autoArchiveIdleMinutes: 360, // Default: 6 hours
             syncTabGroups: false,
             invertTabOrder: true, // Default: enabled (new temporary tabs on top; favorites keep bookmark order)
-            colorOverrides: null, // Default: no color overrides
+            colorOverrides: null, // Default: no color overrides (light mode)
+            colorOverridesDarkMode: null, // Default: no dark-mode color overrides
             debugLoggingEnabled: false, // Default: disabled (controls debug logging)
             showAllOpenTabsInCollapsedFolders: false, // Default: Arc behavior (only show active tab in collapsed folder)
             spaceSwitcherStyle: 'icons', // Default: Arc behavior (icons, or a dot for a space without one); 'names' shows full names

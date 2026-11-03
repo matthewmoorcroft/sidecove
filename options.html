@@ -120,62 +120,126 @@
 
         <section class="options-section" aria-labelledby="colorsHeading">
             <h2 id="colorsHeading" class="options-section-title">Colors</h2>
-            <p class="options-description">Customize the palette used throughout the extension. Dark variants are generated automatically.</p>
+            <p class="options-description">Customize the palette used throughout the extension. Each colour has a light mode and a dark mode value; Sidecove uses the one that matches your system theme, so text stays readable in both. Darker shades for borders and highlights are generated automatically.</p>
             <div class="color-overrides-grid">
-                <div class="color-override-item">
-                    <label for="colorGrey" class="color-override-label">Grey</label>
-                    <div class="color-picker-wrapper">
-                        <input type="color" id="colorGrey" class="color-picker" value="#cccccc">
-                        <button type="button" class="color-reset-btn" data-color="grey" aria-label="Reset grey color to default">Reset</button>
+                <div class="color-override-item" role="group" aria-labelledby="colorGreyLabel">
+                    <span id="colorGreyLabel" class="color-override-label">Grey</span>
+                    <div class="color-override-modes">
+                        <div class="color-picker-wrapper">
+                            <label for="colorGrey" class="color-mode-label">Light</label>
+                            <input type="color" id="colorGrey" class="color-picker" value="#cccccc">
+                            <button type="button" class="color-reset-btn" data-color="grey" data-mode="light" aria-label="Reset light mode grey to default">Reset</button>
+                        </div>
+                        <div class="color-picker-wrapper">
+                            <label for="colorGreyDark" class="color-mode-label">Dark</label>
+                            <input type="color" id="colorGreyDark" class="color-picker" value="#546e7a">
+                            <button type="button" class="color-reset-btn" data-color="grey" data-mode="dark" aria-label="Reset dark mode grey to default">Reset</button>
+                        </div>
                     </div>
                 </div>
-                <div class="color-override-item">
-                    <label for="colorBlue" class="color-override-label">Blue</label>
-                    <div class="color-picker-wrapper">
-                        <input type="color" id="colorBlue" class="color-picker" value="#8bb3f3">
-                        <button type="button" class="color-reset-btn" data-color="blue" aria-label="Reset blue color to default">Reset</button>
+                <div class="color-override-item" role="group" aria-labelledby="colorBlueLabel">
+                    <span id="colorBlueLabel" class="color-override-label">Blue</span>
+                    <div class="color-override-modes">
+                        <div class="color-picker-wrapper">
+                            <label for="colorBlue" class="color-mode-label">Light</label>
+                            <input type="color" id="colorBlue" class="color-picker" value="#8bb3f3">
+                            <button type="button" class="color-reset-btn" data-color="blue" data-mode="light" aria-label="Reset light mode blue to default">Reset</button>
+                        </div>
+                        <div class="color-picker-wrapper">
+                            <label for="colorBlueDark" class="color-mode-label">Dark</label>
+                            <input type="color" id="colorBlueDark" class="color-picker" value="#235d8b">
+                            <button type="button" class="color-reset-btn" data-color="blue" data-mode="dark" aria-label="Reset dark mode blue to default">Reset</button>
+                        </div>
                     </div>
                 </div>
-                <div class="color-override-item">
-                    <label for="colorRed" class="color-override-label">Red</label>
-                    <div class="color-picker-wrapper">
-                        <input type="color" id="colorRed" class="color-picker" value="#ff9e97">
-                        <button type="button" class="color-reset-btn" data-color="red" aria-label="Reset red color to default">Reset</button>
+                <div class="color-override-item" role="group" aria-labelledby="colorRedLabel">
+                    <span id="colorRedLabel" class="color-override-label">Red</span>
+                    <div class="color-override-modes">
+                        <div class="color-picker-wrapper">
+                            <label for="colorRed" class="color-mode-label">Light</label>
+                            <input type="color" id="colorRed" class="color-picker" value="#ff9e97">
+                            <button type="button" class="color-reset-btn" data-color="red" data-mode="light" aria-label="Reset light mode red to default">Reset</button>
+                        </div>
+                        <div class="color-picker-wrapper">
+                            <label for="colorRedDark" class="color-mode-label">Dark</label>
+                            <input type="color" id="colorRedDark" class="color-picker" value="#963d3d">
+                            <button type="button" class="color-reset-btn" data-color="red" data-mode="dark" aria-label="Reset dark mode red to default">Reset</button>
+                        </div>
                     </div>
                 </div>
-                <div class="color-override-item">
-                    <label for="colorYellow" class="color-override-label">Yellow</label>
-                    <div class="color-picker-wrapper">
-                        <input type="color" id="colorYellow" class="color-picker" value="#ffe29f">
-                        <button type="button" class="color-reset-btn" data-color="yellow" aria-label="Reset yellow color to default">Reset</button>
+                <div class="color-override-item" role="group" aria-labelledby="colorYellowLabel">
+                    <span id="colorYellowLabel" class="color-override-label">Yellow</span>
+                    <div class="color-override-modes">
+                        <div class="color-picker-wrapper">
+                            <label for="colorYellow" class="color-mode-label">Light</label>
+                            <input type="color" id="colorYellow" class="color-picker" value="#ffe29f">
+                            <button type="button" class="color-reset-btn" data-color="yellow" data-mode="light" aria-label="Reset light mode yellow to default">Reset</button>
+                        </div>
+                        <div class="color-picker-wrapper">
+                            <label for="colorYellowDark" class="color-mode-label">Dark</label>
+                            <input type="color" id="colorYellowDark" class="color-picker" value="#a38e54">
+                            <button type="button" class="color-reset-btn" data-color="yellow" data-mode="dark" aria-label="Reset dark mode yellow to default">Reset</button>
+                        </div>
                     </div>
                 </div>
-                <div class="color-override-item">
-                    <label for="colorGreen" class="color-override-label">Green</label>
-                    <div class="color-picker-wrapper">
-                        <input type="color" id="colorGreen" class="color-picker" value="#8bda99">
-                        <button type="button" class="color-reset-btn" data-color="green" aria-label="Reset green color to default">Reset</button>
+                <div class="color-override-item" role="group" aria-labelledby="colorGreenLabel">
+                    <span id="colorGreenLabel" class="color-override-label">Green</span>
+                    <div class="color-override-modes">
+                        <div class="color-picker-wrapper">
+                            <label for="colorGreen" class="color-mode-label">Light</label>
+                            <input type="color" id="colorGreen" class="color-picker" value="#8bda99">
+                            <button type="button" class="color-reset-btn" data-color="green" data-mode="light" aria-label="Reset light mode green to default">Reset</button>
+                        </div>
+                        <div class="color-picker-wrapper">
+                            <label for="colorGreenDark" class="color-mode-label">Dark</label>
+                            <input type="color" id="colorGreenDark" class="color-picker" value="#4f8057">
+                            <button type="button" class="color-reset-btn" data-color="green" data-mode="dark" aria-label="Reset dark mode green to default">Reset</button>
+                        </div>
                     </div>
                 </div>
-                <div class="color-override-item">
-                    <label for="colorPink" class="color-override-label">Pink</label>
-                    <div class="color-picker-wrapper">
-                        <input type="color" id="colorPink" class="color-picker" value="#fbaad7">
-                        <button type="button" class="color-reset-btn" data-color="pink" aria-label="Reset pink color to default">Reset</button>
+                <div class="color-override-item" role="group" aria-labelledby="colorPinkLabel">
+                    <span id="colorPinkLabel" class="color-override-label">Pink</span>
+                    <div class="color-override-modes">
+                        <div class="color-picker-wrapper">
+                            <label for="colorPink" class="color-mode-label">Light</label>
+                            <input type="color" id="colorPink" class="color-picker" value="#fbaad7">
+                            <button type="button" class="color-reset-btn" data-color="pink" data-mode="light" aria-label="Reset light mode pink to default">Reset</button>
+                        </div>
+                        <div class="color-picker-wrapper">
+                            <label for="colorPinkDark" class="color-mode-label">Dark</label>
+                            <input type="color" id="colorPinkDark" class="color-picker" value="#b06c92">
+                            <button type="button" class="color-reset-btn" data-color="pink" data-mode="dark" aria-label="Reset dark mode pink to default">Reset</button>
+                        </div>
                     </div>
                 </div>
-                <div class="color-override-item">
-                    <label for="colorPurple" class="color-override-label">Purple</label>
-                    <div class="color-picker-wrapper">
-                        <input type="color" id="colorPurple" class="color-picker" value="#d6a6ff">
-                        <button type="button" class="color-reset-btn" data-color="purple" aria-label="Reset purple color to default">Reset</button>
+                <div class="color-override-item" role="group" aria-labelledby="colorPurpleLabel">
+                    <span id="colorPurpleLabel" class="color-override-label">Purple</span>
+                    <div class="color-override-modes">
+                        <div class="color-picker-wrapper">
+                            <label for="colorPurple" class="color-mode-label">Light</label>
+                            <input type="color" id="colorPurple" class="color-picker" value="#d6a6ff">
+                            <button type="button" class="color-reset-btn" data-color="purple" data-mode="light" aria-label="Reset light mode purple to default">Reset</button>
+                        </div>
+                        <div class="color-picker-wrapper">
+                            <label for="colorPurpleDark" class="color-mode-label">Dark</label>
+                            <input type="color" id="colorPurpleDark" class="color-picker" value="#8d75a1">
+                            <button type="button" class="color-reset-btn" data-color="purple" data-mode="dark" aria-label="Reset dark mode purple to default">Reset</button>
+                        </div>
                     </div>
                 </div>
-                <div class="color-override-item">
-                    <label for="colorCyan" class="color-override-label">Cyan</label>
-                    <div class="color-picker-wrapper">
-                        <input type="color" id="colorCyan" class="color-picker" value="#a5e2ea">
-                        <button type="button" class="color-reset-btn" data-color="cyan" aria-label="Reset cyan color to default">Reset</button>
+                <div class="color-override-item" role="group" aria-labelledby="colorCyanLabel">
+                    <span id="colorCyanLabel" class="color-override-label">Cyan</span>
+                    <div class="color-override-modes">
+                        <div class="color-picker-wrapper">
+                            <label for="colorCyan" class="color-mode-label">Light</label>
+                            <input type="color" id="colorCyan" class="color-picker" value="#a5e2ea">
+                            <button type="button" class="color-reset-btn" data-color="cyan" data-mode="light" aria-label="Reset light mode cyan to default">Reset</button>
+                        </div>
+                        <div class="color-picker-wrapper">
+                            <label for="colorCyanDark" class="color-mode-label">Dark</label>
+                            <input type="color" id="colorCyanDark" class="color-picker" value="#5e9299">
+                            <button type="button" class="color-reset-btn" data-color="cyan" data-mode="dark" aria-label="Reset dark mode cyan to default">Reset</button>
+                        </div>
                     </div>
                 </div>
             </div>

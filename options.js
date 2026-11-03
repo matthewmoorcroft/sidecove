@@ -15,24 +15,17 @@
 import { Utils, normalizePinMatchHost } from './utils.js';
 import { LocalStorage } from './localstorage.js';
 import { Logger } from './logger.js';
+import { COLOR_NAMES, DEFAULT_LIGHT_COLORS, DEFAULT_DARK_COLORS, applyOverrideProperties, changedColors } from './color-overrides.js';
 
-// Default color values (must be 6-digit hex for color picker compatibility)
-const DEFAULT_COLORS = {
-  grey: '#cccccc',
-  blue: '#8bb3f3',
-  red: '#ff9e97',
-  yellow: '#ffe29f',
-  green: '#8bda99',
-  pink: '#fbaad7',
-  purple: '#d6a6ff',
-  cyan: '#a5e2ea'
-};
+// Light-mode pickers keep their original ids (colorBlue); dark-mode pickers add "Dark".
+function getColorPickerId(colorName, mode = 'light') {
+  return `color${colorName.charAt(0).toUpperCase() + colorName.slice(1)}${mode === 'dark' ? 'Dark' : ''}`;
+}
 
-const COLOR_NAMES = Object.keys(DEFAULT_COLORS);
+const DEFAULTS_BY_MODE = { light: DEFAULT_LIGHT_COLORS, dark: DEFAULT_DARK_COLORS };
 
-// Helper to get color picker element ID from color name
-function getColorPickerId(colorName) {
-  return `color${colorName.charAt(0).toUpperCase() + colorName.slice(1)}`;
+function pickerValues(mode) {
+  return Object.fromEntries(COLOR_NAMES.map(name => [name, document.getElementById(getColorPickerId(name, mode))?.value]));
 }
 
 // Helper to safely get checkbox value with default
@@ -77,33 +70,11 @@ function updateAutoArchiveIdleMinutesVisibility(forceEnabled) {
   input.disabled = !isEnabled;
 }
 
-// Function to apply color overrides to CSS variables
-function applyColorOverrides(colorOverrides) {
-  const root = document.documentElement;
-  COLOR_NAMES.forEach(colorName => {
-    const colorValue = colorOverrides?.[colorName];
-    if (colorValue) {
-      root.style.setProperty(`--user-chrome-${colorName}-color`, colorValue);
-    } else {
-      root.style.removeProperty(`--user-chrome-${colorName}-color`);
-    }
-  });
-}
-
 // Function to save options to chrome.storage
 async function saveOptions() {
   const defaultSpaceNameSelect = document.getElementById('defaultSpaceName');
   const autoArchiveIdleMinutesInput = document.getElementById('autoArchiveIdleMinutes');
   if (autoArchiveIdleMinutesInput && !autoArchiveIdleMinutesInput.disabled && !autoArchiveIdleMinutesInput.reportValidity()) return;
-
-  // Collect color overrides (only non-default values)
-  const colorOverrides = {};
-  COLOR_NAMES.forEach(colorName => {
-    const colorPicker = document.getElementById(getColorPickerId(colorName));
-    if (colorPicker && colorPicker.value !== DEFAULT_COLORS[colorName]) {
-      colorOverrides[colorName] = colorPicker.value;
-    }
-  });
 
   const settings = {
     defaultSpaceName: defaultSpaceNameSelect?.value || 'Home',
@@ -114,7 +85,8 @@ async function saveOptions() {
     showAllOpenTabsInCollapsedFolders: getCheckboxValue(document.getElementById('showAllOpenTabsInCollapsedFolders'), false),
     spaceSwitcherStyle: document.getElementById('spaceSwitcherStyle')?.value === 'names' ? 'names' : 'icons',
     pinMatchFullQueryHosts: parseHostList(document.getElementById('pinMatchFullQueryHosts')?.value),
-    colorOverrides: Object.keys(colorOverrides).length > 0 ? colorOverrides : null,
+    colorOverrides: changedColors(pickerValues('light'), DEFAULT_LIGHT_COLORS),
+    colorOverridesDarkMode: changedColors(pickerValues('dark'), DEFAULT_DARK_COLORS),
     debugLoggingEnabled: getCheckboxValue(document.getElementById('debugLoggingEnabled'), false)
   };
 
@@ -122,7 +94,7 @@ async function saveOptions() {
     await chrome.storage.sync.set(settings);
     Logger.log('Settings saved:', settings);
 
-    applyColorOverrides(settings.colorOverrides);
+    applyOverrideProperties(document.documentElement, settings.colorOverrides, settings.colorOverridesDarkMode);
     await chrome.runtime.sendMessage({ action: 'updateAutoArchiveSettings' });
     showToast();
   } catch (error) {
@@ -175,16 +147,16 @@ async function restoreOptions() {
   }
   updateAutoArchiveIdleMinutesVisibility(settings.autoArchiveEnabled);
 
-  // Restore color overrides
-  const colorOverrides = settings.colorOverrides || {};
-  COLOR_NAMES.forEach(colorName => {
-    const colorPicker = document.getElementById(getColorPickerId(colorName));
-    if (colorPicker) {
-      colorPicker.value = colorOverrides[colorName] || DEFAULT_COLORS[colorName];
-    }
-  });
+  // Restore color overrides (light and dark mode)
+  const overridesByMode = { light: settings.colorOverrides || {}, dark: settings.colorOverridesDarkMode || {} };
+  for (const [mode, overrides] of Object.entries(overridesByMode)) {
+    COLOR_NAMES.forEach(colorName => {
+      const colorPicker = document.getElementById(getColorPickerId(colorName, mode));
+      if (colorPicker) colorPicker.value = overrides[colorName] || DEFAULTS_BY_MODE[mode][colorName];
+    });
+  }
 
-  applyColorOverrides(colorOverrides);
+  applyOverrideProperties(document.documentElement, settings.colorOverrides, settings.colorOverridesDarkMode);
 }
 
 // Function to populate the spaces dropdown
@@ -243,9 +215,10 @@ function setupAdvancedOptions() {
   document.querySelectorAll('.color-reset-btn').forEach(button => {
     button.addEventListener('click', () => {
       const colorName = button.dataset.color;
-      const colorPicker = document.getElementById(getColorPickerId(colorName));
-      if (colorPicker && DEFAULT_COLORS[colorName]) {
-        colorPicker.value = DEFAULT_COLORS[colorName];
+      const mode = button.dataset.mode === 'dark' ? 'dark' : 'light';
+      const colorPicker = document.getElementById(getColorPickerId(colorName, mode));
+      if (colorPicker && DEFAULTS_BY_MODE[mode][colorName]) {
+        colorPicker.value = DEFAULTS_BY_MODE[mode][colorName];
         saveOptions();
       }
     });
@@ -285,7 +258,8 @@ function setupAutoSave() {
 
   // Auto-save for color pickers (with debounce)
   COLOR_NAMES.forEach(colorName => {
-    addListenerIfExists(getColorPickerId(colorName), 'input', debouncedSave);
+    addListenerIfExists(getColorPickerId(colorName, 'light'), 'input', debouncedSave);
+    addListenerIfExists(getColorPickerId(colorName, 'dark'), 'input', debouncedSave);
   });
 }
 

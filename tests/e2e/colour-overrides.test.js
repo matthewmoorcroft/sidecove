@@ -25,3 +25,32 @@ test('swatches keep their default colours and follow a colour override', async (
     await page.waitForSelector('.space.active #spaceOptionColorSwatch');
     expect((await swatchColours(page)).menu).toBe('rgb(255, 136, 0)');
 });
+
+// Light and dark mode have separate overrides, so a colour picked for light mode
+// never sits behind dark-mode text.
+const spaceBackground = page => page.evaluate(() => getComputedStyle(document.getElementById('sidebar-container')).getPropertyValue('--space-bg-color').trim());
+
+test('dark mode uses its own override and ignores the light-mode one', async () => {
+    const page = await openSidebar(browser, extensionId);
+    await page.evaluate(() => chrome.storage.sync.set({ colorOverrides: { blue: '#ff8800', grey: '#ff8800' }, colorOverridesDarkMode: { blue: '#112233' } }));
+    await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: 'dark' }]);
+    await page.reload();
+    await page.waitForSelector('.space.active #spaceOptionColorSwatch');
+
+    // Swatches: blue follows the dark-mode override; grey has none, so it keeps its default.
+    expect(await swatchColours(page)).toEqual({ create: 'rgb(17, 34, 51)', menu: 'rgb(17, 34, 51)', grey: 'rgb(156, 163, 175)' });
+    const darkVars = await page.evaluate(() => ({
+        blue: getComputedStyle(document.documentElement).getPropertyValue('--chrome-blue-color').trim(),
+        grey: getComputedStyle(document.documentElement).getPropertyValue('--chrome-grey-color').trim()
+    }));
+    expect(darkVars).toEqual({ blue: '#112233', grey: '#546E7A' });
+
+    // Switching the system theme with the sidebar open refreshes the space background.
+    const darkBackground = await spaceBackground(page);
+    await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: 'light' }]);
+    await page.waitForFunction(previous => getComputedStyle(document.getElementById('sidebar-container')).getPropertyValue('--space-bg-color').trim() !== previous, { polling: 100 }, darkBackground);
+    expect((await swatchColours(page)).create).toBe('rgb(255, 136, 0)');
+
+    await page.evaluate(() => chrome.storage.sync.set({ colorOverrides: null, colorOverridesDarkMode: null }));
+    await page.emulateMediaFeatures([]);
+});
