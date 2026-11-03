@@ -4,14 +4,38 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { launchBrowserWithExtension, openSidebar } from './helpers/extension-helper.js';
 
-// Updating from the latest release keeps every space, favorite and setting. An unpacked
-// extension's ID comes from its folder, so the update replaces the files in one folder and
-// reuses the profile. CI points SIDECOVE_PREVIOUS_BUILD at a build of the latest release tag;
-// without it the current build is installed first, relabelled as version 1.1.0. Until a
-// release PR bumps the version, the latest release has this build's version too, so the
-// update is relabelled X.Y.Z.1 for Chrome to run its update path.
+// Updating keeps every space, favorite and setting. An unpacked extension's ID comes from its
+// folder, so the update replaces the files in one folder and reuses the profile.
+// SIDECOVE_PREVIOUS_BUILD lists earlier builds' dist/ folders, separated by the path
+// delimiter; CI sets it to the latest release and to 1.1.0. Without it, the current build
+// is installed first, relabelled as FALLBACK_PREVIOUS_VERSION.
+const FALLBACK_PREVIOUS_VERSION = '1.1.0';
 const dist = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../dist');
+const currentVersion = JSON.parse(fs.readFileSync(path.join(dist, 'manifest.json'), 'utf8')).version;
 const manifestVersion = dir => JSON.parse(fs.readFileSync(path.join(dir, 'manifest.json'), 'utf8')).version;
+const previousBuilds = (process.env.SIDECOVE_PREVIOUS_BUILD || '').split(path.delimiter).filter(Boolean);
+if (!previousBuilds.length) {
+    console.warn(`SIDECOVE_PREVIOUS_BUILD is not set, so this relabels the current build as ${FALLBACK_PREVIOUS_VERSION} instead of installing a release.`);
+}
+
+const parts = version => version.split('.').map(Number);
+const newer = (a, b) => {
+    const [x, y] = [parts(a), parts(b)];
+    for (let i = 0; i < Math.max(x.length, y.length); i++) {
+        if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0);
+    }
+    return false;
+};
+// Chrome only runs its update path for a higher version. Until a release PR bumps the
+// version, the latest release has this build's version, so the update is labelled one step up.
+const updateVersion = previous => {
+    if (newer(currentVersion, previous)) return currentVersion;
+    const next = parts(previous);
+    if (next.length < 4) next.push(1);
+    else next[3]++;
+    return next.join('.');
+};
+
 let root, extensionDir, profileDir;
 
 function install(from, version = null) {
@@ -25,34 +49,46 @@ function install(from, version = null) {
 }
 
 // Everything a user would lose: spaces, the bookmark tree under Sidecove, and settings.
-const snapshot = page => page.evaluate(async () => {
-    const { spaces } = await chrome.runtime.sendMessage({ type: 'spaceStore', action: 'get' });
-    const [root] = (await chrome.bookmarks.search({ title: 'Sidecove' })).filter(node => !node.url);
-    const tree = async id => Promise.all((await chrome.bookmarks.getChildren(id)).map(async node =>
-        node.url ? { title: node.title, url: node.url } : { title: node.title, children: await tree(node.id) }));
-    return {
-        spaces: spaces.map(({ id, name, color, bookmarkFolderId }) => ({ id, name, color, bookmarkFolderId })),
-        bookmarks: root ? await tree(root.id) : null,
-        settings: await chrome.storage.sync.get(null)
-    };
-});
+const snapshot = page =>
+    page.evaluate(async () => {
+        const { spaces } = await chrome.runtime.sendMessage({ type: 'spaceStore', action: 'get' });
+        const [root] = (await chrome.bookmarks.search({ title: 'Sidecove' })).filter(node => !node.url);
+        const tree = async id =>
+            Promise.all(
+                (await chrome.bookmarks.getChildren(id)).map(async node =>
+                    node.url
+                        ? { title: node.title, url: node.url }
+                        : { title: node.title, children: await tree(node.id) }
+                )
+            );
+        return {
+            spaces: spaces.map(({ id, name, color, bookmarkFolderId }) => ({ id, name, color, bookmarkFolderId })),
+            bookmarks: root ? await tree(root.id) : null,
+            settings: await chrome.storage.sync.get(null)
+        };
+    });
 
-beforeAll(() => {
+beforeEach(() => {
     root = fs.mkdtempSync(path.join(os.tmpdir(), 'sidecove-upgrade-'));
     extensionDir = path.join(root, 'extension');
     profileDir = path.join(root, 'profile');
 });
 
-afterAll(() => {
+afterEach(() => {
     fs.rmSync(root, { recursive: true, force: true });
 });
 
-test('a profile from the latest release keeps its spaces, favorites and settings after updating', async () => {
-    const previous = process.env.SIDECOVE_PREVIOUS_BUILD;
-    if (!previous) console.warn('SIDECOVE_PREVIOUS_BUILD is not set, so this relabels the current build as 1.1.0 instead of installing the latest release.');
-    install(previous || dist, previous ? null : '1.1.0');
+const cases = previousBuilds.length
+    ? previousBuilds.map(dir => [manifestVersion(dir), dir])
+    : [[`${FALLBACK_PREVIOUS_VERSION} (relabelled current build)`, null]];
+
+test.each(cases)('a profile from %s keeps its spaces, favorites and settings after updating', async (_, previous) => {
+    install(previous || dist, previous ? null : FALLBACK_PREVIOUS_VERSION);
     const previousVersion = manifestVersion(extensionDir);
-    let { browser, extensionId } = await launchBrowserWithExtension({ extensionPath: extensionDir, userDataDir: profileDir });
+    let { browser, extensionId } = await launchBrowserWithExtension({
+        extensionPath: extensionDir,
+        userDataDir: profileDir
+    });
     let page = await openSidebar(browser, extensionId);
     expect(await page.evaluate(() => chrome.runtime.getManifest().version)).toBe(previousVersion);
     await page.$eval('#addSpaceBtn', button => button.click());
@@ -60,9 +96,14 @@ test('a profile from the latest release keeps its spaces, favorites and settings
         input.value = 'Work';
         input.dispatchEvent(new Event('input', { bubbles: true }));
     });
-    await page.$eval('#spaceColor', select => { select.value = 'blue'; });
+    await page.$eval('#spaceColor', select => {
+        select.value = 'blue';
+    });
     await page.$eval('#createSpaceBtn', button => button.click());
-    await page.waitForFunction(() => document.querySelector('#spaceSwitcher button.active')?.textContent.includes('Work'), { polling: 100 });
+    await page.waitForFunction(
+        () => document.querySelector('#spaceSwitcher button.active')?.textContent.includes('Work'),
+        { polling: 100 }
+    );
     await page.evaluate(async () => {
         const { spaces } = await chrome.runtime.sendMessage({ type: 'spaceStore', action: 'get' });
         const work = spaces.find(space => space.name === 'Work');
@@ -75,15 +116,19 @@ test('a profile from the latest release keeps its spaces, favorites and settings
     expect(before.spaces.map(space => space.name)).toEqual(expect.arrayContaining(['Home', 'Work']));
     await browser.close();
 
-    const sameVersion = manifestVersion(dist) === previousVersion;
-    const updatedVersion = sameVersion ? `${previousVersion}.1` : manifestVersion(dist);
-    install(dist, sameVersion ? updatedVersion : null);
-    ({ browser, extensionId } = await launchBrowserWithExtension({ extensionPath: extensionDir, userDataDir: profileDir }));
+    const updatedVersion = updateVersion(previousVersion);
+    install(dist, updatedVersion === currentVersion ? null : updatedVersion);
+    ({ browser, extensionId } = await launchBrowserWithExtension({
+        extensionPath: extensionDir,
+        userDataDir: profileDir
+    }));
     try {
         page = await openSidebar(browser, extensionId);
         expect(await page.evaluate(() => chrome.runtime.getManifest().version)).toBe(updatedVersion);
         expect(await snapshot(page)).toEqual(before);
-        const chips = await page.$$eval('#spaceSwitcher button[data-space-id]', buttons => buttons.map(button => button.textContent.trim()));
+        const chips = await page.$$eval('#spaceSwitcher button[data-space-id]', buttons =>
+            buttons.map(button => button.textContent.trim())
+        );
         expect(chips.some(text => text.endsWith('Work'))).toBe(true);
     } finally {
         await browser.close();

@@ -30,24 +30,30 @@ jobs:
       - name: Install Puppeteer browser and system deps
         run: npx puppeteer browsers install chrome
 
-      # The upgrade test installs the latest published release, then updates it to this build.
-      - name: Build the latest release for the upgrade test
+      # The upgrade test installs each of these releases, then updates it to this build: the
+      # latest release, and 1.1.0, the oldest one users may still be updating from.
+      - name: Build earlier releases for the upgrade test
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName 2>/dev/null || true)
-          if [ -z "$TAG" ]; then
-            echo "No release in $GITHUB_REPOSITORY (a fork?): the upgrade test relabels this build instead."
-            exit 0
+          if ! TAG=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName 2>release-error.txt); then
+            if grep -q 'release not found' release-error.txt; then
+              echo "No release in $GITHUB_REPOSITORY (a fork?): the upgrade test relabels this build instead."
+              exit 0
+            fi
+            cat release-error.txt
+            exit 1
           fi
-          echo "Latest release: $TAG"
-          git fetch --depth=1 origin tag "$TAG"
-          mkdir -p "$RUNNER_TEMP/sidecove-previous"
-          git archive "$TAG" | tar -x -C "$RUNNER_TEMP/sidecove-previous"
-          cd "$RUNNER_TEMP/sidecove-previous"
-          PUPPETEER_SKIP_DOWNLOAD=1 npm ci
-          npm run build
-          echo "SIDECOVE_PREVIOUS_BUILD=$RUNNER_TEMP/sidecove-previous/dist" >> "$GITHUB_ENV"
+          BUILDS=""
+          for RELEASE in $(printf '%s\n' "$TAG" v1.1.0 | sort -u); do
+            echo "Building $RELEASE"
+            git fetch --depth=1 origin tag "$RELEASE"
+            mkdir -p "$RUNNER_TEMP/sidecove-$RELEASE"
+            git archive "$RELEASE" | tar -x -C "$RUNNER_TEMP/sidecove-$RELEASE"
+            (cd "$RUNNER_TEMP/sidecove-$RELEASE" && PUPPETEER_SKIP_DOWNLOAD=1 npm ci && npm run build)
+            BUILDS="${BUILDS:+$BUILDS:}$RUNNER_TEMP/sidecove-$RELEASE/dist"
+          done
+          echo "SIDECOVE_PREVIOUS_BUILD=$BUILDS" >> "$GITHUB_ENV"
 
       - name: Run E2E tests
         run: npm test

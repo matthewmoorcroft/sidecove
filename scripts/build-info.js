@@ -47,7 +47,6 @@ async function displayBuildInfo() {
   console.log('   npm run build:zip  - Build and create zip package');
   console.log('   npm run zip        - Create zip from existing build');
   console.log('   npm run clean      - Remove all build artifacts');
-  console.log('   npm run preview    - Preview the built extension\n');
   
   console.log('🎯 Next Steps:');
   console.log('   1. Run "npm install" to install dependencies');

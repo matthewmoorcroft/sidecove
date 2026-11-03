@@ -4,7 +4,7 @@ Thanks for helping. This page covers setting up, building, testing and releasing
 
 ## Setup
 
-You need Node.js 22 or later (CI uses the version in `.nvmrc`), npm, Git and Google Chrome.
+You need Node.js 24 or later (the version in `.nvmrc`, which CI uses), npm, Git and Google Chrome.
 
 ```bash
 git clone https://github.com/matthewmoorcroft/sidecove.git
@@ -27,7 +27,7 @@ To try a build, open `chrome://extensions/`, turn on **Developer mode**, click *
 
 - `npm run test:unit`: unit tests with Node's built-in runner, no browser. They take a few seconds; run them before every commit.
 - `npm run test:e2e` (or `npm test`): builds, then drives real Chrome with Puppeteer and Jest. Slow; CI runs it on every pull request. `HEADED=true npm run test:e2e` shows the browser. See [tests/README.md](tests/README.md).
-- `tests/e2e/upgrade.test.js` installs the latest release and updates it to your build. In CI it uses a real build of the latest release tag; locally, set `SIDECOVE_PREVIOUS_BUILD` to a release's `dist/` folder, or it relabels your own build as the old version.
+- `tests/e2e/upgrade.test.js` installs earlier releases and updates each to your build. CI builds the latest release and 1.1.0; locally, set `SIDECOVE_PREVIOUS_BUILD` to one or more releases' `dist/` folders (separated by `:`), or it relabels your own build as an old version.
 - `tests/manual/` holds the checklists for a hands-on pass in Chrome before a release.
 
 ## Pull requests
@@ -41,7 +41,7 @@ Never add a permission, host permission or content script without saying so in t
 
 ## Releases
 
-Releases are built by GitHub Actions from a version tag.
+Releases are built by GitHub Actions from a version tag. Run the release script on an up-to-date `main`: it commits the version bump there and pushes `main` and the tag.
 
 ```bash
 npm run release patch   # 1.2.0 -> 1.2.1

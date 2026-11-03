@@ -177,8 +177,9 @@ test('should create a new space', async () => {
 
 ### Environment Variables
 
-- `HEADLESS` - Run tests in headless mode (default: `true`)
-- `EXTENSION_PATH` - Path to built extension (default: `./dist`)
+- `HEADED=true` (or `DEBUG=true`) - Show the browser instead of running headless
+- `SIDECOVE_TEST_EXTENSION_PATH` - Path to the built extension (default: `./dist`)
+- `SIDECOVE_PREVIOUS_BUILD` - `dist/` folders of earlier releases for `upgrade.test.js`, separated by `:`
 - `CI` - Running in CI environment
 
 ### Jest Configuration
