@@ -1,7 +1,7 @@
 {
   "name": "sidecove",
   "version": "1.2.0",
-  "description": "Vertical tabs in Chrome's side panel: switch between spaces, keep pinned tabs and favourites, auto-archive idle tabs. Free and open.",
+  "description": "Spaces, pinned tabs and favourites in Chrome's side panel, for people moving from Arc. Auto-archives idle tabs. Free, no tracking.",
   "type": "module",
   "scripts": {
     "dev": "vite build --mode development",

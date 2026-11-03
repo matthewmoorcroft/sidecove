@@ -1,8 +1,8 @@
-# Sidecove: vertical tabs, spaces and pinned tabs for Chrome
+# Sidecove: Arc-style spaces and vertical tabs for Chrome
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
-Sidecove puts your tabs in a vertical sidebar in Chrome's side panel and organises them into spaces, each with its own pinned tabs, folders and colour. Spaces and pinned tabs are stored as ordinary Chrome bookmarks, so they sync with your Google account. Nothing is sent to any server.
+Sidecove brings Arc-style spaces, pinned tabs and favourites to Chrome's side panel, for people moving from Arc and anyone who wants vertical tabs in Chrome. It organises your tabs into spaces, each with its own pinned tabs, folders and colour. Spaces and pinned tabs are stored as ordinary Chrome bookmarks, so they sync with your Google account. Nothing is sent to any server.
 
 Sidecove is an independent project, not affiliated with or endorsed by The Browser Company or the Arc browser.
 

@@ -80,5 +80,9 @@ Vite, no framework, no runtime dependencies.
 - Version numbers change only in a release PR (`npm run release <type>`), in `package.json`
   and `manifest.json` together. After it merges, `npm run release:tag` pushes the tag `vX.Y.Z`;
   `release.yml` builds the zip, checksum, provenance and notes (see `CONTRIBUTING.md`).
+- A release that changes how Sidecove looks (colours, layout, icons, spacing, new or moved controls)
+  must refresh the Chrome Web Store screenshots and the README images in `docs/` from that release's
+  build before it is submitted; if nothing looks different, the release PR says so. The store text to
+  paste is `docs/store-listing.txt`: keep it true to what ships, and name Arc only descriptively.
 - Third-party code or assets: add the licence to `THIRD_PARTY_NOTICES.md` in the same change.
 - Keep `README.md` (users), `CONTRIBUTING.md` (developers) and this file in step with the code.
