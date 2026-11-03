@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 1.2.1
+
+A new setting to keep query strings when matching pinned tabs, contributed by Jason Teoh, with no new permissions.
 
 - **Pinned tab matching setting:** hosts listed under Settings → Pinned tab matching (e.g. `localhost:6969`) keep their query string when matching pinned tabs, so URLs like `localhost:6969/?focused=<chat id>` pin as one entry per URL instead of collapsing into a single pinned tab. Other hosts keep the old behavior.
 

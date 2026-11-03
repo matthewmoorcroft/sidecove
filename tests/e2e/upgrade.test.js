@@ -75,7 +75,7 @@ test('a 1.1.0 profile keeps its spaces, favorites and settings after updating', 
     ({ browser, extensionId } = await launchBrowserWithExtension({ extensionPath: extensionDir, userDataDir: profileDir }));
     try {
         page = await openSidebar(browser, extensionId);
-        expect(await page.evaluate(() => chrome.runtime.getManifest().version)).toBe('1.2.0');
+        expect(await page.evaluate(() => chrome.runtime.getManifest().version)).toBe('1.2.1');
         expect(await snapshot(page)).toEqual(before);
         const chips = await page.$$eval('#spaceSwitcher button[data-space-id]', buttons => buttons.map(button => button.textContent.trim()));
         expect(chips.some(text => text.endsWith('Work'))).toBe(true);
