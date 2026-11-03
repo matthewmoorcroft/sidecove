@@ -7,24 +7,29 @@ export const RECENCY_STORAGE_KEY = 'tabRecency'; // storage.session: tab ids end
 const SAVE_DELAY_MS = 1000;
 
 // Activate the most recently used tab of the focused window's current space; pressing again
-// within the cycle window goes further back. `chromeApi` is passed in so tests can fake it.
-export async function jumpToRecentTab({ chromeApi, spaces, recency, now }) {
-    const window = await chromeApi.windows.getLastFocused({ windowTypes: ['normal'] });
-    const [active] = await chromeApi.tabs.query({ active: true, windowId: window.id });
+// within the cycle window goes further back. `chromeApi` is passed in so tests can fake it,
+// and `readSpaces` returns the spaces without scanning bookmarks.
+export async function jumpToRecentTab({ chromeApi, readSpaces, recency, now }) {
+    const [window, spaces, session] = await Promise.all([
+        chromeApi.windows.getLastFocused({ windowTypes: ['normal'] }),
+        readSpaces(),
+        chromeApi.storage.session.get('activeSpaces')
+    ]);
+    const windowTabs = await chromeApi.tabs.query({ windowId: window.id });
+    const active = windowTabs.find(tab => tab.active);
     if (!active) return null;
-    const { activeSpaces = {} } = await chromeApi.storage.session.get('activeSpaces');
-    const space = ownerOf(spaces, active.id) || spaces.find(s => s.id === activeSpaces[window.id]);
+    const space = ownerOf(spaces, active.id) || spaces.find(s => s.id === session?.activeSpaces?.[window.id]);
     if (!space) return null;
     const owned = new Set(tabIds(space));
-    const windowTabs = await chromeApi.tabs.query({ windowId: window.id });
     const candidates = windowTabs.map(tab => tab.id).filter(id => owned.has(id));
-    const targetId = recency.press({ candidates, activeId: active.id, now });
+    const targetId = recency.press({ candidates, activeId: active.id, now, windowId: window.id });
     if (targetId === null) return null;
     try {
         await chromeApi.tabs.update(targetId, { active: true });
     } catch (error) {
-        // The tab closed between the query and the update; the next press skips it.
-        recency.remove(targetId);
+        recency.abandonPress(targetId);
+        // Forget the tab only when it is gone; "user may be dragging a tab" and the like pass.
+        if (/No tab with id/i.test(error?.message)) recency.remove(targetId);
         Logger.warn('[Recent tab] Could not activate tab:', error);
         return null;
     }
@@ -63,17 +68,28 @@ export function registerRecentTab({ chromeApi = chrome, spaceStore, now = Date.n
             scheduleSave();
         };
 
-    chromeApi.tabs.onActivated.addListener(update(info => recency.record(info.tabId)));
+    chromeApi.tabs.onActivated.addListener(update(info => recency.record(info.tabId, info.windowId)));
     chromeApi.tabs.onRemoved.addListener(update(tabId => recency.remove(tabId)));
     chromeApi.tabs.onReplaced.addListener(update((added, removed) => recency.replace(removed, added)));
 
-    return async function onRecentTabCommand() {
-        try {
-            await ready;
-            const spaces = await spaceStore.dispatch({ action: 'get' });
-            await jumpToRecentTab({ chromeApi, spaces, recency, now: now() });
-        } catch (error) {
-            Logger.error('[Recent tab] Could not switch to the recent tab:', error);
-        }
+    // Presses run one at a time, each timed when it arrived: a press must see the previous
+    // one's tab switch, and waiting behind the space store must not eat into the cycle window.
+    let queue = Promise.resolve();
+    return function onRecentTabCommand() {
+        const pressedAt = now();
+        queue = queue.then(async () => {
+            try {
+                await ready;
+                await jumpToRecentTab({
+                    chromeApi,
+                    readSpaces: () => spaceStore.run(() => spaceStore.spaces),
+                    recency,
+                    now: pressedAt
+                });
+            } catch (error) {
+                Logger.error('[Recent tab] Could not switch to the recent tab:', error);
+            }
+        });
+        return queue;
     };
 }

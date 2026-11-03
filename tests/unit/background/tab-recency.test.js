@@ -113,14 +113,35 @@ test('a saved order restores', () => {
     assert.equal(restored.press({ candidates: [1, 2, 3], activeId: 3, now: 0 }), 2);
 });
 
-test('a late activation event from an earlier press does not end the cycle', () => {
+test('late activation events from earlier presses do not end the cycle', () => {
     const recency = usedInOrder(1, 2, 3, 4);
     const candidates = [1, 2, 3, 4];
     assert.equal(recency.press({ candidates, activeId: 4, now: 0 }), 3);
-    recency.record(3);
+    // The second press is handled before the first press's event arrives.
     assert.equal(recency.press({ candidates, activeId: 3, now: 50 }), 2);
+    recency.record(3);
     recency.record(2);
     assert.equal(recency.press({ candidates, activeId: 2, now: 100 }), 1);
+});
+
+test('tab changes in other windows leave a cycle alone', () => {
+    const recency = usedInOrder(1, 2, 3, 4);
+    const candidates = [1, 2, 3, 4];
+    assert.equal(recency.press({ candidates, activeId: 4, now: 0, windowId: 1 }), 3);
+    recency.record(3, 1);
+    recency.record(77, 2); // A page raises a tab in another window.
+    assert.equal(recency.press({ candidates, activeId: 3, now: 100, windowId: 1 }), 2);
+    assert.ok(!recency.toJSON().includes(77));
+});
+
+test('a tab swapped while a cycle is on it still counts as used', () => {
+    const recency = usedInOrder(1, 3, 2, 5);
+    const candidates = [1, 2, 3, 5];
+    recency.press({ candidates, activeId: 5, now: 0 });
+    recency.record(2);
+    recency.replace(2, 20);
+    recency.record(9);
+    assert.deepEqual(recency.toJSON(), [9, 20, 5, 3, 1]);
 });
 
 test('a press never returns the tab the user is already on', () => {
@@ -137,4 +158,13 @@ test('a swapped tab that was already recorded appears once', () => {
     recency.record(20);
     recency.replace(2, 20);
     assert.deepEqual(recency.toJSON(), [20, 1]);
+});
+
+test('a press that could not switch leaves the cycle where it was', () => {
+    const recency = usedInOrder(1, 2, 3);
+    const candidates = [1, 2, 3];
+    const target = recency.press({ candidates, activeId: 3, now: 0 });
+    recency.abandonPress(target);
+    assert.deepEqual(recency.toJSON(), [3, 2, 1]);
+    assert.equal(recency.press({ candidates, activeId: 3, now: 100 }), 2);
 });
