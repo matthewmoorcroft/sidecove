@@ -217,6 +217,12 @@ See `.github/workflows/e2e-tests.yml` for the workflow.
 ## 🔍 Troubleshooting
 
 ### Tests Timeout
+- On macOS, the test Chrome stops drawing frames while the display is asleep unless it runs with
+  `--enable-features=ForceMacVSyncTimerForDebugging`. Without it, clicks, hovers, animations and
+  screenshots time out. `launchBrowserWithExtension()` passes the flag; launch any new browser
+  through it too. The flag was checked on Chrome for Testing 145 and 149; `frames.test.js` fails
+  with a clear message if a later Chrome no longer knows it. Until the flag is fixed, keep the
+  display awake for the run instead: `caffeinate -d npm run test:e2e:local`
 - Increase timeout in `jest.config.js`
 - Add more delays after actions
 - Check if extension loaded properly

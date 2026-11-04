@@ -21,6 +21,7 @@
 - **End-to-end tests run on the laptop, not in CI:** `npm run test:e2e:local` builds the earlier releases for the upgrade test, runs the suite with Puppeteer's own Chrome and prints one line to paste into the pull request, whose template now asks for it. Users will not notice any change.
 - **Closing a tab keeps you in your space:** when you close the tab you are on, Sidecove now stays in the same space and shows the next tab down its list (the one above if you closed the last), as Arc does. Before, Chrome could pick a tab from another space, such as the one you had come from, and Sidecove followed it there. If the space has no other tab, it opens a New Tab in that space. Clicking a tab of another space still switches to it. It needs no new permission.
 - **Next and previous tab in space now follow the order you see (issue #5):** with "Show new tabs at the top" on, the two shortcuts walked the open tabs in the opposite direction to the panel. They now go down and up the list as it is shown, favorites first, whichever way new tabs are listed and whether or not spaces sync to Chrome tab groups. No new permission.
+- **End-to-end tests pass on a Mac with its display asleep:** about 25 browser tests used to time out whenever a local run went on while the Mac's display was off, because the test Chrome stopped drawing frames. The tests now launch Chrome so that it keeps drawing. Users will not notice any change in the extension.
 
 ## 1.2.0
 

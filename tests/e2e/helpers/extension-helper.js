@@ -34,7 +34,11 @@ export async function launchBrowserWithExtension(options = {}) {
             '--disable-dev-shm-usage',
             '--disable-blink-features=AutomationControlled',
             '--disable-web-security', // For testing purposes
-            '--window-size=1920,1080'
+            '--window-size=1920,1080',
+            // On macOS, Chrome draws frames on the display's refresh signal, which stops while the
+            // display is asleep. Clicks, hovers, animations and screenshots then wait for ever.
+            // A timer keeps frames coming; other platforms ignore the feature.
+            '--enable-features=ForceMacVSyncTimerForDebugging'
         ],
         devtools: false
     });
