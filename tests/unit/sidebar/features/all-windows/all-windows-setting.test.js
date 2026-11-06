@@ -11,11 +11,14 @@ function fakeStorage(stored) {
     };
 }
 
-test('the setting is off until storage says otherwise', async () => {
+test('the setting is on until it is turned off, also when it was never saved', async () => {
     const setting = trackAllWindowsSetting(fakeStorage({}));
-    assert.equal(setting.enabled, false);
+    assert.equal(setting.enabled, true);
     await setting.ready;
-    assert.equal(setting.enabled, false);
+    assert.equal(setting.enabled, true);
+    const off = trackAllWindowsSetting(fakeStorage({ showTabsFromAllWindows: false }));
+    await off.ready;
+    assert.equal(off.enabled, false);
 });
 
 test('the saved value is read, and later changes in sync storage are followed', async () => {

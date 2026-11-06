@@ -1,8 +1,8 @@
 import { createServer } from 'node:http';
 import { launchBrowserWithExtension, openSidebar, openOptionsPage } from './helpers/extension-helper.js';
 
-// Settings -> Show tabs and favorites from all windows (issues 27 and 43, first step): with it
-// on, each window's sidebar also lists the space's open tabs and the top-bar favorites of the
+// Settings -> Show tabs and favorites from all windows (issues 27 and 43, first step), on by
+// default: each window's sidebar also lists the space's open tabs and the top-bar favorites of the
 // other windows, marked, and picking one switches to the window it lives in.
 let browser, page, options, server, base, ids;
 
@@ -93,8 +93,12 @@ afterAll(async () => {
     if (server) await new Promise(resolve => server.close(resolve));
 });
 
-test('with the setting off (the default), each window lists only its own tabs and favorites', async () => {
-    expect(await options.$eval('#showTabsFromAllWindows', input => input.checked)).toBe(false);
+test('the setting starts on; turned off, each window lists only its own tabs and favorites', async () => {
+    expect(await options.$eval('#showTabsFromAllWindows', input => input.checked)).toBe(true);
+    await page.waitForSelector(`${rowSelector(ids.otherTab)}.other-window`);
+    await setToggle('showTabsFromAllWindows', false);
+    await page.waitForFunction(() => !document.querySelector('.other-window'), { polling: 100 });
+    expect(await page.$(rowSelector(ids.own))).not.toBeNull();
     expect(await page.$(rowSelector(ids.otherTab))).toBeNull();
     expect(await page.$(pinSelector(ids.otherPin))).toBeNull();
     expect(await page.$$('.other-window')).toHaveLength(0);
