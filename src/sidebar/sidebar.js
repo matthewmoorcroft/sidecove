@@ -1,6 +1,15 @@
 import { spaceForActivation } from '../shared/space-membership.js';
 import { createPinnedFavorites } from './features/pinned-favorites/pinned-favorites.js';
 import {
+    ALL_WINDOWS_SETTING,
+    isOtherWindow,
+    selectListedTabs,
+    visibleWindowTabs
+} from './features/all-windows/all-windows.js';
+import { trackAllWindowsSetting } from './features/all-windows/all-windows-setting.js';
+import { createOtherWindowBadge, markOtherWindowRow } from './features/all-windows/other-window-mark.js';
+import { otherWindowMenuEntries } from './features/all-windows/other-window-menu.js';
+import {
     getSpaceBookmarkById,
     getSpaceBookmarkFolder,
     getSpaceBookmarkTree,
@@ -88,7 +97,9 @@ import {
     getDropPosition,
     handleEmptyContainerDrop,
     showUndoToast,
-    showMenu
+    showMenu,
+    copyText,
+    showUrlCopyToast
 } from './dom-manager.js';
 import { createCloseFocus } from './features/close-tab/close-focus.js';
 import { displayedTabIds } from './features/close-tab/displayed-tabs.js';
@@ -126,6 +137,8 @@ const collapsedFolderShownTabs = new WeakMap();
 const bookmarkOrderBaselines = new Map();
 // Tabs selected with Cmd/Ctrl or Shift click for a bulk action.
 const selection = new Selection();
+// Settings -> Show tabs and favorites from all windows.
+const allWindowsSetting = trackAllWindowsSetting(chrome.storage);
 // Hold a tab over the middle of a favorite this long to make a folder of the two.
 const MERGE_DWELL_MS = 500;
 let mergeHover = null;
@@ -274,6 +287,8 @@ function applyColorOverrides() {
 // Function to update pinned favicons
 const updatePinnedFavicons = createPinnedFavorites({
     getWindowId: () => currentWindow.id,
+    getWindow: () => currentWindow,
+    showsAllWindows: () => allWindowsSetting.enabled,
     getActiveSpaceId: () => activeSpaceId,
     clearAllActiveStates,
     clearSelection,
@@ -377,7 +392,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         // Re-render active space when a setting that changes what the list shows changes
-        if (areaName === 'sync' && (changes.invertTabOrder || changes.pinMatchFullQueryHosts)) {
+        if (
+            areaName === 'sync' &&
+            (changes.invertTabOrder || changes.pinMatchFullQueryHosts || changes[ALL_WINDOWS_SETTING])
+        ) {
             Logger.log('Tab list setting changed, refreshing active space UI...');
             if (refreshActiveSpaceUITimeout) clearTimeout(refreshActiveSpaceUITimeout);
             refreshActiveSpaceUITimeout = setTimeout(() => {
@@ -423,7 +441,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     chrome.tabs.onAttached.addListener(refreshWindowTabs);
     chrome.tabs.onDetached.addListener(refreshWindowTabs);
     chrome.tabs.onMoved.addListener((_tabId, info) => {
-        if (info.windowId === currentWindow?.id) updatePinnedFavicons();
+        if (info.windowId === currentWindow?.id || allWindowsSetting.enabled) updatePinnedFavicons();
     });
     chrome.tabs.onActivated.addListener(handleTabActivated);
     // Setup Quick Pin listener
@@ -629,6 +647,7 @@ async function initSidebar() {
     showAllOpenTabsInCollapsedFolders = Boolean(settings.showAllOpenTabsInCollapsedFolders);
     applySpaceSwitcherStyle(settings.spaceSwitcherStyle);
     currentWindow = await chrome.windows.getCurrent({ populate: false });
+    await allWindowsSetting.ready;
     spaces = await spaceRequest('get');
     spaceSaveQueue.reset(spaces);
     const allTabs = await chrome.tabs.query({});
@@ -720,6 +739,14 @@ async function offerTabGroupImport() {
 async function getOwnedTabs(spaceId) {
     const space = spaces.find(s => s.id === spaceId);
     return selectWindowSpaceTabs(space, await chrome.tabs.query({ windowId: currentWindow.id }), currentWindow.id);
+}
+
+// What the list shows: this window's tabs, plus other windows' with the setting on.
+async function getListedTabs(spaceId) {
+    const space = spaces.find(s => s.id === spaceId);
+    const allWindows = allWindowsSetting.enabled;
+    const tabs = await chrome.tabs.query(allWindows ? {} : { windowId: currentWindow.id });
+    return selectListedTabs(space, tabs, currentWindow, allWindows);
 }
 
 function createSpaceElement(space) {
@@ -2744,7 +2771,9 @@ async function renderSpaceTabs(space, pinnedContainer, tempContainer) {
     Logger.log('Space bookmarks in space:', space.spaceBookmarks);
     const representedPinnedTabIds = new Set();
     const invertTabOrder = await Utils.getInvertTabOrder();
-    const tabs = (await getOwnedTabs(space.id)).filter(t => !t.pinned);
+    const tabs = await getListedTabs(space.id);
+    // A pinned tab binds to its bookmark in its own window only.
+    const ownTabs = tabs.filter(t => !isOtherWindow(t, currentWindow.id));
     const pinnedStatesById = await Utils.getPinnedTabStates();
     const pinnedFragment = document.createDocumentFragment();
     let treeAvailable = true;
@@ -2860,7 +2889,7 @@ async function renderSpaceTabs(space, pinnedContainer, tempContainer) {
                     } else {
                         // This is a bookmark
                         {
-                            const existingTab = tabs.find(
+                            const existingTab = ownTabs.find(
                                 t =>
                                     !representedPinnedTabIds.has(t.id) && pinnedStatesById[t.id]?.bookmarkId === item.id
                             );
@@ -3056,6 +3085,7 @@ async function createTabElement(tab, isPinned = false, isBookmarkOnly = false) {
 
     // Set up the tab element properties
     tabElement.draggable = true; // Enable dragging for all tabs (regular and bookmark-only)
+    const otherWindow = !isBookmarkOnly && isOtherWindow(tab, currentWindow?.id);
 
     if (isBookmarkOnly) {
         tabElement.classList.add('inactive', 'bookmark-only');
@@ -3067,7 +3097,7 @@ async function createTabElement(tab, isPinned = false, isBookmarkOnly = false) {
         // A tab that is still loading has only a pending URL; its update event may already
         // have passed by the time this row exists.
         tabElement.dataset.url = tab.url || tab.pendingUrl || '';
-        if (tab.active) {
+        if (tab.active && !otherWindow) {
             tabElement.classList.add('active');
         }
     }
@@ -3329,6 +3359,11 @@ async function createTabElement(tab, isPinned = false, isBookmarkOnly = false) {
             // Don't activate tab when clicking close button
             if (event.target === actionButton) return;
             if (handleSelectionClick(event, tabElement)) return;
+            // Another window's tab stays there for now; picking it brings that window to the front.
+            if (otherWindow) {
+                await Utils.focusTab(tab.id).catch(error => Logger.warn('Could not switch window:', error));
+                return;
+            }
 
             // Remove active class from all tabs and favicons
             clearAllActiveStates();
@@ -3520,6 +3555,26 @@ async function createTabElement(tab, isPinned = false, isBookmarkOnly = false) {
                   ),
             LocalStorage.getOrCreateSidecoveFolder().then(folder => chrome.bookmarks.getChildren(folder.id))
         ]);
+        if (otherWindow) {
+            const entries = otherWindowMenuEntries({
+                muted,
+                spaces,
+                currentSpaceId: ownerOf(spaces, tab.id)?.id,
+                canRename: true,
+                actions: {
+                    setMuted: value => chrome.tabs.update(tab.id, { muted: value }),
+                    rename: onRename,
+                    copyLink: async () => {
+                        const live = await chrome.tabs.get(tab.id);
+                        if (await copyText(live.url || tab.url)) showUrlCopyToast('Copied link');
+                    },
+                    moveToSpace: spaceId => moveTabToSpace(tab.id, spaceId, false),
+                    close: () => closeTab(tabElement, tab)
+                }
+            });
+            showMenu(e.pageX, e.pageY, entries);
+            return;
+        }
         showTabContextMenu(
             e.pageX,
             e.pageY,
@@ -3539,6 +3594,7 @@ async function createTabElement(tab, isPinned = false, isBookmarkOnly = false) {
         );
     });
 
+    if (otherWindow) markOtherWindowRow(tabElement);
     return tabElement;
 }
 
@@ -3551,13 +3607,16 @@ let tabSearchMatches = [];
 let tabSearchHighlight = 0;
 let tabSearchGeneration = 0;
 
-// Open tabs of this window, Chrome-pinned tabs and favorites with no open tab.
+// Open tabs of this window (or every window, with the setting on), Chrome-pinned tabs and
+// favorites with no open tab.
 async function collectSearchEntries() {
-    const [windowTabs, bindings, overrides] = await Promise.all([
-        chrome.tabs.query({ windowId: currentWindow.id }),
+    const allWindows = allWindowsSetting.enabled;
+    const [openTabs, bindings, overrides] = await Promise.all([
+        chrome.tabs.query(allWindows ? {} : { windowId: currentWindow.id }),
         Utils.getPinnedTabStates(),
         Utils.getTabNameOverrides()
     ]);
+    const windowTabs = visibleWindowTabs(openTabs, currentWindow, allWindows);
     const entries = [];
     const openBookmarks = new Set();
     for (const tab of windowTabs) {
@@ -3572,7 +3631,8 @@ async function collectSearchEntries() {
             title: overrides[tab.id]?.name || tab.title || tab.url,
             spaceId: space?.id ?? null,
             spaceName: space?.name ?? 'Pinned',
-            color: space?.color
+            color: space?.color,
+            otherWindow: isOtherWindow(tab, currentWindow.id)
         });
     }
     for (const space of spaces) {
@@ -3661,7 +3721,12 @@ function renderTabSearch() {
             space.className = 'search-result-space';
             if (entry.color) space.style.setProperty('--result-space-color', `var(--chrome-${entry.color}-color)`);
             space.textContent = entry.spaceName;
-            row.append(favicon, details, space);
+            row.append(favicon, details);
+            if (entry.otherWindow) {
+                row.classList.add('other-window');
+                row.append(createOtherWindowBadge());
+            }
+            row.append(space);
             row.addEventListener('mousedown', event => event.preventDefault()); // keep the field focused
             row.addEventListener('click', () => openSearchResult(entry));
             return row;
@@ -3725,8 +3790,13 @@ function itemKey(element) {
 function selectableItems() {
     const spaceElement = getSpaceElement(activeSpaceId);
     if (!spaceElement) return [];
+    // Bulk actions work on this window's tabs only.
     return [...spaceElement.querySelectorAll('.space-content .tab')].filter(
-        el => itemKey(el) && !el.classList.contains('favorite-fallback') && el.getClientRects().length > 0
+        el =>
+            itemKey(el) &&
+            !el.classList.contains('favorite-fallback') &&
+            !el.classList.contains('other-window') &&
+            el.getClientRects().length > 0
     );
 }
 
@@ -4155,11 +4225,15 @@ function handleTabUpdate(tabId, changeInfo, tab) {
         return;
     }
     chrome.windows.getCurrent({ populate: false }, async currentWindow => {
-        if (tab.windowId !== currentWindow.id) return;
+        // Another window's panel files its own tabs; this one only redraws the rows it lists.
+        const otherWindow = tab.windowId !== currentWindow.id;
+        if (otherWindow && !allWindowsSetting.enabled) return;
         Logger.log('Tab updated:', tabId, changeInfo, spaces);
 
         // Update tab element if it exists
-        const tabElement = document.querySelector(`[data-tab-id="${tabId}"]`);
+        const tabElement = document.querySelector(
+            otherWindow ? `.tab.other-window[data-tab-id="${tabId}"]` : `[data-tab-id="${tabId}"]`
+        );
         if (tabElement) {
             if (changeInfo.audible !== undefined || changeInfo.mutedInfo) updateAudioIndicator(tabElement, tab);
 
@@ -4183,7 +4257,9 @@ function handleTabUpdate(tabId, changeInfo, tab) {
             let displayTitle = tab.title; // Use potentially new title
 
             if (changeInfo.pinned !== undefined) {
-                if (changeInfo.pinned) {
+                if (otherWindow) {
+                    // Its own window's panel updates the spaces, and this list follows.
+                } else if (changeInfo.pinned) {
                     // Chrome-native-pinning a favorite must NOT delete its bookmark — the
                     // bookmark is the only durable record of the favorite. We only detach the
                     // runtime binding (remove the tab-id from the space arrays + pinned state)
@@ -4276,7 +4352,7 @@ function handleTabUpdate(tabId, changeInfo, tab) {
             if (changeInfo.active !== undefined && changeInfo.active) {
                 activateTabInDOM(tabId);
             }
-            if (changeInfo.status == 'complete' || changeInfo.status == 'loading') {
+            if (!otherWindow && (changeInfo.status == 'complete' || changeInfo.status == 'loading')) {
                 // Scroll to the newly created tab
                 scrollToTab(tabId, 100);
             }

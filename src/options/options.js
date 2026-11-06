@@ -107,6 +107,7 @@ async function saveOptions() {
         autoArchiveEnabled: getCheckboxValue(document.getElementById('autoArchiveEnabled'), false),
         autoArchiveIdleMinutes: parseInt(autoArchiveIdleMinutesInput?.value, 10) || 360,
         perSpacePinnedFavorites: getCheckboxValue(document.getElementById('perSpacePinnedFavorites'), false),
+        showTabsFromAllWindows: getCheckboxValue(document.getElementById('showTabsFromAllWindows'), false),
         syncTabGroups: getCheckboxValue(document.getElementById('syncTabGroups'), false),
         invertTabOrder: getCheckboxValue(document.getElementById('invertTabOrder'), true),
         closeEmptyNewTabs: getCheckboxValue(document.getElementById('closeEmptyNewTabs'), true),
@@ -158,6 +159,7 @@ async function restoreOptions() {
     // Restore checkbox values
     setCheckboxValue(document.getElementById('autoArchiveEnabled'), settings.autoArchiveEnabled, false);
     setCheckboxValue(document.getElementById('perSpacePinnedFavorites'), settings.perSpacePinnedFavorites, false);
+    setCheckboxValue(document.getElementById('showTabsFromAllWindows'), settings.showTabsFromAllWindows, false);
     setCheckboxValue(document.getElementById('syncTabGroups'), settings.syncTabGroups, false);
     setCheckboxValue(document.getElementById('invertTabOrder'), settings.invertTabOrder, true);
     setCheckboxValue(document.getElementById('closeEmptyNewTabs'), settings.closeEmptyNewTabs, true);
@@ -274,6 +276,7 @@ function setupAutoSave() {
     addListenerIfExists('defaultSpaceName', 'change', saveOptions);
     addListenerIfExists('spaceSwitcherStyle', 'change', saveOptions);
     addListenerIfExists('perSpacePinnedFavorites', 'change', saveOptions);
+    addListenerIfExists('showTabsFromAllWindows', 'change', saveOptions);
 
     // Auto-save for checkboxes (most just save immediately)
     const checkboxIds = [

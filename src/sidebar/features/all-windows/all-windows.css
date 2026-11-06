@@ -1,0 +1,47 @@
+/* Items that live in another window: dimmed, as Arc shows an inactive window's tabs, with a
+   window icon so the mark does not rely on colour alone. */
+.tab.other-window .tab-favicon,
+.tab.other-window .tab-details,
+.pinned-favicon.other-window img {
+    opacity: 0.55;
+}
+
+.other-window-badge {
+    width: 16px;
+    height: 16px;
+    flex: none;
+    margin-left: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(0, 0, 0, 0.55);
+}
+
+.other-window-badge svg {
+    width: 14px;
+    height: 14px;
+}
+
+.pinned-favicon.other-window {
+    position: relative;
+}
+
+.pinned-favicon.other-window .other-window-badge {
+    position: absolute;
+    right: 3px;
+    bottom: 3px;
+    width: 12px;
+    height: 12px;
+    margin: 0;
+}
+
+.pinned-favicon.other-window .other-window-badge svg {
+    width: 11px;
+    height: 11px;
+}
+
+@media (prefers-color-scheme: dark) {
+    .other-window-badge {
+        color: rgba(255, 255, 255, 0.7);
+    }
+}

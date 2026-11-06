@@ -2,9 +2,13 @@ import { spaceRequest } from '../../../shared/space-client.js';
 import { Utils } from '../../../shared/utils.js';
 import { Logger } from '../../../shared/logger.js';
 import { MOUSE_BUTTON } from '../../../shared/constants.js';
+import { isOtherWindow, selectFavoriteTabs } from '../all-windows/all-windows.js';
+import { markOtherWindowFavicon } from '../all-windows/other-window-mark.js';
 
 export function createPinnedFavorites({
     getWindowId,
+    getWindow,
+    showsAllWindows,
     getActiveSpaceId,
     clearAllActiveStates,
     clearSelection,
@@ -28,8 +32,11 @@ export function createPinnedFavorites({
         const storedSpaces = await spaceRequest('get');
         const { perSpacePinnedFavorites = false } = await chrome.storage.sync.get('perSpacePinnedFavorites');
         const visibleIds = new Set(storedSpaces.find(space => space.id === getActiveSpaceId())?.pinnedTabs || []);
-        const pinnedTabs = (await chrome.tabs.query({ pinned: true, windowId: getWindowId() })).filter(
-            tab => !perSpacePinnedFavorites || visibleIds.has(tab.id)
+        const allWindows = showsAllWindows();
+        const pinnedTabs = selectFavoriteTabs(
+            await chrome.tabs.query(allWindows ? { pinned: true } : { pinned: true, windowId: getWindowId() }),
+            getWindow(),
+            { allWindows, perSpace: perSpacePinnedFavorites, spaceTabIds: visibleIds }
         );
 
         const subtitle = pinnedFavicons.querySelector('.placeholder-subtitle');
@@ -43,7 +50,9 @@ export function createPinnedFavorites({
             // Only remove elements that are pinned favicons (have the pinned-favicon class)
             if (element.classList.contains('pinned-favicon')) {
                 const tabId = element.dataset.tabId;
-                if (!pinnedTabs.some(tab => tab.id.toString() === tabId)) {
+                // A pin moved to another window is drawn again with that window's mark.
+                const tab = pinnedTabs.find(tab => tab.id.toString() === tabId);
+                if (!tab || element.dataset.windowId !== String(tab.windowId)) {
                     element.remove();
                 }
             }
@@ -57,7 +66,9 @@ export function createPinnedFavorites({
                 faviconElement.className = 'pinned-favicon';
                 faviconElement.title = tab.title;
                 faviconElement.dataset.tabId = tab.id;
+                faviconElement.dataset.windowId = tab.windowId;
                 faviconElement.draggable = true; // Make pinned favicon draggable
+                const otherWindow = isOtherWindow(tab, getWindowId());
 
                 const img = document.createElement('img');
                 img.src = Utils.getFaviconUrl(tab.url, '96');
@@ -70,13 +81,18 @@ export function createPinnedFavorites({
                 img.alt = tab.title;
 
                 faviconElement.appendChild(img);
+                if (otherWindow) markOtherWindowFavicon(faviconElement, tab.title);
                 faviconElement.addEventListener('mousedown', event => {
-                    if (event.button === MOUSE_BUTTON.LEFT) {
-                        clearAllActiveStates();
-                        // Add active class to clicked tab
-                        faviconElement.classList.add('active');
-                        chrome.tabs.update(tab.id, { active: true });
+                    if (event.button !== MOUSE_BUTTON.LEFT) return;
+                    // Another window's pin stays there; picking it brings that window to the front.
+                    if (otherWindow) {
+                        Utils.focusTab(tab.id).catch(error => Logger.warn('Could not switch window:', error));
+                        return;
                     }
+                    clearAllActiveStates();
+                    // Add active class to clicked tab
+                    faviconElement.classList.add('active');
+                    chrome.tabs.update(tab.id, { active: true });
                 });
 
                 // Add drag event listeners for pinned favicon
@@ -92,12 +108,11 @@ export function createPinnedFavorites({
             }
         });
 
-        pinnedTabs
-            .sort((a, b) => a.index - b.index)
-            .forEach(tab => {
-                const element = pinnedFavicons.querySelector(`[data-tab-id="${tab.id}"]`);
-                if (element) pinnedFavicons.appendChild(element);
-            });
+        // Already in tab strip order, this window's pins first.
+        pinnedTabs.forEach(tab => {
+            const element = pinnedFavicons.querySelector(`[data-tab-id="${tab.id}"]`);
+            if (element) pinnedFavicons.appendChild(element);
+        });
 
         // Show/hide placeholder based on whether there are pinned tabs
         const placeholderContainer = pinnedFavicons.querySelector('.pinned-placeholder-container');
@@ -198,9 +213,9 @@ export function createPinnedFavorites({
                             // Fallback: append to end
                             pinnedFavicons.appendChild(draggingElement);
                         }
-                        const ids = [...pinnedFavicons.querySelectorAll('.pinned-favicon[data-tab-id]')].map(el =>
-                            Number(el.dataset.tabId)
-                        );
+                        const ids = [
+                            ...pinnedFavicons.querySelectorAll('.pinned-favicon[data-tab-id]:not(.other-window)')
+                        ].map(el => Number(el.dataset.tabId));
                         for (let index = 0; index < ids.length; index++) {
                             const live = await chrome.tabs.get(ids[index]);
                             if (live.pinned && live.windowId === getWindowId())
