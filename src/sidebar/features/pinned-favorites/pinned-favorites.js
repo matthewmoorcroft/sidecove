@@ -6,7 +6,6 @@ import { isOtherWindow, selectFavoriteTabs } from '../all-windows/all-windows.js
 import { markOtherWindowFavicon } from '../all-windows/other-window-mark.js';
 
 export function createPinnedFavorites({
-    getWindowId,
     getWindow,
     showsAllWindows,
     getActiveSpaceId,
@@ -34,7 +33,7 @@ export function createPinnedFavorites({
         const visibleIds = new Set(storedSpaces.find(space => space.id === getActiveSpaceId())?.pinnedTabs || []);
         const allWindows = showsAllWindows();
         const pinnedTabs = selectFavoriteTabs(
-            await chrome.tabs.query(allWindows ? { pinned: true } : { pinned: true, windowId: getWindowId() }),
+            await chrome.tabs.query(allWindows ? { pinned: true } : { pinned: true, windowId: getWindow().id }),
             getWindow(),
             { allWindows, perSpace: perSpacePinnedFavorites, spaceTabIds: visibleIds }
         );
@@ -68,7 +67,7 @@ export function createPinnedFavorites({
                 faviconElement.dataset.tabId = tab.id;
                 faviconElement.dataset.windowId = tab.windowId;
                 faviconElement.draggable = true; // Make pinned favicon draggable
-                const otherWindow = isOtherWindow(tab, getWindowId());
+                const otherWindow = isOtherWindow(tab, getWindow().id);
 
                 const img = document.createElement('img');
                 img.src = Utils.getFaviconUrl(tab.url, '96');
@@ -218,7 +217,7 @@ export function createPinnedFavorites({
                         ].map(el => Number(el.dataset.tabId));
                         for (let index = 0; index < ids.length; index++) {
                             const live = await chrome.tabs.get(ids[index]);
-                            if (live.pinned && live.windowId === getWindowId())
+                            if (live.pinned && live.windowId === getWindow().id)
                                 await chrome.tabs.move(live.id, { index });
                         }
                         await updatePinnedFavicons();

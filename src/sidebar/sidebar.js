@@ -8,7 +8,7 @@ import {
 } from './features/all-windows/all-windows.js';
 import { trackAllWindowsSetting } from './features/all-windows/all-windows-setting.js';
 import { createOtherWindowBadge, markOtherWindowRow } from './features/all-windows/other-window-mark.js';
-import { otherWindowMenuEntries } from './features/all-windows/other-window-menu.js';
+import { otherWindowMenuActions, otherWindowMenuEntries } from './features/all-windows/other-window-menu.js';
 import {
     getSpaceBookmarkById,
     getSpaceBookmarkFolder,
@@ -286,7 +286,6 @@ function applyColorOverrides() {
 
 // Function to update pinned favicons
 const updatePinnedFavicons = createPinnedFavorites({
-    getWindowId: () => currentWindow.id,
     getWindow: () => currentWindow,
     showsAllWindows: () => allWindowsSetting.enabled,
     getActiveSpaceId: () => activeSpaceId,
@@ -433,15 +432,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     chrome.tabs.onRemoved.addListener(handleTabRemove);
     chrome.tabs.onRemoved.addListener((_tabId, removeInfo) => spaceTabShower.noteTabRemoved(removeInfo));
     const refreshWindowTabs = async (_tabId, info) => {
-        if (info.newWindowId === currentWindow?.id || info.oldWindowId === currentWindow?.id) {
+        // With all windows shown, a move between two other windows changes this panel's marks too.
+        if (
+            info.newWindowId === currentWindow?.id ||
+            info.oldWindowId === currentWindow?.id ||
+            allWindowsSetting.enabled
+        ) {
             await updatePinnedFavicons();
             await refreshActiveSpaceUI();
         }
     };
     chrome.tabs.onAttached.addListener(refreshWindowTabs);
     chrome.tabs.onDetached.addListener(refreshWindowTabs);
-    chrome.tabs.onMoved.addListener((_tabId, info) => {
-        if (info.windowId === currentWindow?.id || allWindowsSetting.enabled) updatePinnedFavicons();
+    chrome.tabs.onMoved.addListener((tabId, info) => {
+        const shownPin = document.querySelector(`#pinnedFavicons .other-window[data-tab-id="${tabId}"]`);
+        if (info.windowId === currentWindow?.id || shownPin) updatePinnedFavicons();
     });
     chrome.tabs.onActivated.addListener(handleTabActivated);
     // Setup Quick Pin listener
@@ -3358,12 +3363,14 @@ async function createTabElement(tab, isPinned = false, isBookmarkOnly = false) {
         } else if (event.button === MOUSE_BUTTON.LEFT) {
             // Don't activate tab when clicking close button
             if (event.target === actionButton) return;
-            if (handleSelectionClick(event, tabElement)) return;
             // Another window's tab stays there for now; picking it brings that window to the front.
+            // It is never part of a selection, so Cmd and Shift clicks switch windows too.
             if (otherWindow) {
+                clearSelection();
                 await Utils.focusTab(tab.id).catch(error => Logger.warn('Could not switch window:', error));
                 return;
             }
+            if (handleSelectionClick(event, tabElement)) return;
 
             // Remove active class from all tabs and favicons
             clearAllActiveStates();
@@ -3553,7 +3560,9 @@ async function createTabElement(tab, isPinned = false, isBookmarkOnly = false) {
                       live => Boolean(live.mutedInfo?.muted),
                       () => false
                   ),
-            LocalStorage.getOrCreateSidecoveFolder().then(folder => chrome.bookmarks.getChildren(folder.id))
+            otherWindow
+                ? []
+                : LocalStorage.getOrCreateSidecoveFolder().then(folder => chrome.bookmarks.getChildren(folder.id))
         ]);
         if (otherWindow) {
             const entries = otherWindowMenuEntries({
@@ -3561,16 +3570,14 @@ async function createTabElement(tab, isPinned = false, isBookmarkOnly = false) {
                 spaces,
                 currentSpaceId: ownerOf(spaces, tab.id)?.id,
                 canRename: true,
-                actions: {
-                    setMuted: value => chrome.tabs.update(tab.id, { muted: value }),
+                actions: otherWindowMenuActions(tab, {
+                    chrome,
                     rename: onRename,
-                    copyLink: async () => {
-                        const live = await chrome.tabs.get(tab.id);
-                        if (await copyText(live.url || tab.url)) showUrlCopyToast('Copied link');
-                    },
-                    moveToSpace: spaceId => moveTabToSpace(tab.id, spaceId, false),
-                    close: () => closeTab(tabElement, tab)
-                }
+                    copyText,
+                    showCopied: () => showUrlCopyToast('Copied link'),
+                    moveTabToSpace,
+                    closeTab: () => closeTab(tabElement, tab)
+                })
             });
             showMenu(e.pageX, e.pageY, entries);
             return;
@@ -4446,6 +4453,12 @@ async function handleTabRemove(tabId) {
     const tabElement = document.querySelector(`[data-tab-id="${tabId}"]`);
     if (!tabElement) return;
     Logger.log('tabElement', tabElement);
+    // Another window's tab: the service worker and that window's panel update the spaces.
+    if (tabElement.classList.contains('other-window')) {
+        document.querySelectorAll(`.other-window[data-tab-id="${tabId}"]`).forEach(el => el.remove());
+        updatePinnedFavicons();
+        return;
+    }
 
     // Clean up the tabId from collapsedFolderShownTabs to prevent memory leaks from stale IDs.
     const parentFolder = tabElement.closest('.folder');

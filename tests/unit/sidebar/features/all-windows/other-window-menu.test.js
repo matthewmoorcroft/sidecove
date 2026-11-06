@@ -1,6 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { otherWindowMenuEntries } from '../../../../../src/sidebar/features/all-windows/other-window-menu.js';
+import {
+    otherWindowMenuActions,
+    otherWindowMenuEntries
+} from '../../../../../src/sidebar/features/all-windows/other-window-menu.js';
 
 const spaces = [
     { id: 'a', name: 'Home' },
@@ -54,4 +57,19 @@ test('Move to Space lists the other spaces and moves the tab there', () => {
     move.submenu[1].action();
     entries.at(-1).action();
     assert.deepEqual(calls, [['moveToSpace', 'c'], ['close']]);
+});
+
+test('Copy Link uses the live address, or the drawn one once the tab has closed in its window', async () => {
+    const copied = [];
+    const shown = [];
+    const deps = live => ({
+        chrome: { tabs: { get: async () => (live ? { url: live } : Promise.reject(new Error('No tab'))) } },
+        copyText: async url => copied.push(url) > 0,
+        showCopied: () => shown.push(true)
+    });
+    const tab = { id: 7, url: 'https://drawn.test/' };
+    await otherWindowMenuActions(tab, deps('https://live.test/')).copyLink();
+    await otherWindowMenuActions(tab, deps(null)).copyLink();
+    assert.deepEqual(copied, ['https://live.test/', 'https://drawn.test/']);
+    assert.equal(shown.length, 2);
 });
