@@ -17,6 +17,7 @@ import { Utils } from '../shared/utils.js';
 import { RESTORE_ICON } from './icons.js';
 import { Logger } from '../shared/logger.js';
 import { setSpaceColorVars } from './features/color-overrides/space-color-vars.js';
+import { placeSubmenu } from './features/context-menu/submenu-placement.js';
 
 // DOM Elements
 const spacesList = document.getElementById('spacesList');
@@ -588,6 +589,7 @@ export function showMenu(x, y, entries, id = 'tab-context-menu') {
                 submenu.className = 'context-menu submenu';
                 fill(submenu, entry.submenu);
                 item.appendChild(submenu);
+                item.addEventListener('mouseenter', () => positionSubmenu(item, submenu));
                 container.appendChild(item);
             } else {
                 addMenuItem(container, entry.label, async () => {
@@ -608,6 +610,19 @@ export function showMenu(x, y, entries, id = 'tab-context-menu') {
     };
     document.addEventListener('click', close, { capture: true });
     return menu;
+}
+
+// The submenu is only measurable once the hover has shown it, hence the frame wait.
+function positionSubmenu(item, submenu) {
+    requestAnimationFrame(() => {
+        const size = submenu.getBoundingClientRect();
+        const style = placeSubmenu(
+            item.getBoundingClientRect(),
+            { width: size.width, height: size.height },
+            { width: window.innerWidth, height: window.innerHeight }
+        );
+        Object.assign(submenu.style, style);
+    });
 }
 
 function addMenuItem(menu, label, action) {
