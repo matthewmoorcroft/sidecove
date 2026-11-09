@@ -133,7 +133,11 @@ test('picking another window’s tab or favorite switches to that window on it',
         ids.here
     );
 
-    await page.click(rowSelector(ids.otherTab));
+    // Dispatched rather than page.click, which waits for a frame the sidebar may not paint once
+    // another window has focus.
+    await page.$eval(rowSelector(ids.otherTab), el =>
+        el.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }))
+    );
     await waitForActive(ids.otherTab, ids.other);
     expect(await page.evaluate(id => chrome.windows.get(id).then(w => w.focused), ids.other)).toBe(true);
     // Nothing moved: this window keeps its tab and the tab stays in its own window.
