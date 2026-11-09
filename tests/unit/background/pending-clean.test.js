@@ -232,3 +232,16 @@ test('messages for other features are left alone', async () => {
         undefined
     );
 });
+
+test('a hidden tab pinned in the meantime is shown again with its sound, and only the others are closed', async () => {
+    await start();
+    await clear([1, 2, 3]);
+    tabs[1].pinned = true;
+    await advance(DUE);
+    assert.deepEqual(
+        tabs.map(t => t.id),
+        [2, 4]
+    );
+    assert.deepEqual(dispatched.at(-1), { action: 'unhide', tabIds: [2], spaceId: 'home', order: [1, 2, 3, 4] });
+    assert.equal(tabs[0].mutedInfo.muted, false);
+});

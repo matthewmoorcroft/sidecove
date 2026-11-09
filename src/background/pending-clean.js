@@ -63,23 +63,27 @@ export function registerPendingClean({
         const batch = batches.get(batchId);
         if (!batch) return;
         await forget(batch);
-        const ids = await openIds(batch.tabs.map(tab => tab.tabId));
-        if (!ids.length) return;
-        try {
-            await chromeApi.tabs.remove(ids);
-        } catch (error) {
-            // Chrome refused (a tab is being dragged, say). A tab that cannot be closed comes
-            // back to the list rather than staying hidden.
-            Logger.warn('[Clean All] Could not close the hidden tabs; showing them again:', error);
-            const left = new Set(await openIds(ids));
-            if (left.size) {
-                await showAgain(batch, [...left]);
-                await restoreSound(
-                    batch.tabs.filter(tab => left.has(tab.tabId)),
-                    '[Clean All] Could not restore the sound of a tab:'
-                );
+        const wanted = new Set(batch.tabs.map(tab => tab.tabId));
+        const live = (await chromeApi.tabs.query({})).filter(tab => wanted.has(tab.id));
+        // A tab pinned meanwhile (from Chrome's own tab strip) is a favourite again, never to be closed.
+        const keep = new Set(live.filter(tab => tab.pinned).map(tab => tab.id));
+        const closing = live.map(tab => tab.id).filter(id => !keep.has(id));
+        if (closing.length) {
+            try {
+                await chromeApi.tabs.remove(closing);
+            } catch (error) {
+                // Chrome refused (a tab is being dragged, say). A tab that cannot be closed comes
+                // back to the list rather than staying hidden.
+                Logger.warn('[Clean All] Could not close the hidden tabs; showing them again:', error);
+                for (const id of await openIds(closing)) keep.add(id);
             }
         }
+        if (!keep.size) return;
+        await showAgain(batch, [...keep]);
+        await restoreSound(
+            batch.tabs.filter(tab => keep.has(tab.tabId)),
+            '[Clean All] Could not restore the sound of a tab:'
+        );
     }
 
     async function start({ spaceId, tabIds, order }) {

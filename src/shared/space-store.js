@@ -4,7 +4,7 @@ import { placeLinkTab } from './link-tab-placement.js';
 import { LocalStorage } from './localstorage.js';
 
 import { sections, ownerOf, updateNativePinSection, spaceForActivation } from './space-membership.js';
-import { restoreTabOrder } from './pending-clean.js';
+import { hideTabs, showTabs } from './hidden-tabs.js';
 export { tabIds, ownerOf } from './space-membership.js';
 const clone = value => structuredClone(value);
 
@@ -358,14 +358,8 @@ export class SpaceStore {
                     if (!message.initial) this.lastActive = message.spaceId;
                     break;
                 case 'hide':
-                    for (const id of message.tabIds) {
-                        for (const space of this.spaces) {
-                            for (const key of sections) space[key] = space[key].filter(t => t !== id);
-                            // A hidden tab must not be what the space reopens on.
-                            if (space.lastTab === id) delete space.lastTab;
-                        }
-                        this.hidden.add(id);
-                    }
+                    hideTabs(this.spaces, message.tabIds);
+                    for (const id of message.tabIds) this.hidden.add(id);
                     break;
                 case 'unhide': {
                     for (const id of message.tabIds) this.hidden.delete(id);
@@ -373,10 +367,10 @@ export class SpaceStore {
                     // Nothing to show again: leave the list in the order it is in now.
                     if (!message.tabIds.length) break;
                     if (target) {
-                        for (const space of this.spaces)
-                            for (const key of sections)
-                                space[key] = space[key].filter(t => !message.tabIds.includes(t));
-                        target.temporaryTabs = restoreTabOrder(target.temporaryTabs, message.order, message.tabIds);
+                        const pinnedIds = new Set(
+                            (await chrome.tabs.query({})).filter(tab => tab.pinned).map(tab => tab.id)
+                        );
+                        showTabs(this.spaces, target, { tabIds: message.tabIds, order: message.order, pinnedIds });
                     } else {
                         // The space is gone: the tabs join whichever space a new tab would.
                         for (const tab of await chrome.tabs.query({})) {
@@ -439,7 +433,13 @@ export class SpaceStore {
         chrome.tabs.onRemoved.addListener((id, info) =>
             handle(() => {
                 const record = this.snapshotByTab.get(id);
-                if (info?.isWindowClosing && record && this.spaces.some(s => s.id === record.spaceId))
+                // A tab Clean All is hiding is in no space now; the old record must not bring it back.
+                if (
+                    info?.isWindowClosing &&
+                    record &&
+                    !this.hidden.has(id) &&
+                    this.spaces.some(s => s.id === record.spaceId)
+                )
                     this.restoreQueue.push(record);
                 this.snapshotByTab.delete(id);
                 this.provisional.delete(id);

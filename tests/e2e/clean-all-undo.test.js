@@ -41,6 +41,20 @@ const archivedUrls = p =>
     p.evaluate(async () => ((await chrome.storage.local.get('archivedTabs')).archivedTabs || []).map(t => t.url));
 const activeTabId = p =>
     p.evaluate(async () => (await chrome.tabs.query({ active: true, currentWindow: true }))[0]?.id);
+const tabInfo = (p, id) =>
+    p.evaluate(
+        id =>
+            chrome.tabs.get(id).then(
+                t => ({ open: true, pinned: t.pinned }),
+                () => ({ open: false })
+            ),
+        id
+    );
+const getSpaces = p =>
+    p.evaluate(async () => (await chrome.runtime.sendMessage({ type: 'spaceStore', action: 'get' })).spaces);
+const ownerName = async (p, tabId) =>
+    (await getSpaces(p)).find(s => ['temporaryTabs', 'spaceBookmarks', 'pinnedTabs'].some(k => s[k].includes(tabId)))
+        ?.name ?? null;
 
 async function spaceIdOf(p, name) {
     return p.evaluate(
@@ -361,4 +375,112 @@ describe('Clean All with Undo', () => {
         await sidebar.evaluate(windowId => chrome.windows.remove(windowId), win.id);
         await sidebar.close();
     }, 60000);
+
+    // Chrome's own tab strip can pin a tab (Puppeteer cannot click it), so the tests make the same
+    // change to the tab. Clean All must never close a tab the user has since pinned.
+    async function clearTwoAndPinOne() {
+        const { sidebar, spaceId } = await newSpace();
+        const pinned = await openHttpTab(sidebar, spaceId, 'pin-a');
+        const other = await openHttpTab(sidebar, spaceId, 'pin-b');
+        await waitForRows(sidebar, 2);
+        await leaveCleared(sidebar);
+        await clickClear(sidebar);
+        await waitForRows(sidebar, 0);
+        await sleep(1000);
+        await sidebar.evaluate(id => chrome.tabs.update(id, { pinned: true }), pinned);
+        await sleep(500);
+        return { sidebar, spaceId, pinned, other };
+    }
+
+    test('a cleared tab pinned inside the Undo window is not closed when the window ends', async () => {
+        const { sidebar, pinned, other } = await clearTwoAndPinOne();
+        await sleep(AFTER_UNDO_WINDOW);
+        expect((await tabInfo(sidebar, pinned)).open).toBe(true);
+        expect((await tabInfo(sidebar, other)).open).toBe(false);
+        // It is back with the pinned tabs, not in the tab list.
+        expect((await tabInfo(sidebar, pinned)).pinned).toBe(true);
+        const space = (await getSpaces(sidebar)).find(s => s.pinnedTabs.includes(pinned));
+        expect(space.temporaryTabs).not.toContain(pinned);
+        await sidebar.close();
+    }, 60000);
+
+    test('Undo after pinning a cleared tab puts it with the pinned tabs, not in the tab list', async () => {
+        const { sidebar, spaceId, pinned } = await clearTwoAndPinOne();
+        await clickUndo(sidebar);
+        await sleep(1500);
+        const space = (await getSpaces(sidebar)).find(s => s.id === spaceId);
+        expect((await tabInfo(sidebar, pinned)).pinned).toBe(true);
+        expect(space.temporaryTabs).not.toContain(pinned);
+        expect(space.pinnedTabs).toContain(pinned);
+        await sidebar.close();
+    }, 60000);
+
+    // Closing a window closes every tab in it; Sidecove keeps a note of those tabs so History or
+    // Cmd+Shift+T puts them back in their space. Cleared tabs are not in any space, so they get none.
+    test('closing the window inside the Undo window does not queue the cleared tabs to come back', async () => {
+        const { sidebar: maker, spaceId } = await newSpace();
+        const { id: windowId } = await maker.evaluate(() => chrome.windows.create({ url: 'about:blank' }));
+        const urls = [`${base}/gone-window-1`, `${base}/gone-window-2`];
+        const ids = [];
+        for (const url of urls) {
+            ids.push(
+                await maker.evaluate(
+                    async ({ url, windowId, spaceId }) => {
+                        const tab = await chrome.tabs.create({ url, windowId, active: false });
+                        await chrome.runtime.sendMessage({
+                            type: 'spaceStore',
+                            action: 'assign',
+                            tabId: tab.id,
+                            spaceId
+                        });
+                        return tab.id;
+                    },
+                    { url, windowId, spaceId }
+                )
+            );
+        }
+        // The window needs a sidebar of its own, so Clear runs in the window that is about to close.
+        await maker.evaluate(
+            (windowId, url) => chrome.tabs.create({ windowId, url, active: true }),
+            windowId,
+            `chrome-extension://${extensionId}/sidebar.html`
+        );
+        await sleep(1500);
+        let windowSidebar = null;
+        for (const p of await browser.pages()) {
+            if (!p.url().endsWith('/sidebar.html')) continue;
+            if ((await p.evaluate(async () => (await chrome.windows.getCurrent()).id)) === windowId) windowSidebar = p;
+        }
+        expect(windowSidebar).not.toBeNull();
+        await windowSidebar.setViewport({ width: 360, height: 800 });
+        await sleep(2000);
+        await windowSidebar.waitForFunction(
+            ids => ids.every(id => document.querySelector(`.space.active .tab[data-tab-id="${id}"]`)),
+            { polling: 100, timeout: 10000 },
+            ids
+        );
+        await clickClear(windowSidebar);
+        await windowSidebar.waitForFunction(
+            ids => ids.every(id => !document.querySelector(`.space.active .tab[data-tab-id="${id}"]`)),
+            { polling: 100, timeout: 10000 },
+            ids
+        );
+        await sleep(1000);
+        await maker.evaluate(id => chrome.windows.remove(id), windowId);
+        await sleep(1500);
+
+        // What Sidecove sees when the window is reopened: new tabs with those addresses. Another
+        // space is the one in use, so any tab that lands in the cleared tabs' space was queued.
+        const { sidebar: other } = await newSpace();
+        const otherName = await other.$eval('.space.active .space-name', input => input.value);
+        const reopened = await other.evaluate(async urls => {
+            const win = await chrome.windows.create({ url: urls, focused: false });
+            return { windowId: win.id, tabIds: win.tabs.map(t => t.id) };
+        }, urls);
+        await sleep(1500);
+        for (const id of reopened.tabIds) expect(await ownerName(other, id)).toBe(otherName);
+        await other.evaluate(id => chrome.windows.remove(id), reopened.windowId);
+        await other.close();
+        await maker.close();
+    }, 90000);
 });

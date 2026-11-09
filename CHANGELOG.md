@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Clear's Undo window no longer closes a tab you pinned, or brings back tabs when a window closes.** If you pin a cleared tab from Chrome's own tab strip in the 8 seconds after Clear, Sidecove now keeps it open and shows it with your pinned tabs, instead of closing it when the time is up; Undo puts it with the pinned tabs too. If you close the window in those 8 seconds, the cleared tabs are no longer listed to come back into their space when you reopen the window from History or with Cmd+Shift+T. Quitting Chrome or an extension update inside the 8 seconds is not covered yet.
 - **README picture in light mode.** The first picture in the README now shows Sidecove in light mode, so the two pictures show both looks. You will not notice this in the extension itself.
 - **README spaces picture in light and dark.** The second picture in the README now shows two spaces side by side, one in light mode and one in dark mode, on a soft blue-grey background. You will not notice this in the extension itself.
 - **README shows one picture and the logo.** The README now opens with the Sidecove logo and name, centred, and shows a single picture of the sidebar instead of two. You will not notice this in the extension itself.
