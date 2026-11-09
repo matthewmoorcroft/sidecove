@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { registerPendingClean, PENDING_CLEAN_KEY } from '../../../src/background/pending-clean.js';
 import { PENDING_CLEAN_MESSAGE, UNDO_WINDOW_MS, CLOSE_GRACE_MS } from '../../../src/shared/pending-clean.js';
 
-let tabs, session, dispatched, clock, timers, listener, removeError, hideError;
+let archiveRemoved, tabs, session, dispatched, clock, timers, listener, removeError, hideError;
 const DUE = UNDO_WINDOW_MS + CLOSE_GRACE_MS;
 
 const chromeApi = () => ({
@@ -56,6 +56,7 @@ const start = async () => {
     const api = registerPendingClean({
         chromeApi: chromeApi(),
         spaceStore: spaceStore(),
+        removeArchivedTab: async (url, spaceId) => archiveRemoved.push([url, spaceId]),
         now: () => clock,
         setTimer,
         clearTimer
@@ -74,6 +75,7 @@ beforeEach(() => {
     tabs = [1, 2, 3, 4].map(id => ({ id, mutedInfo: { muted: false } }));
     session = {};
     dispatched = [];
+    archiveRemoved = [];
     clock = 1_000_000;
     timers = [];
     removeError = undefined;
@@ -237,6 +239,7 @@ test('a hidden tab pinned in the meantime is shown again with its sound, and onl
     await start();
     await clear([1, 2, 3]);
     tabs[1].pinned = true;
+    tabs[1].url = 'https://two.test/';
     await advance(DUE);
     assert.deepEqual(
         tabs.map(t => t.id),
@@ -244,4 +247,6 @@ test('a hidden tab pinned in the meantime is shown again with its sound, and onl
     );
     assert.deepEqual(dispatched.at(-1), { action: 'unhide', tabIds: [2], spaceId: 'home', order: [1, 2, 3, 4] });
     assert.equal(tabs[0].mutedInfo.muted, false);
+    // It stays open, so it is no longer in Archived.
+    assert.deepEqual(archiveRemoved, [['https://two.test/', 'home']]);
 });

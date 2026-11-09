@@ -1,4 +1,5 @@
 import { Logger } from '../shared/logger.js';
+import { Utils } from '../shared/utils.js';
 import { PENDING_CLEAN_MESSAGE, UNDO_WINDOW_MS, CLOSE_GRACE_MS } from '../shared/pending-clean.js';
 
 export const PENDING_CLEAN_KEY = 'pendingCleans'; // storage.session: tab ids end with the browser session.
@@ -11,6 +12,7 @@ export const PENDING_CLEAN_KEY = 'pendingCleans'; // storage.session: tab ids en
 export function registerPendingClean({
     chromeApi = chrome,
     spaceStore,
+    removeArchivedTab = (url, spaceId) => Utils.removeArchivedTab(url, spaceId),
     now = Date.now,
     setTimer = setTimeout,
     clearTimer = clearTimeout
@@ -79,6 +81,16 @@ export function registerPendingClean({
             }
         }
         if (!keep.size) return;
+        // Clear put every tab in Archived; one that stays open is not archived.
+        await Promise.all(
+            live
+                .filter(tab => keep.has(tab.id))
+                .map(tab =>
+                    removeArchivedTab(tab.url, batch.spaceId).catch(error =>
+                        Logger.warn('[Clean All] Could not take a kept tab out of Archived:', error)
+                    )
+                )
+        );
         await showAgain(batch, [...keep]);
         await restoreSound(
             batch.tabs.filter(tab => keep.has(tab.tabId)),

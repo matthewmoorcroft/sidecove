@@ -397,6 +397,9 @@ describe('Clean All with Undo', () => {
         await sleep(AFTER_UNDO_WINDOW);
         expect((await tabInfo(sidebar, pinned)).open).toBe(true);
         expect((await tabInfo(sidebar, other)).open).toBe(false);
+        // The one that stays open is not in Archived; the one that closed is.
+        expect(await archivedUrls(sidebar)).not.toContain(`${base}/pin-a`);
+        expect(await archivedUrls(sidebar)).toContain(`${base}/pin-b`);
         // It is back with the pinned tabs, not in the tab list.
         expect((await tabInfo(sidebar, pinned)).pinned).toBe(true);
         const space = (await getSpaces(sidebar)).find(s => s.pinnedTabs.includes(pinned));
