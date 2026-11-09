@@ -2,6 +2,8 @@
 // measured rectangles and apply the returned inline styles. Offsets are relative to the
 // parent item, which is the submenu's containing block.
 //
+const SUBMENU_RISE = 4; // px the stylesheet lifts the submenu above its item
+
 // Right of the item when there is room, else left of it, else in place under the item
 // (or over it when the panel has no room below), shifted to sit inside the panel.
 export function placeSubmenu(parent, size, viewport) {
@@ -10,8 +12,8 @@ export function placeSubmenu(parent, size, viewport) {
 
     if (fitsRight || fitsLeft) {
         const style = fitsRight ? { left: '', right: '' } : { left: 'auto', right: '100%' };
-        // The stylesheet puts the submenu 4px above the item; keep that unless it runs off the bottom.
-        const runsOffBottom = parent.top + size.height > viewport.height;
+        // Keep the stylesheet's offset unless the submenu runs off the bottom.
+        const runsOffBottom = parent.top - SUBMENU_RISE + size.height > viewport.height;
         return { ...style, top: runsOffBottom ? 'auto' : '', bottom: runsOffBottom ? '0' : '' };
     }
 

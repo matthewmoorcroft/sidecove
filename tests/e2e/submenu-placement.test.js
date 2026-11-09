@@ -23,10 +23,7 @@ async function openThemeColorSubmenu(width) {
     const item = await page.$('#tab-context-menu .with-submenu');
     await item.hover();
     await page.waitForFunction(
-        () => {
-            const submenu = document.querySelector('#tab-context-menu .submenu');
-            return submenu && getComputedStyle(submenu).display === 'block' && submenu.style.left !== undefined;
-        },
+        () => getComputedStyle(document.querySelector('#tab-context-menu .submenu')).display === 'block',
         { polling: 100 }
     );
     // Placement runs on the next frame after the hover.
