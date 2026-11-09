@@ -64,16 +64,16 @@ import {
 } from './features/clean-all/clean-all.js';
 import { UNDO_WINDOW_MS, CLOSE_GRACE_MS } from '../shared/pending-clean.js';
 import { loadFolderCollapsed, saveFolderCollapsed } from './folder-state.js';
-import {
-    FOLDER_CLOSED_ICON,
-    FOLDER_CLOSED_DOTS_ICON,
-    FOLDER_OPEN_ICON,
-    SPEAKER_ICON,
-    SPEAKER_MUTED_ICON,
-    SPACE_ICON_PLACEHOLDER
-} from './icons.js';
-import { normalizeSpaceIcon, spaceSymbol, searchSpaceIcons, isTypedEmoji } from './space-icons.js';
+import { SPEAKER_ICON, SPEAKER_MUTED_ICON, SPACE_ICON_PLACEHOLDER } from './icons.js';
+import { showIconPicker } from './features/icon-picker/icon-picker.js';
 import { drawSpaceIcon } from './features/space-icons/draw-space-icon.js';
+import {
+    restoreFolderIcon,
+    showFolderIconPicker,
+    updateFolderIcon,
+    watchFolderIcons
+} from './features/folder-icons/folder-icons.js';
+import { removeFolderIcons } from './features/folder-icons/folder-icon-store.js';
 import { audioState } from './tab-audio.js';
 import { Selection, selectionGesture } from './selection.js';
 import { searchEntries } from './tab-search.js';
@@ -386,6 +386,7 @@ async function activatePinnedTabByURL(bookmarkUrl, targetSpaceId, spaceName, boo
 document.addEventListener('DOMContentLoaded', async () => {
     Logger.log('DOM loaded, initializing sidebar...');
     await applyColorOverrides();
+    watchFolderIcons();
 
     // Listen for storage changes to re-apply colors when they're updated
     chrome.storage.onChanged.addListener((changes, areaName) => {
@@ -999,98 +1000,12 @@ async function setSpaceIcon(space, icon) {
 }
 
 function showSpaceIconPicker(space, anchor) {
-    document.getElementById('spaceIconPicker')?.remove();
-    const picker = document.createElement('div');
-    picker.id = 'spaceIconPicker';
-    picker.className = 'space-icon-picker';
-    picker.setAttribute('role', 'dialog');
-    picker.setAttribute('aria-label', `Icon for ${space.name}`);
-    const close = () => {
-        picker.remove();
-        document.removeEventListener('mousedown', onOutside, true);
-    };
-    const choose = async icon => {
-        close();
-        try {
-            await setSpaceIcon(space, icon);
-        } catch (error) {
-            alert(error.message);
-        }
-    };
-    const onOutside = event => {
-        if (!picker.contains(event.target)) close();
-    };
-
-    // Monochrome symbols first, as in Arc, then emoji; the search box filters both by name
-    // and keyword, and a typed emoji can be used as it is.
-    const search = document.createElement('input');
-    search.type = 'search';
-    search.className = 'space-icon-custom';
-    search.placeholder = 'Search, or type an emoji';
-    search.setAttribute('aria-label', 'Search icons, or type an emoji');
-    const results = document.createElement('div');
-    results.className = 'space-icon-results';
-    const section = (title, icons) => {
-        if (!icons.length) return [];
-        const heading = document.createElement('p');
-        heading.className = 'space-icon-heading';
-        heading.textContent = title;
-        const grid = document.createElement('div');
-        grid.className = 'space-icon-grid';
-        for (const icon of icons) {
-            const choice = document.createElement('button');
-            choice.type = 'button';
-            choice.className = 'space-icon-choice';
-            choice.classList.toggle('selected', icon === space.icon);
-            choice.title = spaceSymbol(icon)?.label || '';
-            drawSpaceIcon(choice, icon);
-            choice.addEventListener('click', () => choose(icon));
-            grid.appendChild(choice);
-        }
-        return [heading, grid];
-    };
-    const showResults = () => {
-        const found = searchSpaceIcons(search.value);
-        const empty = document.createElement('p');
-        empty.className = 'space-icon-empty';
-        empty.textContent = isTypedEmoji(search.value) ? 'Press Enter to use this emoji' : 'No icons match';
-        const sections = [...section('Symbols', found.symbols), ...section('Emoji', found.emoji)];
-        results.replaceChildren(...(sections.length ? sections : [empty]));
-    };
-    search.addEventListener('keydown', event => {
-        if (event.key === 'Escape') {
-            event.stopPropagation();
-            close();
-            return;
-        }
-        if (event.key !== 'Enter') return;
-        const first = results.querySelector('.space-icon-choice');
-        if (isTypedEmoji(search.value)) choose(normalizeSpaceIcon(search.value));
-        else if (first && search.value.trim()) first.click();
-        else search.classList.add('invalid');
+    showIconPicker({
+        label: `Icon for ${space.name}`,
+        current: space.icon,
+        anchor,
+        onChoose: icon => setSpaceIcon(space, icon)
     });
-    search.addEventListener('input', () => {
-        search.classList.remove('invalid');
-        showResults();
-    });
-    showResults();
-    picker.append(search, results);
-    if (space.icon) {
-        const remove = document.createElement('button');
-        remove.type = 'button';
-        remove.className = 'space-icon-remove';
-        remove.textContent = 'Remove Icon';
-        remove.addEventListener('click', () => choose(null));
-        picker.appendChild(remove);
-    }
-    picker.addEventListener('keydown', event => {
-        if (event.key === 'Escape') close();
-    });
-    document.body.appendChild(picker);
-    const rect = anchor.getBoundingClientRect();
-    Utils.adjustMenuPosition(picker, Math.max(8, rect.left - 4), rect.bottom + 6);
-    document.addEventListener('mousedown', onOutside, true);
-    (results.querySelector('.selected') || search).focus();
 }
 
 async function moveSpaceFolderBefore(space, nextSpace) {
@@ -1793,19 +1708,6 @@ function updateFolderPlaceholder(folderElement) {
         placeholder.classList.add('hidden');
         Logger.log('Hiding placeholder for populated folder');
     }
-}
-
-function updateFolderIcon(folderElement) {
-    if (!folderElement) return;
-    const folderIcon = folderElement.querySelector('.folder-icon');
-    if (!folderIcon) return;
-    const isCollapsed = folderElement.classList.contains('collapsed');
-    const hasOpenTabs = folderElement.classList.contains('has-open-tabs');
-    folderIcon.innerHTML = isCollapsed
-        ? hasOpenTabs
-            ? FOLDER_CLOSED_DOTS_ICON
-            : FOLDER_CLOSED_ICON
-        : FOLDER_OPEN_ICON;
 }
 
 // Arc-like: when a folder is collapsed, show open bookmark tabs (active Chrome tabs) for that folder.
@@ -2861,6 +2763,7 @@ async function renderSpaceTabs(space, pinnedContainer, tempContainer) {
 
                         // Update folder placeholder state after loading contents
                         updateFolderPlaceholder(folderElement);
+                        await restoreFolderIcon(folderElement);
                         // Restore parent and child states independently after their contents render.
                         setFolderCollapsed(folderElement, await loadFolderCollapsed(item.id), false);
                     } else {
@@ -4799,12 +4702,29 @@ function setupFolderContextMenu(folderElement, space, item = null) {
             contextMenu.appendChild(moveOption);
         }
 
+        if (folderId) {
+            const iconOption = document.createElement('div');
+            iconOption.classList.add('context-menu-item');
+            iconOption.textContent = 'Change Folder Icon…';
+            iconOption.addEventListener('click', () => {
+                contextMenu.remove();
+                showFolderIconPicker(folderElement);
+            });
+            contextMenu.appendChild(iconOption);
+        }
+
         const deleteOption = document.createElement('div');
         deleteOption.classList.add('context-menu-item');
         deleteOption.textContent = 'Delete Folder';
         deleteOption.addEventListener('click', async () => {
             if (confirm('Are you sure you want to delete this folder and all its contents?')) {
                 if (folderId) await chrome.bookmarks.removeTree(folderId);
+                const removedIds = [folderElement, ...folderElement.querySelectorAll('.folder')].map(
+                    element => element.dataset.bookmarkId
+                );
+                removeFolderIcons(chrome.storage.local, removedIds).catch(error =>
+                    Logger.error('Could not remove folder icons', error)
+                );
                 editorSessions.dispose('folder', folderId);
                 const parentFolder = folderElement.parentElement.closest('.folder');
                 disposeEditorsInElement(folderElement);
