@@ -9,7 +9,9 @@ export function createTabActivationHandler({
     getSpaces,
     getActiveSpaceId,
     setActiveSpaceId,
+    getActiveTabId,
     setActiveTabId,
+    tabExists,
     closeFocus,
     clearedTabs,
     adoptSpaces, // takes the spaces as the service worker holds them
@@ -24,7 +26,7 @@ export function createTabActivationHandler({
     syncCollapsedFoldersInActiveSpace,
     scrollToTab
 }) {
-    async function run(activeInfo, removalMark) {
+    async function run(activeInfo, removalMark, previousTabId) {
         const currentWindow = await chrome.windows.getCurrent({ populate: false });
         if (activeInfo.windowId !== currentWindow.id) {
             Logger.log('New tab is in a different window, ignoring...');
@@ -53,8 +55,9 @@ export function createTabActivationHandler({
         }
         setActiveTabId(activeInfo.tabId);
 
-        if (hidden) {
-            // Picked on purpose, so that one tab comes back, as an Undo for it alone.
+        // Picked on purpose, so that one tab comes back, as an Undo for it alone. When the tab
+        // you were on is gone, Chrome fell back to it instead, and it stays as it was.
+        if (hidden && (previousTabId == null || (await tabExists(previousTabId)))) {
             try {
                 const restored = await clearedTabs.restore(activeInfo.tabId);
                 if (restored) {
@@ -118,6 +121,8 @@ export function createTabActivationHandler({
         // Taken before anything is awaited: whether the tab that closed was seen leaving before
         // this activation tells a close from Chrome showing the chosen tab first.
         const removalMark = closeFocus.mark();
-        run(activeInfo, removalMark).catch(error => Logger.error('Could not follow the active tab:', error));
+        run(activeInfo, removalMark, getActiveTabId()).catch(error =>
+            Logger.error('Could not follow the active tab:', error)
+        );
     };
 }

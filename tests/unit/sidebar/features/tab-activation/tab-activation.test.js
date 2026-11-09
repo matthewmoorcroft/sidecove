@@ -11,7 +11,8 @@ const settle = () => new Promise(resolve => setTimeout(resolve, 20));
 
 // Tab 1 is listed in space A; tab 11 is hidden by Clear.
 function setUp({
-    restore = async () => [{ id: 'A', temporaryTabs: [1, 11], spaceBookmarks: [], pinnedTabs: [] }]
+    restore = async () => [{ id: 'A', temporaryTabs: [1, 11], spaceBookmarks: [], pinnedTabs: [] }],
+    previous = 1
 } = {}) {
     const calls = [];
     let spaces = [{ id: 'A', temporaryTabs: [1], spaceBookmarks: [], pinnedTabs: [] }];
@@ -20,7 +21,9 @@ function setUp({
         getSpaces: () => spaces,
         getActiveSpaceId: () => 'A',
         setActiveSpaceId: () => calls.push('switch space'),
+        getActiveTabId: () => previous,
         setActiveTabId: id => calls.push(['active', id]),
+        tabExists: async id => id !== 99,
         closeFocus: { mark: () => 0, stayAfterClose: async () => false },
         clearedTabs: { isHidden: async id => id === 11, restore: async id => restore(id) },
         adoptSpaces: async next => {
@@ -77,4 +80,14 @@ test('an activation in another window is ignored', async () => {
     handler({ tabId: 1, windowId: 2 });
     await settle();
     assert.deepEqual(calls, []);
+});
+
+test('a hidden tab Chrome fell back to after the tab you were on closed is not brought back', async () => {
+    const { handler, calls } = setUp({ previous: 99, restore: async () => assert.fail('it was not picked') });
+    handler({ tabId: 11, windowId: 1 });
+    await settle();
+    assert.deepEqual(calls, [
+        ['active', 11],
+        ['row', 11]
+    ]);
 });

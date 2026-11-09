@@ -4337,9 +4337,15 @@ const handleTabActivated = createTabActivationHandler({
     setActiveSpaceId: spaceId => {
         activeSpaceId = spaceId;
     },
+    getActiveTabId: () => activeChromeTabId,
     setActiveTabId: tabId => {
         activeChromeTabId = tabId;
     },
+    tabExists: tabId =>
+        chrome.tabs.get(tabId).then(
+            () => true,
+            () => false
+        ),
     closeFocus,
     clearedTabs,
     adoptSpaces: next => adoptStoredSpaces(next),
