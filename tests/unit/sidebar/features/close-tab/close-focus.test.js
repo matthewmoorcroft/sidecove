@@ -29,7 +29,7 @@ test('nothing is chosen when no other tab is open, or the closed tab is not in t
 });
 
 // Space A is shown and holds tabs 1, 2, 3 (top to bottom); space B holds 10. Tab 2 is active.
-function setUp({ open = [1, 2, 3, 10], activeTab = 2, owners = { 1: 'A', 2: 'A', 3: 'A', 10: 'B' } } = {}) {
+function setUp({ open = [1, 2, 3, 10], activeTab = 2, owners = { 1: 'A', 2: 'A', 3: 'A', 10: 'B' }, listed } = {}) {
     const calls = [];
     let active = activeTab;
     const focus = createCloseFocus({
@@ -40,6 +40,7 @@ function setUp({ open = [1, 2, 3, 10], activeTab = 2, owners = { 1: 'A', 2: 'A',
         },
         ownerOf: id => owners[id],
         displayedOrder: spaceId =>
+            listed ??
             Object.keys(owners)
                 .map(Number)
                 .filter(id => owners[id] === spaceId),
@@ -196,4 +197,72 @@ test('a New Tab with a page loading in it is an ordinary tab', async () => {
     const { focus } = setUp({ open: [1, 3, 10], activeTab: 2 });
     focus.trackTab({ id: 2, url: '', pendingUrl: 'http://example.com/' });
     assert.equal(await focus.stayAfterClose({ activatedTabId: 1, activatedSpaceId: 'A' }), true);
+});
+
+// Cmd+W on an empty New Tab: Chrome shows a tab to the right, which the removal was noted before.
+test('an empty New Tab that closes with other tabs left keeps the space, like any other tab', async () => {
+    const { focus, calls } = setUp({ open: [1, 3, 10], activeTab: 2 });
+    focus.trackTab({ id: 2, url: '', pendingUrl: 'chrome://newtab/' });
+    focus.noteRemoval(2);
+    const removalMark = focus.mark();
+    assert.equal(await focus.stayAfterClose({ activatedTabId: 10, activatedSpaceId: 'B', removalMark }), true);
+    assert.deepEqual(calls, [
+        ['activate', 3],
+        ['restore', 'B', 10, undefined]
+    ]);
+});
+
+test('an empty New Tab that closes after the tab Chrome showed was activated is left to Chrome', async () => {
+    const { focus, calls, active } = setUp({ open: [1, 3, 10], activeTab: 2 });
+    focus.trackTab({ id: 2, url: '', pendingUrl: 'chrome://newtab/' });
+    // "Switch to this tab": the activation arrives, and the New Tab is removed after it.
+    const removalMark = focus.mark();
+    focus.noteRemoval(2);
+    assert.equal(await focus.stayAfterClose({ activatedTabId: 10, activatedSpaceId: 'B', removalMark }), false);
+    assert.deepEqual(calls, []);
+    assert.equal(active(), 10);
+});
+
+test('the only tab of a space, an empty New Tab, closes: Chrome’s pick stands', async () => {
+    const { focus, calls } = setUp({ open: [10], activeTab: 1, owners: { 1: 'A', 10: 'B' } });
+    focus.trackTab({ id: 1, url: '', pendingUrl: 'chrome://newtab/' });
+    focus.noteRemoval(1);
+    const removalMark = focus.mark();
+    assert.equal(await focus.stayAfterClose({ activatedTabId: 10, activatedSpaceId: 'B', removalMark }), false);
+    assert.deepEqual(calls, []);
+});
+
+// A favorite (5) is on the tab bar, not in the list; tabs 11 and 12 are hidden by Clear.
+test('Chrome landing on a hidden tab after a close shows the first tab of the list instead', async () => {
+    const { focus, calls, active } = setUp({
+        open: [1, 3, 11, 12],
+        activeTab: 5,
+        owners: { 1: 'A', 3: 'A', 5: 'A' },
+        listed: [1, 3]
+    });
+    focus.noteRemoval(5);
+    const stayed = await focus.stayAfterClose({ activatedTabId: 11, activatedHidden: true });
+    assert.equal(stayed, true);
+    // Nothing was picked for a space, so no space's last tab is put back.
+    assert.deepEqual(calls, [['activate', 1]]);
+    assert.equal(active(), 1);
+});
+
+test('Chrome landing on a hidden tab with nothing listed opens a New Tab in the space', async () => {
+    const { focus, calls } = setUp({ open: [11], activeTab: 5, owners: { 5: 'A' }, listed: [] });
+    focus.noteRemoval(5);
+    assert.equal(await focus.stayAfterClose({ activatedTabId: 11, activatedHidden: true }), true);
+    assert.deepEqual(calls, [['new tab']]);
+});
+
+test('a hidden tab picked while the tab you were on stays open is left for the caller', async () => {
+    const { focus, calls, active } = setUp({
+        open: [1, 3, 5, 11],
+        activeTab: 5,
+        owners: { 1: 'A', 3: 'A', 5: 'A' },
+        listed: [1, 3]
+    });
+    assert.equal(await focus.stayAfterClose({ activatedTabId: 11, activatedHidden: true }), false);
+    assert.deepEqual(calls, []);
+    assert.equal(active(), 11);
 });

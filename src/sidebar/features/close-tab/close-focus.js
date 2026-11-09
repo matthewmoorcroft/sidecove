@@ -1,8 +1,9 @@
 // After the active tab closes, Chrome shows another tab by its own rule, which can be a tab
 // of a different space, or a different tab of this one than the list shows next. As in Arc, a
 // close keeps you in your space: show the next tab down its list, or the one above when the
-// closed tab was last, or a New Tab when none is left. An empty New Tab that closes is left
-// to Chrome: that is how "Switch to this tab" ends, and Chrome's pick is the tab chosen.
+// closed tab was last, or a New Tab when none is left. A tab Clear is hiding is never a landing
+// tab. An empty New Tab that closes after the tab Chrome showed was activated is left to Chrome:
+// that is how "Switch to this tab" ends, and Chrome's pick is the tab chosen.
 import { Logger } from '../../../shared/logger.js';
 import { isUntouchedPage } from '../../../shared/new-tab-page.js';
 
@@ -40,26 +41,38 @@ export function createCloseFocus({
     const emptyNewTabs = new Set();
     // Closing several tabs fires several activations; handle them one at a time.
     let queue = Promise.resolve();
+    // Counts the removals noted, so an activation can tell which of the two came first.
+    let removals = 0;
 
-    async function handle({ activatedTabId, activatedSpaceId }) {
+    // `activatedSpaceId` is missing for a tab no space lists, such as one Clear is hiding
+    // (`activatedHidden`). `removalMark` is what `mark()` returned when the activation arrived.
+    async function handle({ activatedTabId, activatedSpaceId, activatedHidden = false, removalMark }) {
         const spaceId = getActiveSpaceId();
         const previousTabId = getActiveTabId();
         if (previousTabId == null || !spaceId) return false;
-        if (emptyNewTabs.has(previousTabId)) {
+        const wasEmptyNewTab = emptyNewTabs.has(previousTabId);
+        if (wasEmptyNewTab) {
             // Settled here, so also forget the New Tabs that have closed since.
             const open = new Set(await openTabIds());
             for (const id of emptyNewTabs) if (!open.has(id)) emptyNewTabs.delete(id);
-            return false;
+            // Chrome shows the tab chosen before it closes the New Tab ("Switch to this tab", or
+            // the New Tab closing itself on leaving). A close shows the next tab after the removal.
+            if (!(closed.get(previousTabId)?.removal <= removalMark)) return false;
         }
         const note = closed.get(previousTabId);
         if ((note ? note.spaceId : ownerOf(previousTabId)) !== spaceId) return false;
         // A tab that is still open, such as one moved to another window, was not closed.
         if (!note && (await tabExists(previousTabId))) return false;
         const order = note ? note.order : displayedOrder(spaceId);
-        if (!order.includes(previousTabId)) return false;
+        // A favorite is not in the list, but Chrome landing on a hidden tab still needs a way out.
+        if (!order.includes(previousTabId) && !activatedHidden) return false;
         const open = new Set(await openTabIds());
-        const target = pickTabAfterClose(order, previousTabId, id => open.has(id) && !closed.has(id));
-        const crossedSpaces = activatedSpaceId !== spaceId;
+        const isLanding = id => open.has(id) && !closed.has(id);
+        const target =
+            pickTabAfterClose(order, previousTabId, isLanding) ?? (activatedHidden ? order.find(isLanding) : undefined);
+        // The space's only tab was an empty New Tab: another one would look like nothing happened.
+        if (wasEmptyNewTab && target === undefined) return false;
+        const crossedSpaces = activatedHidden || activatedSpaceId !== spaceId;
         // Chrome already picked the tab we would: nothing to change.
         if (!crossedSpaces && target === activatedTabId) return false;
         try {
@@ -70,7 +83,10 @@ export function createCloseFocus({
             return false;
         }
         setActiveTabId(target ?? null);
-        if (crossedSpaces) await restoreAfterPick(activatedSpaceId, activatedTabId, visited.get(activatedSpaceId));
+        // A hidden tab is nobody's last tab, so Chrome's pick changed no space to put back.
+        if (crossedSpaces && activatedSpaceId) {
+            await restoreAfterPick(activatedSpaceId, activatedTabId, visited.get(activatedSpaceId));
+        }
         return true;
     }
 
@@ -88,7 +104,13 @@ export function createCloseFocus({
             if (!spaceId) return;
             const now = Date.now();
             for (const [id, note] of closed) if (now - note.at > NOTE_LIFETIME_MS) closed.delete(id);
-            closed.set(tabId, { spaceId, order: displayedOrder(spaceId), at: now });
+            closed.set(tabId, { spaceId, order: displayedOrder(spaceId), at: now, removal: ++removals });
+        },
+
+        // Call as soon as an activation arrives, before anything is awaited, and pass the result
+        // to `stayAfterClose`.
+        mark() {
+            return removals;
         },
 
         // True when the tab that was active in the shown space closed and Chrome's pick was
@@ -99,7 +121,9 @@ export function createCloseFocus({
                 // Settled here so the next queued activation sees where the user now is.
                 if (!stayed) {
                     setActiveTabId(activation.activatedTabId);
-                    visited.set(activation.activatedSpaceId, activation.activatedTabId);
+                    if (activation.activatedSpaceId) {
+                        visited.set(activation.activatedSpaceId, activation.activatedTabId);
+                    }
                 }
                 return stayed;
             });

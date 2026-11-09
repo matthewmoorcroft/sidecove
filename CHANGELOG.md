@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Staying in your space after Clear, and in two more cases.** After Clear, closing the tab you are on (a pinned tab, say) no longer lands on one of the cleared tabs that are still open in the 8 seconds Undo is on offer. You stay in your space with the next tab down the list, or a New Tab if there is none. If you pick a cleared tab on purpose in Chrome's own tab strip or with Cmd+1 to 9, that one tab comes back into the list and leaves Archived, and the others still close when the 8 seconds end. Closing an empty New Tab that sits among other tabs of a space also keeps you in that space instead of following Chrome to a tab of another space. Closing the only tab of an empty space is unchanged. With favorites shared between spaces (the default), the most recently used tab shortcut pressed on a favorite from another space now stays in the space you are in instead of jumping into the favorite's space.
 - **README picture in light mode.** The first picture in the README now shows Sidecove in light mode, so the two pictures show both looks. You will not notice this in the extension itself.
 - **README spaces picture in light and dark.** The second picture in the README now shows two spaces side by side, one in light mode and one in dark mode, on a soft blue-grey background. You will not notice this in the extension itself.
 - **README shows one picture and the logo.** The README now opens with the Sidecove logo and name, centred, and shows a single picture of the sidebar instead of two. You will not notice this in the extension itself.

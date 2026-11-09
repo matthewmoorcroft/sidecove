@@ -1,5 +1,5 @@
 import { createServer } from 'node:http';
-import { launchBrowserWithExtension, openSidebar } from './helpers/extension-helper.js';
+import { launchBrowserWithExtension, openSidebar, getBackgroundServiceWorker } from './helpers/extension-helper.js';
 
 // Reported by a user from Arc: closing a tab moved Sidecove to another space whenever Chrome
 // picked a tab of that space to show next. As in Arc, a close keeps you in your space.
@@ -21,6 +21,20 @@ const activeTabId = () =>
 const activateTab = tabId => page.evaluate(id => chrome.tabs.update(id, { active: true }), tabId);
 const closeTab = tabId => page.evaluate(id => chrome.tabs.remove(id), tabId);
 const urlOf = tabId => page.evaluate(async id => (await chrome.tabs.get(id)).url, tabId);
+const isOpen = tabId =>
+    page.evaluate(
+        id =>
+            chrome.tabs.get(id).then(
+                () => true,
+                () => false
+            ),
+        tabId
+    );
+const isMuted = tabId => page.evaluate(async id => (await chrome.tabs.get(id)).mutedInfo.muted, tabId);
+const archivedUrls = () =>
+    page.evaluate(async () => ((await chrome.storage.local.get('archivedTabs')).archivedTabs || []).map(t => t.url));
+// The Undo window is 8 seconds and the worker adds half a second before it closes.
+const AFTER_UNDO_WINDOW = 9500;
 
 async function createSpaceInPage(name) {
     await page.$eval('#addSpaceBtn', button => button.click());
@@ -64,6 +78,16 @@ async function openTab(path, spaceName, openerTabId) {
         { url: `${base}/${path}`, spaceId: space.id, openerTabId }
     );
     return tabId;
+}
+
+// A New Tab nobody has typed into, in the given space.
+async function openEmptyTab(spaceName) {
+    const space = await spaceByName(spaceName);
+    return page.evaluate(async spaceId => {
+        const tab = await chrome.tabs.create({ active: false });
+        await chrome.runtime.sendMessage({ type: 'spaceStore', action: 'assign', tabId: tab.id, spaceId });
+        return tab.id;
+    }, space.id);
 }
 
 // Space A holds the tabs under test. A tab of space B was visited last, then the user came
@@ -182,6 +206,29 @@ describe('closing a tab keeps the space you are in', () => {
         expect((await spaceByName('Zeta')).temporaryTabs).toEqual(expect.arrayContaining(tabsInB));
     });
 
+    // Cmd+W on an empty New Tab used to leave the pick to Chrome, which shows the tab to its right.
+    test('an empty New Tab in the middle of the list closes: stay, and show the next tab down the list', async () => {
+        await createSpaceInPage('Nu');
+        await createSpaceInPage('Xi');
+        const one = await openTab('Nu-one', 'Nu');
+        const empty = await openEmptyTab('Nu');
+        // Opened between the New Tab and the next tab of Nu, so Chrome would show it.
+        const other = await openTab('Xi-one', 'Xi');
+        const three = await openTab('Nu-three', 'Nu');
+        await activateTab(other);
+        await sleep(500);
+        await showSpace('Nu');
+        await activateTab(empty);
+        await sleep(500);
+        expect(await displayedTabs()).toEqual([three, empty, one]);
+
+        await closeTab(empty);
+        await sleep(1500);
+
+        expect(await activeSpaceName()).toBe('Nu');
+        expect(await activeTabId()).toBe(one);
+    });
+
     // Chrome's "Switch to this tab" (address bar) shows the chosen tab and then closes the New Tab
     // the user was on. That is not a close to stay in the space for; the chosen tab stays shown.
     test('"Switch to this tab" from an empty New Tab keeps the tab that was chosen', async () => {
@@ -229,5 +276,108 @@ describe('closing a tab keeps the space you are in', () => {
             polling: 100
         });
         expect(await activeSpaceName()).toBe('Theta');
+    });
+});
+
+// Clear keeps the tabs it clears open, hidden and muted, for the length of its Undo toast.
+describe('tabs that Clear is hiding', () => {
+    const waitForRows = count =>
+        page.waitForFunction(
+            count =>
+                document.querySelectorAll('.space.active [data-tab-type="temporary"] .tab[data-tab-id]').length ===
+                count,
+            { polling: 100 },
+            count
+        );
+
+    // A space with a pinned tab you are on and two listed tabs, which sit right of the pinned
+    // tab in Chrome's strip. The list is then cleared.
+    async function clearWhileOnPinnedTab() {
+        await createSpaceInPage('Hide');
+        const pin = await openTab('pin', 'Hide');
+        await page.evaluate(id => chrome.tabs.update(id, { pinned: true }), pin);
+        const one = await openTab('one', 'Hide');
+        const two = await openTab('two', 'Hide');
+        await waitForRows(2);
+        await page.evaluate(ids => chrome.tabs.move(ids, { index: 1 }), [one, two]);
+        await activateTab(pin);
+        await sleep(800);
+        await page.$eval('.space.active .clean-tabs-btn', button => button.click());
+        await waitForRows(0);
+        await sleep(800);
+        return { pin, one, two };
+    }
+
+    test('closing the tab you are on does not show a hidden tab: stay in the space with a new tab', async () => {
+        const { pin, one, two } = await clearWhileOnPinnedTab();
+        expect(await activeTabId()).toBe(pin);
+
+        await closeTab(pin);
+        await sleep(1500);
+
+        const shown = await activeTabId();
+        expect([one, two]).not.toContain(shown);
+        expect(await activeSpaceName()).toBe('Hide');
+        expect((await spaceByName('Hide')).temporaryTabs).toContain(shown);
+    });
+
+    // Cmd+1 to 9, or a click in Chrome's tab strip, picks a cleared tab on purpose: it is
+    // brought back on its own, as an Undo for that one tab.
+    test('picking a cleared tab in Chrome brings that one tab back into the list', async () => {
+        const { one, two } = await clearWhileOnPinnedTab();
+        const oneUrl = await urlOf(one);
+        const twoUrl = await urlOf(two);
+        expect(await isMuted(one)).toBe(true);
+
+        await activateTab(one);
+        await sleep(1500);
+
+        expect(await activeTabId()).toBe(one);
+        expect(await displayedTabs()).toEqual([one]);
+        expect(await isMuted(one)).toBe(false);
+        expect(await archivedUrls()).not.toContain(oneUrl);
+
+        await sleep(AFTER_UNDO_WINDOW);
+        expect(await isOpen(one)).toBe(true);
+        expect(await isOpen(two)).toBe(false);
+        expect(await archivedUrls()).toContain(twoUrl);
+        expect(await activeTabId()).toBe(one);
+        expect(await displayedTabs()).toEqual([one]);
+    });
+});
+
+describe('the most recent tab shortcut', () => {
+    // Puppeteer cannot press an extension shortcut, so the command is fired in the service worker.
+    async function pressRecentTab() {
+        const worker = await getBackgroundServiceWorker(browser);
+        await worker.evaluate(() => chrome.commands.onCommand.dispatch('RecentTabInSpace'));
+        await sleep(1500);
+    }
+
+    test('on a favorite shared from another space it stays in the space you are in', async () => {
+        expect(
+            (await page.evaluate(() => chrome.storage.sync.get('perSpacePinnedFavorites'))).perSpacePinnedFavorites
+        ).not.toBe(true);
+        await createSpaceInPage('Pi');
+        await createSpaceInPage('Rho');
+        const favourite = await openTab('Pi-favourite', 'Pi');
+        await page.evaluate(id => chrome.tabs.update(id, { pinned: true }), favourite);
+        await sleep(500);
+        const first = await openTab('Rho-one', 'Rho');
+        const second = await openTab('Rho-two', 'Rho');
+        await showSpace('Rho');
+        await activateTab(first);
+        await sleep(500);
+        await activateTab(second);
+        await sleep(500);
+        // The favorite is owned by Pi but shown in every space's bar.
+        await activateTab(favourite);
+        await sleep(500);
+        expect(await activeSpaceName()).toBe('Rho');
+
+        await pressRecentTab();
+
+        expect(await activeTabId()).toBe(second);
+        expect(await activeSpaceName()).toBe('Rho');
     });
 });
