@@ -63,6 +63,38 @@ test('a tab outside every space uses the space shown in the window', async () =>
     assert.equal(await jumpToRecentTab({ chromeApi, readSpaces, recency, now: 0 }), 1);
 });
 
+// Favorite 5 is owned by home but sits in every space's bar while favorites are shared.
+const withFavorite = [{ ...space('home', [1, 2]), pinnedTabs: [5] }, space('work', [10, 11])];
+
+test('on a shared favorite it stays in the space shown in the window', async () => {
+    const recency = new TabRecency([5, 11, 1, 10]);
+    const { chromeApi, updates } = fakeChrome({
+        tabIds: [1, 2, 5, 10, 11],
+        activeId: 5,
+        session: { activeSpaces: { 1: 'work' } }
+    });
+    const target = await jumpToRecentTab({ chromeApi, readSpaces: async () => withFavorite, recency, now: 0 });
+    assert.equal(target, 11, 'tab 1 is more recent but belongs to home, the favorite’s owner');
+    assert.deepEqual(updates, [11]);
+});
+
+test('with favorites per space, a favorite belongs to the space that owns it', async () => {
+    const recency = new TabRecency([5, 11, 1, 10]);
+    const { chromeApi } = fakeChrome({
+        tabIds: [1, 2, 5, 10, 11],
+        activeId: 5,
+        session: { activeSpaces: { 1: 'work' } }
+    });
+    const target = await jumpToRecentTab({
+        chromeApi,
+        readSpaces: async () => withFavorite,
+        perSpaceFavorites: () => true,
+        recency,
+        now: 0
+    });
+    assert.equal(target, 1);
+});
+
 test('does nothing when the tab belongs to no space and none is shown', async () => {
     const { chromeApi, updates } = fakeChrome({ tabIds: [99], activeId: 99 });
     assert.equal(await jumpToRecentTab({ chromeApi, readSpaces, recency: new TabRecency(), now: 0 }), null);
