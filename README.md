@@ -22,6 +22,7 @@ Sidecove is an independent project, not affiliated with or endorsed by The Brows
 - Drag tabs, favorites and folders between sections, folders and spaces; drop one tab on a favorite to make a folder
 - Multi-select with Cmd or Ctrl click and Shift click to move, pin, archive, close or file several tabs at once
 - Search open tabs and favorites across spaces (Cmd or Ctrl+F)
+- One list across windows: each window's sidebar shows the open tabs and top-bar favorites of all your windows, one entry per page, and whatever you choose opens in the window you are in (on by default; turn it off at **Settings → Show tabs and favorites from all windows**). Each window keeps its own space.
 - Keyboard and mouse side-button space switching
 - A shortcut for the most recently used tab in the current space, like Arc's Ctrl+Tab (assign a key at `chrome://extensions/shortcuts`; Chrome keeps Ctrl+Tab for itself)
 - A new tab you leave empty closes by itself, as in Arc (turn it off at **Settings → Close new tabs you leave empty**)
