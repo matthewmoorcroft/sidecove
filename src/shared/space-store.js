@@ -438,6 +438,7 @@ export class SpaceStore {
         );
         chrome.tabs.onReplaced.addListener((added, removed) =>
             handle(() => {
+                this.linkTails.replaced(added, removed);
                 for (const space of this.spaces) {
                     for (const key of sections) space[key] = space[key].map(id => (id === removed ? added : id));
                     if (space.lastTab === removed) space.lastTab = added;

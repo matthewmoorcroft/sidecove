@@ -33,9 +33,9 @@ export function placeLinkTab(ids, openerId, newId, tailId, inverted) {
  * under the opener again (or after the links still under it).
  */
 export class LinkTails {
-    /** @param {Array<[number, number|number[]]>} [entries] as given by `entries()` */
+    /** @param {Array<[number, number[]]>} [entries] as given by `entries()` */
     constructor(entries = []) {
-        this.links = new Map(entries.map(([opener, ids]) => [opener, [].concat(ids)]));
+        this.links = new Map((entries || []).map(([opener, ids]) => [opener, [...ids]]));
     }
 
     entries() {
@@ -65,9 +65,22 @@ export class LinkTails {
     closed(id) {
         this.links.delete(id);
         for (const [opener, links] of this.links) {
+            if (!links.includes(id)) continue;
             const rest = links.filter(link => link !== id);
             if (rest.length) this.links.set(opener, rest);
             else this.links.delete(opener);
+        }
+    }
+
+    /** Chrome swapped a tab for another (a prerendered page, say) and the new one takes its place. */
+    replaced(added, removed) {
+        if (this.links.has(removed)) {
+            this.links.set(added, this.links.get(removed));
+            this.links.delete(removed);
+        }
+        for (const links of this.links.values()) {
+            const at = links.indexOf(removed);
+            if (at !== -1) links[at] = added;
         }
     }
 

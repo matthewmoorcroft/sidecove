@@ -152,12 +152,20 @@ test('LinkTails: links from an opener outside the list go to the top in opening 
     assert.deepEqual(stored, [10, 11, 1, 2, 3]);
 });
 
-test('LinkTails: entries survive being saved and loaded, and the older one-tail form is read', () => {
+test('LinkTails: entries survive being saved and loaded', () => {
     const tails = new LinkTails();
-    let stored = tails.place([1, 2, 3], 2, 10, false);
-    stored = tails.place(stored, 2, 11, false);
+    const stored = tails.place(tails.place([1, 2, 3], 2, 10, false), 2, 11, false);
     const reloaded = new LinkTails(tails.entries());
     assert.deepEqual(reloaded.place(stored, 2, 12, false), [1, 2, 10, 11, 12, 3]);
-    const older = new LinkTails([[2, 10]]);
-    assert.deepEqual(older.place([1, 2, 10, 3], 2, 12, false), [1, 2, 10, 12, 3]);
+    assert.deepEqual(new LinkTails(null).entries(), []);
+});
+
+test('LinkTails: a tab Chrome replaced keeps its place in the run, as a link and as an opener', () => {
+    const tails = new LinkTails();
+    const stored = tails.place(tails.place([1, 2, 3], 2, 10, false), 2, 11, false);
+    tails.replaced(50, 11);
+    assert.deepEqual(tails.place([1, 2, 10, 50, 3], 2, 12, false), [1, 2, 10, 50, 12, 3]);
+    tails.place(stored, 3, 20, false);
+    tails.replaced(60, 3);
+    assert.deepEqual(tails.place([1, 2, 60, 20], 60, 21, false), [1, 2, 60, 20, 21]);
 });
