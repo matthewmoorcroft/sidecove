@@ -3,11 +3,14 @@ import { createPinnedFavorites } from './features/pinned-favorites/pinned-favori
 import {
     ALL_WINDOWS_SETTING,
     isOtherWindow,
+    onePerPage,
+    pageTabIds,
     selectListedTabs,
     visibleWindowTabs
 } from './features/all-windows/all-windows.js';
 import { trackAllWindowsSetting } from './features/all-windows/all-windows-setting.js';
-import { createOtherWindowBadge, markOtherWindowRow } from './features/all-windows/other-window-mark.js';
+import { markOtherWindowRow } from './features/all-windows/other-window-mark.js';
+import { createOpenHere } from './features/all-windows/open-here.js';
 import { otherWindowMenuActions, otherWindowMenuEntries } from './features/all-windows/other-window-menu.js';
 import {
     getSpaceBookmarkById,
@@ -139,6 +142,7 @@ const bookmarkOrderBaselines = new Map();
 const selection = new Selection();
 // Settings -> Show tabs and favorites from all windows.
 const allWindowsSetting = trackAllWindowsSetting(chrome.storage);
+const openHere = createOpenHere(chrome.tabs);
 // Hold a tab over the middle of a favorite this long to make a folder of the two.
 const MERGE_DWELL_MS = 500;
 let mergeHover = null;
@@ -3004,6 +3008,14 @@ async function renderSpaceTabs(space, pinnedContainer, tempContainer) {
 // Debounced UI refresh when settings change (e.g., invertTabOrder)
 let refreshActiveSpaceUITimeout = null;
 
+function scheduleListRedraw(delay = 300) {
+    if (refreshActiveSpaceUITimeout) clearTimeout(refreshActiveSpaceUITimeout);
+    refreshActiveSpaceUITimeout = setTimeout(() => {
+        refreshActiveSpaceUITimeout = null;
+        refreshActiveSpaceUI();
+    }, delay);
+}
+
 async function refreshActiveSpaceUI({ force = false } = {}) {
     if (!force && (editorSessions.isActive() || pendingMutationCount > 0)) {
         refreshCoordinator.invalidateSpaces();
@@ -3078,7 +3090,14 @@ async function closeTab(tabElement, tab, isPinned = false, isBookmarkOnly = fals
 
     // Closing a live tab never deletes its durable favorite. The removal listener
     // reconstructs the closed row from its exact bookmark identity.
-    await chrome.tabs.remove(tab.id);
+    await chrome.tabs.remove(isPinned ? [tab.id] : await openTabsOfPage(tab));
+}
+
+// With all windows shown, an entry stands for its page in every window, so all its tabs close.
+async function openTabsOfPage(tab) {
+    if (!allWindowsSetting.enabled) return [tab.id];
+    const space = ownerOf(spaces, tab.id);
+    return pageTabIds(space, await chrome.tabs.query({}), currentWindow, tab);
 }
 
 async function createTabElement(tab, isPinned = false, isBookmarkOnly = false) {
@@ -3363,11 +3382,11 @@ async function createTabElement(tab, isPinned = false, isBookmarkOnly = false) {
         } else if (event.button === MOUSE_BUTTON.LEFT) {
             // Don't activate tab when clicking close button
             if (event.target === actionButton) return;
-            // Another window's tab stays there for now; picking it brings that window to the front.
-            // It is never part of a selection, so Cmd and Shift clicks switch windows too.
+            // A page open only in another window opens again here; that window keeps its tab. It is
+            // never part of a selection, so Cmd and Shift clicks open it too.
             if (otherWindow) {
                 clearSelection();
-                await Utils.focusTab(tab.id).catch(error => Logger.warn('Could not switch window:', error));
+                await openHere(tab, currentWindow.id).catch(error => Logger.warn('Could not open the page:', error));
                 return;
             }
             if (handleSelectionClick(event, tabElement)) return;
@@ -3623,7 +3642,8 @@ async function collectSearchEntries() {
         Utils.getPinnedTabStates(),
         Utils.getTabNameOverrides()
     ]);
-    const windowTabs = visibleWindowTabs(openTabs, currentWindow, allWindows);
+    const visible = visibleWindowTabs(openTabs, currentWindow, allWindows);
+    const windowTabs = allWindows ? onePerPage(visible, currentWindow.id) : visible;
     const entries = [];
     const openBookmarks = new Set();
     for (const tab of windowTabs) {
@@ -3639,7 +3659,7 @@ async function collectSearchEntries() {
             spaceId: space?.id ?? null,
             spaceName: space?.name ?? 'Pinned',
             color: space?.color,
-            otherWindow: isOtherWindow(tab, currentWindow.id)
+            tab
         });
     }
     for (const space of spaces) {
@@ -3728,12 +3748,7 @@ function renderTabSearch() {
             space.className = 'search-result-space';
             if (entry.color) space.style.setProperty('--result-space-color', `var(--chrome-${entry.color}-color)`);
             space.textContent = entry.spaceName;
-            row.append(favicon, details);
-            if (entry.otherWindow) {
-                row.classList.add('other-window');
-                row.append(createOtherWindowBadge());
-            }
-            row.append(space);
+            row.append(favicon, details, space);
             row.addEventListener('mousedown', event => event.preventDefault()); // keep the field focused
             row.addEventListener('click', () => openSearchResult(entry));
             return row;
@@ -3751,7 +3766,13 @@ function clearTabSearch() {
 async function openSearchResult(entry) {
     clearTabSearch();
     if (entry.kind === 'tab') {
-        await Utils.focusTab(entry.tabId);
+        if (!isOtherWindow(entry.tab, currentWindow.id)) {
+            await Utils.focusTab(entry.tabId);
+            return;
+        }
+        // Opened here in its space; the other window keeps its tab.
+        if (entry.spaceId && entry.spaceId !== activeSpaceId) await setActiveSpace(entry.spaceId, false);
+        await openHere(entry.tab, currentWindow.id);
         return;
     }
     const space = spaces.find(s => s.id === entry.spaceId);
@@ -4235,6 +4256,9 @@ function handleTabUpdate(tabId, changeInfo, tab) {
         // Another window's panel files its own tabs; this one only redraws the rows it lists.
         const otherWindow = tab.windowId !== currentWindow.id;
         if (otherWindow && !allWindowsSetting.enabled) return;
+        // One entry per page: a new address can join or split a page open in two windows.
+        if (changeInfo.url && allWindowsSetting.enabled && ownerOf(spaces, tabId)?.id === activeSpaceId)
+            scheduleListRedraw();
         Logger.log('Tab updated:', tabId, changeInfo, spaces);
 
         // Update tab element if it exists

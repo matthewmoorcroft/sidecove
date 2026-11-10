@@ -4,6 +4,7 @@ import { Logger } from '../../../shared/logger.js';
 import { MOUSE_BUTTON } from '../../../shared/constants.js';
 import { isOtherWindow, selectFavoriteTabs } from '../all-windows/all-windows.js';
 import { markOtherWindowFavicon } from '../all-windows/other-window-mark.js';
+import { createOpenHere } from '../all-windows/open-here.js';
 
 export function createPinnedFavorites({
     getWindow,
@@ -17,6 +18,7 @@ export function createPinnedFavorites({
     hideAllDropIndicators,
     calculatePinnedTabIndex
 }) {
+    const openHere = createOpenHere(chrome.tabs);
     chrome.storage.onChanged.addListener((changes, area) => {
         if (area === 'sync' && changes.perSpacePinnedFavorites) {
             updatePinnedFavicons().catch(error => Logger.error('Could not update favorites scope', error));
@@ -80,12 +82,12 @@ export function createPinnedFavorites({
                 img.alt = tab.title;
 
                 faviconElement.appendChild(img);
-                if (otherWindow) markOtherWindowFavicon(faviconElement, tab.title);
+                if (otherWindow) markOtherWindowFavicon(faviconElement);
                 faviconElement.addEventListener('mousedown', event => {
                     if (event.button !== MOUSE_BUTTON.LEFT) return;
-                    // Another window's pin stays there; picking it brings that window to the front.
+                    // Another window's pin stays there; picking it opens the page pinned in this window.
                     if (otherWindow) {
-                        Utils.focusTab(tab.id).catch(error => Logger.warn('Could not switch window:', error));
+                        openHere(tab, getWindow().id).catch(error => Logger.warn('Could not open favorite:', error));
                         return;
                     }
                     clearAllActiveStates();

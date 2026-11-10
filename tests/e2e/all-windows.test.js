@@ -2,8 +2,9 @@ import { createServer } from 'node:http';
 import { launchBrowserWithExtension, openSidebar, openOptionsPage } from './helpers/extension-helper.js';
 
 // Settings -> Show tabs and favorites from all windows (issues 27 and 43, first step), on by
-// default: each window's sidebar also lists the space's open tabs and the top-bar favorites of the
-// other windows, marked, and picking one switches to the window it lives in.
+// default: each window's sidebar lists the space's open tabs and the top-bar favorites of every
+// window as one list, one entry per page. Which window a tab lives in does not show; picking a
+// page open only in another window opens it again in this one and leaves that window's tab alone.
 let browser, page, options, server, base, ids;
 
 const rowSelector = id => `.space.active .tab[data-tab-id="${id}"]`;
@@ -93,94 +94,71 @@ afterAll(async () => {
     if (server) await new Promise(resolve => server.close(resolve));
 });
 
+const rowsOfPage = url =>
+    page.$$eval('.space.active .tab[data-tab-id]', (rows, url) => rows.filter(r => r.dataset.url === url).length, url);
+const windowTabsAt = (windowId, url) =>
+    page.evaluate(
+        async (windowId, url) =>
+            (await chrome.tabs.query({ windowId })).filter(t => (t.url || t.pendingUrl) === url).map(t => t.id),
+        windowId,
+        url
+    );
+const activeIn = windowId =>
+    page.evaluate(async windowId => (await chrome.tabs.query({ active: true, windowId }))[0].id, windowId);
+// Dispatched rather than page.click, which waits for a frame the sidebar may not paint while
+// another window has focus.
+const clickRow = (id, extra = {}) =>
+    page.$eval(
+        rowSelector(id),
+        (el, extra) => el.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0, ...extra })),
+        extra
+    );
+const waitForOpenHere = url =>
+    page.waitForFunction(
+        async (windowId, url) =>
+            (await chrome.tabs.query({ windowId, active: true })).some(t => (t.url || t.pendingUrl) === url),
+        { polling: 100, timeout: 5000 },
+        ids.here,
+        url
+    );
+const openInOther = path =>
+    page.evaluate(
+        async (windowId, url) => (await chrome.tabs.create({ windowId, url, active: false })).id,
+        ids.other,
+        `${base}/${path}`
+    );
+
 test('the setting starts on; turned off, each window lists only its own tabs and favorites', async () => {
     expect(await options.$eval('#showTabsFromAllWindows', input => input.checked)).toBe(true);
-    await page.waitForSelector(`${rowSelector(ids.otherTab)}.other-window`);
+    await page.waitForSelector(rowSelector(ids.otherTab));
     await setToggle('showTabsFromAllWindows', false);
-    await page.waitForFunction(() => !document.querySelector('.other-window'), { polling: 100 });
+    await page.waitForFunction(sel => !document.querySelector(sel), { polling: 100 }, rowSelector(ids.otherTab));
     expect(await page.$(rowSelector(ids.own))).not.toBeNull();
-    expect(await page.$(rowSelector(ids.otherTab))).toBeNull();
     expect(await page.$(pinSelector(ids.otherPin))).toBeNull();
     expect(await page.$$('.other-window')).toHaveLength(0);
 });
 
-test('with it on, the other window’s tab and favorite are listed and marked, and search finds them', async () => {
+test('with it on, the other window’s tab and favorite are in the list and look like any other', async () => {
     await setToggle('showTabsFromAllWindows', true);
-    const row = await page.waitForSelector(`${rowSelector(ids.otherTab)}.other-window`);
-    expect(await row.$eval('.other-window-badge', el => el.getAttribute('aria-label'))).toBe('In another window');
-    expect(await row.evaluate(el => [el.draggable, el.classList.contains('active')])).toEqual([false, false]);
-    expect(await page.$eval(rowSelector(ids.own), el => el.classList.contains('other-window'))).toBe(false);
-    // One row per live tab.
-    expect(await page.$$(rowSelector(ids.otherTab))).toHaveLength(1);
+    const row = await page.waitForSelector(rowSelector(ids.otherTab));
+    const own = await page.$(rowSelector(ids.own));
+    const look = el =>
+        el.evaluate(row => {
+            const style = getComputedStyle(row.querySelector('.tab-details'));
+            return { opacity: style.opacity, extra: row.querySelectorAll('[aria-label]').length, title: row.title };
+        });
+    expect(await look(row)).toEqual(await look(own));
+    expect(await row.evaluate(el => el.classList.contains('active'))).toBe(false);
 
-    const pin = await page.waitForSelector(`${pinSelector(ids.otherPin)}.other-window`);
-    expect(await pin.$eval('img', img => img.alt)).toContain('in another window');
-    expect(await pin.$('.other-window-badge')).not.toBeNull();
+    const pin = await page.waitForSelector(pinSelector(ids.otherPin));
+    expect(await pin.$eval('img', img => getComputedStyle(img).opacity)).toBe('1');
+    expect(await pin.$eval('img', img => img.alt)).toBe('Page other-pin');
 
     await page.focus('#tabSearchInput');
     await page.keyboard.type('other-tab');
-    const result = await page.waitForSelector('#tabSearchResults .search-result.other-window');
+    const result = await page.waitForSelector('#tabSearchResults .search-result');
     expect(await result.$eval('.tab-title-display', el => el.textContent)).toBe('Page other-tab');
     await page.keyboard.press('Escape');
-});
-
-test('picking another window’s tab or favorite switches to that window on it', async () => {
-    // Make the tab inactive in its own window first.
-    await page.evaluate(id => chrome.tabs.update(id, { active: true }), ids.otherPin);
-    await waitForActive(ids.otherPin, ids.other);
-    const ownActive = await page.evaluate(
-        async id => (await chrome.tabs.query({ active: true, windowId: id }))[0].id,
-        ids.here
-    );
-
-    // Dispatched rather than page.click, which waits for a frame the sidebar may not paint once
-    // another window has focus.
-    await page.$eval(rowSelector(ids.otherTab), el =>
-        el.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }))
-    );
-    await waitForActive(ids.otherTab, ids.other);
-    expect(await page.evaluate(id => chrome.windows.get(id).then(w => w.focused), ids.other)).toBe(true);
-    // Nothing moved: this window keeps its tab and the tab stays in its own window.
-    expect(
-        await page.evaluate(async id => (await chrome.tabs.query({ active: true, windowId: id }))[0].id, ids.here)
-    ).toBe(ownActive);
-
-    await page.$eval(pinSelector(ids.otherPin), el =>
-        el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }))
-    );
-    await waitForActive(ids.otherPin, ids.other);
-    expect(await page.evaluate(id => chrome.tabs.get(id).then(t => t.windowId), ids.otherPin)).toBe(ids.other);
-});
-
-test('a Cmd-click on another window’s tab switches to it too, and selects nothing', async () => {
-    await page.evaluate(id => chrome.tabs.update(id, { active: true }), ids.otherPin);
-    await waitForActive(ids.otherPin, ids.other);
-    await page.$eval(rowSelector(ids.otherTab), el =>
-        el.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0, metaKey: true }))
-    );
-    await waitForActive(ids.otherTab, ids.other);
-    expect(await page.$$('.tab.selected')).toHaveLength(0);
-});
-
-test('closing another window’s tab from this list closes it there', async () => {
-    const extra = await page.evaluate(
-        async (windowId, url) => (await chrome.tabs.create({ windowId, url, active: false })).id,
-        ids.other,
-        `${base}/closed-from-here`
-    );
-    await page.waitForSelector(`${rowSelector(extra)}.other-window`);
-    await page.$eval(`${rowSelector(extra)} .tab-close`, button => button.click());
-    await page.waitForFunction(sel => !document.querySelector(sel), { polling: 100 }, rowSelector(extra));
-    expect(
-        await page.evaluate(
-            id =>
-                chrome.tabs.get(id).then(
-                    () => true,
-                    () => false
-                ),
-            extra
-        )
-    ).toBe(false);
 });
 
 test('separate favorites per space still decide which pins show, from every window', async () => {
@@ -204,15 +182,102 @@ test('separate favorites per space still decide which pins show, from every wind
         await page.waitForFunction(sel => !document.querySelector(sel), { polling: 100 }, pinSelector(ids.otherPin));
         expect(await page.$(rowSelector(ids.otherTab))).toBeNull();
         await switchTo(ids.home);
-        await page.waitForSelector(`${pinSelector(ids.otherPin)}.other-window`);
-        await page.waitForSelector(`${rowSelector(ids.otherTab)}.other-window`);
+        await page.waitForSelector(pinSelector(ids.otherPin));
+        await page.waitForSelector(rowSelector(ids.otherTab));
     } finally {
         await setToggle('perSpacePinnedFavorites', false);
     }
     // Shared favorites again: the other window's pin shows in every space.
     await switchTo(elsewhere);
-    await page.waitForSelector(`${pinSelector(ids.otherPin)}.other-window`);
+    await page.waitForSelector(pinSelector(ids.otherPin));
     await switchTo(ids.home);
+});
+
+test('picking a tab open only in another window opens it here and leaves that window alone', async () => {
+    const url = `${base}/other-tab`;
+    await page.evaluate(id => chrome.tabs.update(id, { active: true }), ids.otherPin);
+    await waitForActive(ids.otherPin, ids.other);
+    expect(await windowTabsAt(ids.here, url)).toEqual([]);
+
+    await clickRow(ids.otherTab);
+    await waitForOpenHere(url);
+    // The other window keeps its tab, still in the background there: two tabs, one per window.
+    expect(await windowTabsAt(ids.other, url)).toEqual([ids.otherTab]);
+    expect(await activeIn(ids.other)).toBe(ids.otherPin);
+    expect(await windowTabsAt(ids.here, url)).toHaveLength(1);
+    // The list still shows the page once, now as this window's tab.
+    const [copy] = await windowTabsAt(ids.here, url);
+    await page.waitForSelector(rowSelector(copy));
+    await page.waitForFunction(sel => !document.querySelector(sel), { polling: 100 }, rowSelector(ids.otherTab));
+    expect(await rowsOfPage(url)).toBe(1);
+
+    // Picking it again switches to it here; nothing new opens.
+    await page.evaluate(id => chrome.tabs.update(id, { active: true }), ids.own);
+    await clickRow(copy);
+    await waitForActive(copy, ids.here);
+    expect(await windowTabsAt(ids.here, url)).toHaveLength(1);
+});
+
+test('picking a favorite pinned only in another window pins it here too, shown once', async () => {
+    const url = `${base}/other-pin`;
+    await page.$eval(pinSelector(ids.otherPin), el =>
+        el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }))
+    );
+    await waitForOpenHere(url);
+    const [copy] = await windowTabsAt(ids.here, url);
+    expect(await page.evaluate(id => chrome.tabs.get(id).then(t => t.pinned), copy)).toBe(true);
+    expect(await windowTabsAt(ids.other, url)).toEqual([ids.otherPin]);
+    await page.waitForSelector(pinSelector(copy));
+    await page.waitForFunction(sel => !document.querySelector(sel), { polling: 100 }, pinSelector(ids.otherPin));
+    expect(
+        await page.$$eval(
+            '#pinnedFavicons .pinned-favicon img',
+            imgs => imgs.filter(i => i.alt === 'Page other-pin').length
+        )
+    ).toBe(1);
+});
+
+test('a Cmd-click opens it here too, and selects nothing', async () => {
+    const url = `${base}/cmd-click`;
+    const id = await openInOther('cmd-click');
+    await page.waitForSelector(rowSelector(id));
+    await clickRow(id, { metaKey: true });
+    await waitForOpenHere(url);
+    expect(await page.$$('.tab.selected')).toHaveLength(0);
+    expect(await windowTabsAt(ids.other, url)).toEqual([id]);
+});
+
+test('closing an entry closes its page in every window, so it leaves the list', async () => {
+    // Open only in the other window.
+    const only = await openInOther('closed-from-here');
+    await page.waitForSelector(rowSelector(only));
+    await page.$eval(`${rowSelector(only)} .tab-close`, button => button.click());
+    await page.waitForFunction(sel => !document.querySelector(sel), { polling: 100 }, rowSelector(only));
+    expect(await windowTabsAt(ids.other, `${base}/closed-from-here`)).toEqual([]);
+
+    // Open in both windows: one entry, and closing it closes both tabs.
+    const url = `${base}/in-both`;
+    const there = await openInOther('in-both');
+    const here = await page.evaluate(async url => (await chrome.tabs.create({ url, active: false })).id, url);
+    await page.waitForSelector(rowSelector(here));
+    await page.waitForFunction(sel => !document.querySelector(sel), { polling: 100 }, rowSelector(there));
+    await page.$eval(`${rowSelector(here)} .tab-close`, button => button.click());
+    await page.waitForFunction(
+        async ids =>
+            (
+                await Promise.all(
+                    ids.map(id =>
+                        chrome.tabs.get(id).then(
+                            () => true,
+                            () => false
+                        )
+                    )
+                )
+            ).every(open => !open),
+        { polling: 100, timeout: 5000 },
+        [here, there]
+    );
+    expect(await rowsOfPage(url)).toBe(0);
 });
 
 test('turning the setting off again goes back to this window’s own lists', async () => {
