@@ -93,6 +93,8 @@ import {
 import { createCloseFocus } from './features/close-tab/close-focus.js';
 import { displayedTabIds } from './features/close-tab/displayed-tabs.js';
 import { restoreAfterPick } from './features/close-tab/restore-after-pick.js';
+import { createClearedTabs } from './features/clean-all/restore-cleared-tab.js';
+import { createTabActivationHandler } from './features/tab-activation/tab-activation.js';
 import { BookmarkUtils } from '../shared/bookmark-utils.js';
 import { Logger } from '../shared/logger.js';
 import { MOUSE_BUTTON, CSS_CLASSES, TIMING } from '../shared/constants.js';
@@ -4116,6 +4118,7 @@ async function cleanTemporaryTabs(spaceId) {
         startPendingClean
     });
     // The tabs stay open but leave the list at once.
+    clearedTabs.remember(cleared);
     await adoptStoredSpaces(cleared.spaces);
 
     // Arc's Clear can be undone, and the tabs also stay in Archived.
@@ -4322,6 +4325,42 @@ const closeFocus = createCloseFocus({
         }).catch(error => Logger.warn('Could not restore the space after a close:', error))
 });
 
+// Tabs Clear is hiding come back one at a time when picked in Chrome's own tab strip.
+const clearedTabs = createClearedTabs({
+    removeArchivedTab: (url, spaceId) => Utils.removeArchivedTab(url, spaceId)
+});
+
+const handleTabActivated = createTabActivationHandler({
+    isCreatingSpace: () => isCreatingSpace,
+    getSpaces: () => spaces,
+    getActiveSpaceId: () => activeSpaceId,
+    setActiveSpaceId: spaceId => {
+        activeSpaceId = spaceId;
+    },
+    getActiveTabId: () => activeChromeTabId,
+    setActiveTabId: tabId => {
+        activeChromeTabId = tabId;
+    },
+    tabExists: tabId =>
+        chrome.tabs.get(tabId).then(
+            () => true,
+            () => false
+        ),
+    closeFocus,
+    clearedTabs,
+    adoptSpaces: next => adoptStoredSpaces(next),
+    saveSpaces,
+    clearSelection,
+    activateSpaceInDOM,
+    updateSpaceSwitcher,
+    refreshActiveSpaceUI,
+    activateTabInDOM,
+    showAllOpenTabsInCollapsedFolders: () => showAllOpenTabsInCollapsedFolders,
+    collapsedFolderShownTabs,
+    syncCollapsedFoldersInActiveSpace,
+    scrollToTab
+});
+
 async function handleTabRemove(tabId) {
     Logger.log('Tab removed:', tabId);
     closeFocus.noteRemoval(tabId);
@@ -4386,78 +4425,6 @@ async function handleTabRemove(tabId) {
 const processingTabMoves = new Set();
 // Chrome-pinned tabs being unpinned straight into a chosen space.
 const tabsMovingToChosenSpace = new Set();
-
-function handleTabActivated(activeInfo) {
-    if (isCreatingSpace) {
-        Logger.log('Skipping tab creation handler - space is being created');
-        return;
-    }
-    chrome.windows.getCurrent({ populate: false }, async currentWindow => {
-        if (activeInfo.windowId !== currentWindow.id) {
-            Logger.log('New tab is in a different window, ignoring...');
-            return;
-        }
-
-        Logger.log('Tab activated:', activeInfo);
-        // Find which space contains this tab
-        const { perSpacePinnedFavorites = false } = await chrome.storage.sync.get('perSpacePinnedFavorites');
-        const spaceWithTab = spaceForActivation(spaces, activeInfo.tabId, perSpacePinnedFavorites);
-        Logger.log('found space', spaceWithTab);
-
-        if (
-            spaceWithTab &&
-            (await closeFocus.stayAfterClose({
-                activatedTabId: activeInfo.tabId,
-                activatedSpaceId: spaceWithTab.id
-            }))
-        ) {
-            Logger.log('Active tab closed; staying in the current space');
-            return;
-        }
-        activeChromeTabId = activeInfo.tabId;
-
-        if (spaceWithTab) {
-            spaceWithTab.lastTab = activeInfo.tabId;
-            saveSpaces();
-            Logger.log('lasttab space', spaces);
-        }
-
-        if (spaceWithTab && spaceWithTab.id !== activeSpaceId) {
-            // Switch to the space containing the tab
-            clearSelection();
-            activeSpaceId = spaceWithTab.id;
-            await activateSpaceInDOM(spaceWithTab.id, spaces, updateSpaceSwitcher);
-            await refreshActiveSpaceUI();
-            activateTabInDOM(activeInfo.tabId);
-        } else {
-            // Activate only the tab in the current space
-            activateTabInDOM(activeInfo.tabId);
-        }
-
-        // Arc-like behavior: if this tab is inside a collapsed folder, add it to the folder's shown tabs set.
-        // This makes the tab stay visible in the collapsed folder until user manually opens/closes the folder.
-        if (!showAllOpenTabsInCollapsedFolders) {
-            const tabElement = document.querySelector(`.tab[data-tab-id="${activeInfo.tabId}"]`);
-            if (tabElement) {
-                const parentFolder = tabElement.closest('.folder');
-                if (parentFolder && parentFolder.classList.contains('collapsed')) {
-                    let shownTabIds = collapsedFolderShownTabs.get(parentFolder);
-                    if (!shownTabIds) {
-                        shownTabIds = new Set();
-                        collapsedFolderShownTabs.set(parentFolder, shownTabIds);
-                    }
-                    shownTabIds.add(activeInfo.tabId);
-                }
-            }
-        }
-
-        // Update collapsed-folder projections to follow Arc behavior (active-only) unless user enabled "show all open".
-        syncCollapsedFoldersInActiveSpace();
-
-        // Scroll to the activated tab's location
-        scrollToTab(activeInfo.tabId, 0);
-    });
-}
 
 function countBookmarks(node) {
     if (node.url) return 1;

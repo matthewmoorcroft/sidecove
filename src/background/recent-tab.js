@@ -1,4 +1,4 @@
-import { ownerOf, tabIds } from '../shared/space-store.js';
+import { spaceForActivation, tabIds } from '../shared/space-membership.js';
 import { Logger } from '../shared/logger.js';
 import { TabRecency } from './tab-recency.js';
 
@@ -8,8 +8,9 @@ const SAVE_DELAY_MS = 1000;
 
 // Activate the most recently used tab of the focused window's current space; pressing again
 // within the cycle window goes further back. `chromeApi` is passed in so tests can fake it,
-// and `readSpaces` returns the spaces without scanning bookmarks.
-export async function jumpToRecentTab({ chromeApi, readSpaces, recency, now }) {
+// `readSpaces` returns the spaces without scanning bookmarks, and `perSpaceFavorites` says
+// whether each space has its own favorites (off by default: they are shared).
+export async function jumpToRecentTab({ chromeApi, readSpaces, perSpaceFavorites = () => false, recency, now }) {
     const [window, spaces, session] = await Promise.all([
         chromeApi.windows.getLastFocused({ windowTypes: ['normal'] }),
         readSpaces(),
@@ -18,7 +19,11 @@ export async function jumpToRecentTab({ chromeApi, readSpaces, recency, now }) {
     const windowTabs = await chromeApi.tabs.query({ windowId: window.id });
     const active = windowTabs.find(tab => tab.active);
     if (!active) return null;
-    const space = ownerOf(spaces, active.id) || spaces.find(s => s.id === session?.activeSpaces?.[window.id]);
+    // Like the panel: a shared favorite belongs to no space here, so the shortcut stays in the
+    // space shown instead of jumping into the favorite's owner.
+    const space =
+        spaceForActivation(spaces, active.id, perSpaceFavorites()) ||
+        spaces.find(s => s.id === session?.activeSpaces?.[window.id]);
     if (!space) return null;
     const owned = new Set(tabIds(space));
     const candidates = windowTabs.map(tab => tab.id).filter(id => owned.has(id));
@@ -83,6 +88,7 @@ export function registerRecentTab({ chromeApi = chrome, spaceStore, now = Date.n
                 await jumpToRecentTab({
                     chromeApi,
                     readSpaces: () => spaceStore.run(() => spaceStore.spaces),
+                    perSpaceFavorites: () => spaceStore.perSpacePinnedFavorites,
                     recency,
                     now: pressedAt
                 });

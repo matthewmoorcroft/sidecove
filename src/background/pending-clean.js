@@ -146,6 +146,23 @@ export function registerPendingClean({
         return { restored: back.map(tab => tab.tabId), spaces };
     }
 
+    // Bring back one hidden tab, leaving the rest of its batch to close on time. It is what
+    // picking a hidden tab in Chrome's own tab strip asks for.
+    async function restoreTab({ tabId }) {
+        const batch = [...batches.values()].find(candidate => candidate.tabs.some(tab => tab.tabId === tabId));
+        if (!batch) return { restored: [], spaces: await spaceStore.dispatch({ action: 'get' }) };
+        const tab = batch.tabs.find(candidate => candidate.tabId === tabId);
+        batch.tabs = batch.tabs.filter(candidate => candidate !== tab);
+        if (batch.tabs.length) await save();
+        else await forget(batch);
+        // Chrome closed it meanwhile: nothing to show, and nothing left to close.
+        if (!(await openIds([tabId])).length)
+            return { restored: [], spaces: await spaceStore.dispatch({ action: 'get' }) };
+        const spaces = await showAgain(batch, [tabId]);
+        await restoreSound([tab], '[Clean All] Could not restore the sound of a tab:');
+        return { restored: [tabId], spaces };
+    }
+
     const ready = (async () => {
         const stored = (await chromeApi.storage.session.get(PENDING_CLEAN_KEY))?.[PENDING_CLEAN_KEY];
         for (const batch of stored || []) batches.set(batch.id, batch);
@@ -155,7 +172,7 @@ export function registerPendingClean({
         }
     })().catch(error => Logger.warn('[Clean All] Could not resume the pending closes:', error));
 
-    const actions = { start, undo };
+    const actions = { start, undo, restoreTab };
     chromeApi.runtime.onMessage.addListener((message, sender, sendResponse) => {
         if (message?.type !== PENDING_CLEAN_MESSAGE || !actions[message.action]) return;
         ready

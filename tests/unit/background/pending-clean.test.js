@@ -129,6 +129,44 @@ test('Undo shows the same tabs again with their sound as it was, and nothing clo
     assert.equal(tabs.length, 4);
 });
 
+test('one hidden tab can come back alone: it is not closed, and the rest still are', async () => {
+    await start();
+    tabs[0].mutedInfo.muted = true; // muted by the user before Clean All
+    await clear([1, 2, 3]);
+    const reply = await send({ action: 'restoreTab', tabId: 1 });
+    assert.deepEqual(reply.restored, [1]);
+    assert.deepEqual(dispatched[1], { action: 'unhide', tabIds: [1], spaceId: 'home', order: [1, 2, 3, 4] });
+    assert.deepEqual(
+        tabs.map(t => t.mutedInfo.muted),
+        [true, true, true, false]
+    );
+    await advance(DUE);
+    assert.deepEqual(
+        tabs.map(t => t.id),
+        [1, 4]
+    );
+});
+
+test('the last hidden tab coming back leaves nothing to close later', async () => {
+    await start();
+    await clear([2]);
+    assert.deepEqual((await send({ action: 'restoreTab', tabId: 2 })).restored, [2]);
+    assert.deepEqual(session[PENDING_CLEAN_KEY], []);
+    await advance(DUE * 2);
+    assert.equal(tabs.length, 4);
+});
+
+test('a tab that is not waiting to close is not restored', async () => {
+    await start();
+    await clear([1]);
+    assert.deepEqual((await send({ action: 'restoreTab', tabId: 4 })).restored, []);
+    await advance(DUE);
+    assert.deepEqual(
+        tabs.map(t => t.id),
+        [2, 3, 4]
+    );
+});
+
 test('Undo after the tabs closed reports nothing restored, so the sidebar can reopen them', async () => {
     await start();
     const { batchId } = await clear([1, 2]);
