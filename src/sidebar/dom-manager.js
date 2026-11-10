@@ -17,6 +17,7 @@ import { Utils } from '../shared/utils.js';
 import { RESTORE_ICON } from './icons.js';
 import { Logger } from '../shared/logger.js';
 import { setSpaceColorVars } from './features/color-overrides/space-color-vars.js';
+import { positionSubmenu } from './features/context-menu/position-submenu.js';
 
 // DOM Elements
 const spacesList = document.getElementById('spacesList');
@@ -588,6 +589,7 @@ export function showMenu(x, y, entries, id = 'tab-context-menu') {
                 submenu.className = 'context-menu submenu';
                 fill(submenu, entry.submenu);
                 item.appendChild(submenu);
+                item.addEventListener('mouseenter', () => positionSubmenu(item, submenu));
                 container.appendChild(item);
             } else {
                 addMenuItem(container, entry.label, async () => {
