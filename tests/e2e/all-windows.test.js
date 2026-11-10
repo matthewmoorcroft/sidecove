@@ -32,6 +32,9 @@ const setToggle = async (id, on) => {
 const switchTo = async spaceId => {
     await page.evaluate(id => document.querySelector(`#spaceSwitcher button[data-space-id="${id}"]`).click(), spaceId);
     await page.waitForSelector(`.space.active[data-space-id="${spaceId}"]`);
+    // Let the switch's own activations settle: the space's last tab, and an empty New Tab left
+    // behind in the space you came from closing.
+    await new Promise(resolve => setTimeout(resolve, 500));
 };
 const waitForActive = (tabId, windowId) =>
     page.waitForFunction(
@@ -197,6 +200,8 @@ test('picking a tab open only in another window opens it here and leaves that wi
     const url = `${base}/other-tab`;
     await page.evaluate(id => chrome.tabs.update(id, { active: true }), ids.otherPin);
     await waitForActive(ids.otherPin, ids.other);
+    await page.evaluate(id => chrome.tabs.update(id, { active: true }), ids.own);
+    await waitForActive(ids.own, ids.here);
     expect(await windowTabsAt(ids.here, url)).toEqual([]);
 
     await clickRow(ids.otherTab);
