@@ -64,7 +64,6 @@ export function registerPendingClean({
     async function finish(batchId) {
         const batch = batches.get(batchId);
         if (!batch) return;
-        await forget(batch);
         const wanted = new Set(batch.tabs.map(tab => tab.tabId));
         const live = (await chromeApi.tabs.query({})).filter(tab => wanted.has(tab.id));
         // A tab pinned meanwhile (from Chrome's own tab strip) is a favourite again, never to be closed.
@@ -80,22 +79,25 @@ export function registerPendingClean({
                 for (const id of await openIds(closing)) keep.add(id);
             }
         }
-        if (!keep.size) return;
-        // Clear put every tab in Archived; one that stays open is not archived.
-        await Promise.all(
-            live
-                .filter(tab => keep.has(tab.id))
-                .map(tab =>
-                    removeArchivedTab(tab.url, batch.spaceId).catch(error =>
-                        Logger.warn('[Clean All] Could not take a kept tab out of Archived:', error)
+        if (keep.size) {
+            // Clear put every tab in Archived; one that stays open is not archived.
+            await Promise.all(
+                live
+                    .filter(tab => keep.has(tab.id))
+                    .map(tab =>
+                        removeArchivedTab(tab.url, batch.spaceId).catch(error =>
+                            Logger.warn('[Clean All] Could not take a kept tab out of Archived:', error)
+                        )
                     )
-                )
-        );
-        await showAgain(batch, [...keep]);
-        await restoreSound(
-            batch.tabs.filter(tab => keep.has(tab.tabId)),
-            '[Clean All] Could not restore the sound of a tab:'
-        );
+            );
+            await showAgain(batch, [...keep]);
+            await restoreSound(
+                batch.tabs.filter(tab => keep.has(tab.tabId)),
+                '[Clean All] Could not restore the sound of a tab:'
+            );
+        }
+        // Forgotten last: a worker that stops before this still finds the record and finishes the close.
+        await forget(batch);
     }
 
     async function start({ spaceId, tabIds, order }) {

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { registerPendingClean, PENDING_CLEAN_KEY } from '../../../src/background/pending-clean.js';
 import { PENDING_CLEAN_MESSAGE, UNDO_WINDOW_MS, CLOSE_GRACE_MS } from '../../../src/shared/pending-clean.js';
 
-let archiveRemoved, tabs, session, dispatched, clock, timers, listener, removeError, hideError;
+let recordWhenClosing, archiveRemoved, tabs, session, dispatched, clock, timers, listener, removeError, hideError;
 const DUE = UNDO_WINDOW_MS + CLOSE_GRACE_MS;
 
 const chromeApi = () => ({
@@ -15,6 +15,7 @@ const chromeApi = () => ({
             tab.mutedInfo = { muted: props.muted };
         },
         remove: async ids => {
+            recordWhenClosing = structuredClone(session[PENDING_CLEAN_KEY]);
             if (removeError) throw removeError;
             tabs = tabs.filter(t => !ids.includes(t.id));
         }
@@ -287,4 +288,12 @@ test('a hidden tab pinned in the meantime is shown again with its sound, and onl
     assert.equal(tabs[0].mutedInfo.muted, false);
     // It stays open, so it is no longer in Archived.
     assert.deepEqual(archiveRemoved, [['https://two.test/', 'home']]);
+});
+
+test('the pending close is still on record while the tabs close, so a worker that stops then can finish it', async () => {
+    await start();
+    await clear([1, 2]);
+    await advance(DUE);
+    assert.equal(recordWhenClosing.length, 1);
+    assert.deepEqual(session[PENDING_CLEAN_KEY], []);
 });
