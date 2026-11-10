@@ -89,7 +89,7 @@ export default [
     },
     {
         // Browser tests: Jest globals, and page callbacks that run inside the extension.
-        files: ['tests/e2e/**/*.js'],
+        files: ['tests/e2e/**/*.js', 'tests/manual/**/*.js'],
         languageOptions: { globals: { ...globals.jest, ...globals.browser, ...globals.webextensions } }
     },
     {

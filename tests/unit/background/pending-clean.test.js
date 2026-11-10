@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { registerPendingClean, PENDING_CLEAN_KEY } from '../../../src/background/pending-clean.js';
 import { PENDING_CLEAN_MESSAGE, UNDO_WINDOW_MS, CLOSE_GRACE_MS } from '../../../src/shared/pending-clean.js';
 
-let tabs, session, dispatched, clock, timers, listener, removeError, hideError;
+let recordWhenClosing, archiveRemoved, tabs, session, dispatched, clock, timers, listener, removeError, hideError;
 const DUE = UNDO_WINDOW_MS + CLOSE_GRACE_MS;
 
 const chromeApi = () => ({
@@ -15,6 +15,7 @@ const chromeApi = () => ({
             tab.mutedInfo = { muted: props.muted };
         },
         remove: async ids => {
+            recordWhenClosing = structuredClone(session[PENDING_CLEAN_KEY]);
             if (removeError) throw removeError;
             tabs = tabs.filter(t => !ids.includes(t.id));
         }
@@ -56,6 +57,7 @@ const start = async () => {
     const api = registerPendingClean({
         chromeApi: chromeApi(),
         spaceStore: spaceStore(),
+        removeArchivedTab: async (url, spaceId) => archiveRemoved.push([url, spaceId]),
         now: () => clock,
         setTimer,
         clearTimer
@@ -74,6 +76,7 @@ beforeEach(() => {
     tabs = [1, 2, 3, 4].map(id => ({ id, mutedInfo: { muted: false } }));
     session = {};
     dispatched = [];
+    archiveRemoved = [];
     clock = 1_000_000;
     timers = [];
     removeError = undefined;
@@ -269,4 +272,28 @@ test('messages for other features are left alone', async () => {
         listener({ type: PENDING_CLEAN_MESSAGE, action: 'unknown' }, {}, () => {}),
         undefined
     );
+});
+
+test('a hidden tab pinned in the meantime is shown again with its sound, and only the others are closed', async () => {
+    await start();
+    await clear([1, 2, 3]);
+    tabs[1].pinned = true;
+    tabs[1].url = 'https://two.test/';
+    await advance(DUE);
+    assert.deepEqual(
+        tabs.map(t => t.id),
+        [2, 4]
+    );
+    assert.deepEqual(dispatched.at(-1), { action: 'unhide', tabIds: [2], spaceId: 'home', order: [1, 2, 3, 4] });
+    assert.equal(tabs[0].mutedInfo.muted, false);
+    // It stays open, so it is no longer in Archived.
+    assert.deepEqual(archiveRemoved, [['https://two.test/', 'home']]);
+});
+
+test('the pending close is still on record while the tabs close, so a worker that stops then can finish it', async () => {
+    await start();
+    await clear([1, 2]);
+    await advance(DUE);
+    assert.equal(recordWhenClosing.length, 1);
+    assert.deepEqual(session[PENDING_CLEAN_KEY], []);
 });

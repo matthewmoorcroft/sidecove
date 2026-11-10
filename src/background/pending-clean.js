@@ -1,4 +1,5 @@
 import { Logger } from '../shared/logger.js';
+import { Utils } from '../shared/utils.js';
 import { PENDING_CLEAN_MESSAGE, UNDO_WINDOW_MS, CLOSE_GRACE_MS } from '../shared/pending-clean.js';
 
 export const PENDING_CLEAN_KEY = 'pendingCleans'; // storage.session: tab ids end with the browser session.
@@ -11,6 +12,7 @@ export const PENDING_CLEAN_KEY = 'pendingCleans'; // storage.session: tab ids en
 export function registerPendingClean({
     chromeApi = chrome,
     spaceStore,
+    removeArchivedTab = (url, spaceId) => Utils.removeArchivedTab(url, spaceId),
     now = Date.now,
     setTimer = setTimeout,
     clearTimer = clearTimeout
@@ -62,24 +64,40 @@ export function registerPendingClean({
     async function finish(batchId) {
         const batch = batches.get(batchId);
         if (!batch) return;
-        await forget(batch);
-        const ids = await openIds(batch.tabs.map(tab => tab.tabId));
-        if (!ids.length) return;
-        try {
-            await chromeApi.tabs.remove(ids);
-        } catch (error) {
-            // Chrome refused (a tab is being dragged, say). A tab that cannot be closed comes
-            // back to the list rather than staying hidden.
-            Logger.warn('[Clean All] Could not close the hidden tabs; showing them again:', error);
-            const left = new Set(await openIds(ids));
-            if (left.size) {
-                await showAgain(batch, [...left]);
-                await restoreSound(
-                    batch.tabs.filter(tab => left.has(tab.tabId)),
-                    '[Clean All] Could not restore the sound of a tab:'
-                );
+        const wanted = new Set(batch.tabs.map(tab => tab.tabId));
+        const live = (await chromeApi.tabs.query({})).filter(tab => wanted.has(tab.id));
+        // A tab pinned meanwhile (from Chrome's own tab strip) is a favourite again, never to be closed.
+        const keep = new Set(live.filter(tab => tab.pinned).map(tab => tab.id));
+        const closing = live.map(tab => tab.id).filter(id => !keep.has(id));
+        if (closing.length) {
+            try {
+                await chromeApi.tabs.remove(closing);
+            } catch (error) {
+                // Chrome refused (a tab is being dragged, say). A tab that cannot be closed comes
+                // back to the list rather than staying hidden.
+                Logger.warn('[Clean All] Could not close the hidden tabs; showing them again:', error);
+                for (const id of await openIds(closing)) keep.add(id);
             }
         }
+        if (keep.size) {
+            // Clear put every tab in Archived; one that stays open is not archived.
+            await Promise.all(
+                live
+                    .filter(tab => keep.has(tab.id))
+                    .map(tab =>
+                        removeArchivedTab(tab.url, batch.spaceId).catch(error =>
+                            Logger.warn('[Clean All] Could not take a kept tab out of Archived:', error)
+                        )
+                    )
+            );
+            await showAgain(batch, [...keep]);
+            await restoreSound(
+                batch.tabs.filter(tab => keep.has(tab.tabId)),
+                '[Clean All] Could not restore the sound of a tab:'
+            );
+        }
+        // Forgotten last: a worker that stops before this still finds the record and finishes the close.
+        await forget(batch);
     }
 
     async function start({ spaceId, tabIds, order }) {

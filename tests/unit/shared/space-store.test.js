@@ -709,3 +709,31 @@ test("hiding a tab forgets it as the space's last tab, and unhiding nothing leav
     await store.dispatch({ action: 'unhide', tabIds: [], spaceId: 'a', order: [1, 5, 3] });
     assert.deepEqual(store.spaces[0].temporaryTabs, [5, 1]);
 });
+
+test('a hidden tab is not queued to come back when its window closes', async () => {
+    tabs.push({ id: 3, windowId: 1, url: 'https://three.test/' });
+    local.spaces[0].temporaryTabs = [1, 3];
+    const store = new SpaceStore();
+    store.install();
+    await store.dispatch({ action: 'get' });
+    await store.dispatch({ action: 'hide', tabIds: [3] });
+    tabs = tabs.filter(t => t.id !== 3);
+    chrome.tabs.onRemoved.emit(3, { isWindowClosing: true });
+    await store.run(() => {});
+    assert.equal(
+        store.restoreQueue.some(t => t.url === 'https://three.test/'),
+        false
+    );
+});
+
+test('a hidden tab pinned in the meantime comes back with the pinned tabs', async () => {
+    tabs.push({ id: 3, windowId: 1, url: 'https://three.test/' }, { id: 4, windowId: 1, url: 'https://four.test/' });
+    local.spaces[0].temporaryTabs = [1, 3, 4];
+    const store = new SpaceStore();
+    await store.dispatch({ action: 'get' });
+    await store.dispatch({ action: 'hide', tabIds: [3, 4] });
+    tabs[2].pinned = true;
+    await store.dispatch({ action: 'unhide', tabIds: [3, 4], spaceId: 'a', order: [1, 3, 4] });
+    assert.deepEqual(local.spaces[0].temporaryTabs, [1, 4]);
+    assert.deepEqual(local.spaces[0].pinnedTabs, [3]);
+});

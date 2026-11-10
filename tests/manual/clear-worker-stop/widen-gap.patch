@@ -1,0 +1,11 @@
+diff --git a/src/background/pending-clean.js b/src/background/pending-clean.js
+--- a/src/background/pending-clean.js
++++ b/src/background/pending-clean.js
+@@ -64,6 +64,7 @@
+     async function finish(batchId) {
+         const batch = batches.get(batchId);
+         if (!batch) return;
++        await new Promise(resolve => setTimeout(resolve, 3000)); // widen the gap for the manual check
+         const wanted = new Set(batch.tabs.map(tab => tab.tabId));
+         const live = (await chromeApi.tabs.query({})).filter(tab => wanted.has(tab.id));
+         // A tab pinned meanwhile (from Chrome's own tab strip) is a favourite again, never to be closed.
