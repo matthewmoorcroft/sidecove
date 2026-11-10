@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { placeLinkTab } from '../../../src/shared/link-tab-placement.js';
+import { placeLinkTab, LinkTails } from '../../../src/shared/link-tab-placement.js';
 
 // Stored lists are in Chrome order. The side panel draws them reversed when inverted.
 const onScreen = (ids, inverted) => (inverted ? [...ids].reverse() : ids);
@@ -85,4 +85,79 @@ test('the list given is not changed', () => {
     const ids = [1, 2, 3];
     placeLinkTab(ids, 2, 9, undefined, true);
     assert.deepEqual(ids, [1, 2, 3]);
+});
+
+// The stored list is in Chrome order; these use setting off, so it is also the screen order.
+test('LinkTails: links from one tab stack beneath it, and a link from a link joins the group', () => {
+    const tails = new LinkTails();
+    let stored = tails.place([1, 2, 3], 2, 10, false);
+    stored = tails.place(stored, 10, 11, false);
+    stored = tails.place(stored, 2, 12, false);
+    assert.deepEqual(stored, [1, 2, 10, 11, 12, 3]);
+});
+
+test('LinkTails: switching to the tab starts its links again directly beneath it', () => {
+    const tails = new LinkTails();
+    let stored = tails.place([1, 2, 3], 2, 10, false);
+    tails.switchedTo(2);
+    stored = tails.place(stored, 2, 11, false);
+    assert.deepEqual(stored, [1, 2, 11, 10, 3]);
+});
+
+test('LinkTails: a last link dragged away from the tab no longer decides where the next goes', () => {
+    for (const inverted of [true, false]) {
+        const tails = new LinkTails();
+        tails.place([1, 2, 3], 2, 10, inverted);
+        // Link 10 was dragged to the end of the screen.
+        const dragged = onScreen(inverted ? [3, 2, 1, 10] : [1, 2, 3, 10], inverted);
+        const stored = tails.place(dragged, 2, 11, inverted);
+        assert.deepEqual(onScreen(stored, inverted), inverted ? [3, 2, 11, 1, 10] : [1, 2, 11, 3, 10]);
+    }
+});
+
+test('LinkTails: a last link dragged away and then closed leaves the next one under the tab', () => {
+    const tails = new LinkTails();
+    tails.place([1, 2, 3], 2, 10, false);
+    // Link 10 is dragged to the end, then closed.
+    tails.closed(10);
+    assert.deepEqual(tails.place([1, 2, 3], 2, 11, false), [1, 2, 11, 3]);
+});
+
+test('LinkTails: closing the last of several links puts the next one after those still beneath the tab', () => {
+    const tails = new LinkTails();
+    let stored = tails.place([1, 2, 3], 2, 10, false);
+    stored = tails.place(stored, 2, 11, false);
+    tails.closed(11);
+    stored = tails.place(
+        stored.filter(id => id !== 11),
+        2,
+        12,
+        false
+    );
+    assert.deepEqual(stored, [1, 2, 10, 12, 3]);
+});
+
+test('LinkTails: a link kept beneath the tab still counts after the one before it is dragged away', () => {
+    const tails = new LinkTails();
+    const stored = tails.place([1, 2, 3], 2, 10, false);
+    tails.place(stored, 2, 11, false);
+    // Link 10 is dragged to the end; 11 is now directly beneath the tab.
+    assert.deepEqual(tails.place([1, 2, 11, 3, 10], 2, 12, false), [1, 2, 11, 12, 3, 10]);
+});
+
+test('LinkTails: links from an opener outside the list go to the top in opening order', () => {
+    const tails = new LinkTails();
+    let stored = tails.place([1, 2, 3], 99, 10, false);
+    stored = tails.place(stored, 99, 11, false);
+    assert.deepEqual(stored, [10, 11, 1, 2, 3]);
+});
+
+test('LinkTails: entries survive being saved and loaded, and the older one-tail form is read', () => {
+    const tails = new LinkTails();
+    let stored = tails.place([1, 2, 3], 2, 10, false);
+    stored = tails.place(stored, 2, 11, false);
+    const reloaded = new LinkTails(tails.entries());
+    assert.deepEqual(reloaded.place(stored, 2, 12, false), [1, 2, 10, 11, 12, 3]);
+    const older = new LinkTails([[2, 10]]);
+    assert.deepEqual(older.place([1, 2, 10, 3], 2, 12, false), [1, 2, 10, 12, 3]);
 });
