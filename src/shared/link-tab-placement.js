@@ -25,3 +25,72 @@ export function placeLinkTab(ids, openerId, newId, tailId, inverted) {
     screen.splice(screen.indexOf(after) + 1, 0, newId);
     return inverted ? screen.reverse() : screen;
 }
+
+/**
+ * Remembers, for each opener, the links opened from it since it was last switched to, and works
+ * out where the next one goes. A link only counts as "the last one" while the links sit in an
+ * unbroken run directly beneath their opener: drag one away, or close it, and the next link goes
+ * under the opener again (or after the links still under it).
+ */
+export class LinkTails {
+    /** @param {Array<[number, number[]]>} [entries] as given by `entries()` */
+    constructor(entries = []) {
+        this.links = new Map((entries || []).map(([opener, ids]) => [opener, [...ids]]));
+    }
+
+    entries() {
+        return [...this.links];
+    }
+
+    /**
+     * @param {number[]} ids stored list the link is added to (not changed)
+     * @param {boolean} inverted whether the list is drawn reversed
+     * @returns {number[]} the new stored list
+     */
+    place(ids, openerId, newId, inverted) {
+        const stored = placeLinkTab(ids, openerId, newId, this.#lastBeneath(ids, openerId, inverted), inverted);
+        // A link from a link stays with the group of the tab that opened the first one.
+        for (const links of this.links.values()) if (links.includes(openerId)) links.push(newId);
+        if (!this.links.has(openerId)) this.links.set(openerId, []);
+        this.links.get(openerId).push(newId);
+        return stored;
+    }
+
+    /** The user came back to this tab: its next link goes directly beneath it. */
+    switchedTo(openerId) {
+        this.links.delete(openerId);
+    }
+
+    /** A tab closed. */
+    closed(id) {
+        this.links.delete(id);
+        for (const [opener, links] of this.links) {
+            if (!links.includes(id)) continue;
+            const rest = links.filter(link => link !== id);
+            if (rest.length) this.links.set(opener, rest);
+            else this.links.delete(opener);
+        }
+    }
+
+    /** Chrome swapped a tab for another (a prerendered page, say) and the new one takes its place. */
+    replaced(added, removed) {
+        if (this.links.has(removed)) {
+            this.links.set(added, this.links.get(removed));
+            this.links.delete(removed);
+        }
+        for (const links of this.links.values()) {
+            const at = links.indexOf(removed);
+            if (at !== -1) links[at] = added;
+        }
+    }
+
+    #lastBeneath(ids, openerId, inverted) {
+        const links = new Set(this.links.get(openerId));
+        const screen = inverted ? [...ids].reverse() : ids;
+        // An opener outside the list (indexOf -1) has its links from the top of the list.
+        let at = screen.indexOf(openerId);
+        let last;
+        while (links.has(screen[at + 1])) last = screen[++at];
+        return last;
+    }
+}

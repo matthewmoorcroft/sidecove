@@ -4,7 +4,8 @@
  * opening order while you stay on it. As in Chrome, switching to another tab and back starts
  * again: the next link goes directly below the tab. The "Show new tabs at the top" setting
  * does not matter. A link opened from a favourite goes to the top of the tab list. New tabs
- * still obey the setting.
+ * still obey the setting. A link dragged away from its tab, or closed, does not decide where
+ * the next one lands (issue 59).
  */
 import { createServer } from 'node:http';
 import { launchBrowserWithExtension, openSidebar } from './helpers/extension-helper.js';
@@ -229,4 +230,50 @@ describe('Link tab order', () => {
         },
         90000
     );
+
+    // Drops one row on the lower half of another, so it lands below it.
+    async function dragBelow(sourceName, targetName) {
+        const idOf = name =>
+            sidebar.evaluate(async name => (await chrome.tabs.query({ url: `*://127.0.0.1/${name}` }))[0]?.id, name);
+        const [source, target] = [await idOf(sourceName), await idOf(targetName)];
+        await sidebar.evaluate(
+            ({ source, target }) => {
+                const from = document.querySelector(`.tab[data-tab-id="${source}"]`);
+                const to = document.querySelector(`.tab[data-tab-id="${target}"]`);
+                const dataTransfer = new DataTransfer();
+                const box = to.getBoundingClientRect();
+                const point = { clientX: box.left + box.width / 2, clientY: box.bottom - 3 };
+                from.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer }));
+                to.dispatchEvent(
+                    new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer, ...point })
+                );
+                to.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer, ...point }));
+                from.dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer }));
+            },
+            { source, target }
+        );
+    }
+
+    test('after its last link is dragged to the bottom, the next link goes directly below the tab', async () => {
+        await start(false);
+        await cmdClick(pages.t2, '#c1');
+        await dragBelow('c1', 't3');
+        await expectListed(['t1', 't2', 't3', 'c1']);
+        await cmdClick(pages.t2, '#c2');
+        await expectListed(['t1', 't2', 'c2', 't3', 'c1']);
+    }, 90000);
+
+    test('after its last link is dragged under another tab and closed, the next link goes below the tab', async () => {
+        await start(false);
+        await cmdClick(pages.t2, '#c1');
+        await dragBelow('c1', 't3');
+        await expectListed(['t1', 't2', 't3', 'c1']);
+        await sidebar.evaluate(async () => {
+            const [tab] = await chrome.tabs.query({ url: '*://127.0.0.1/c1' });
+            await chrome.tabs.remove(tab.id);
+        });
+        await expectListed(['t1', 't2', 't3']);
+        await cmdClick(pages.t2, '#c2');
+        await expectListed(['t1', 't2', 'c2', 't3']);
+    }, 90000);
 });
