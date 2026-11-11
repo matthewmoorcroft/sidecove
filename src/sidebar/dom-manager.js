@@ -18,6 +18,8 @@ import { RESTORE_ICON } from './icons.js';
 import { Logger } from '../shared/logger.js';
 import { setSpaceColorVars } from './features/color-overrides/space-color-vars.js';
 import { positionSubmenu } from './features/context-menu/position-submenu.js';
+import { fillSpaceMenuItem } from './features/context-menu/space-menu-item.js';
+import { drawSpaceIcon } from './features/space-icons/draw-space-icon.js';
 
 // DOM Elements
 const spacesList = document.getElementById('spacesList');
@@ -311,7 +313,7 @@ export function showTabContextMenu(
         otherActiveSpaces.forEach(space => {
             const submenuItem = document.createElement('div');
             submenuItem.className = 'context-menu-item';
-            submenuItem.textContent = space.name;
+            fillSpaceMenuItem(submenuItem, space.name, space.icon, drawSpaceIcon);
             submenuItem.addEventListener('click', async e => {
                 e.stopPropagation();
                 contextMenu.remove(); // Close menu immediately for better UX
@@ -350,7 +352,7 @@ export function showTabContextMenu(
         inactiveSpaceFolders.forEach(folder => {
             const submenuItem = document.createElement('div');
             submenuItem.className = 'context-menu-item';
-            submenuItem.textContent = folder.title;
+            fillSpaceMenuItem(submenuItem, folder.title, folder.icon, drawSpaceIcon);
             submenuItem.addEventListener('click', e => {
                 e.stopPropagation();
                 createSpaceFromInactive(folder.title, tab);

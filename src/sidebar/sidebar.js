@@ -73,6 +73,7 @@ import {
     SPACE_ICON_PLACEHOLDER
 } from './icons.js';
 import { normalizeSpaceIcon, spaceSymbol, searchSpaceIcons, isTypedEmoji } from './space-icons.js';
+import { drawSpaceIcon } from './features/space-icons/draw-space-icon.js';
 import { audioState } from './tab-audio.js';
 import { Selection, selectionGesture } from './selection.js';
 import { searchEntries } from './tab-search.js';
@@ -971,25 +972,15 @@ function createSpaceElement(space) {
     }
 }
 
-// Draws an icon into element: a symbol as an SVG in the current text colour, anything else
-// as text. Symbols are built from Sidecove's own shape data, never from markup.
-function drawSpaceIcon(element, icon) {
-    const symbol = spaceSymbol(icon);
-    if (!symbol) {
-        element.textContent = icon;
-        return;
-    }
-    const ns = 'http://www.w3.org/2000/svg';
-    const svg = document.createElementNS(ns, 'svg');
-    svg.setAttribute('viewBox', '0 0 24 24');
-    svg.setAttribute('class', 'space-symbol');
-    svg.setAttribute('aria-hidden', 'true');
-    for (const [tag, attrs] of symbol.nodes) {
-        const shape = document.createElementNS(ns, tag);
-        for (const [name, value] of Object.entries(attrs)) shape.setAttribute(name, value);
-        svg.appendChild(shape);
-    }
-    element.replaceChildren(svg);
+// The Sidecove folders under the root, each with the icon its space last had (kept in the
+// registry, so a space that is not open still shows it).
+async function listSpaceFoldersWithIcons() {
+    const root = await LocalStorage.getOrCreateSidecoveFolder();
+    const [folders, registry] = await Promise.all([
+        chrome.bookmarks.getChildren(root.id),
+        LocalStorage.getSpaceRegistry()
+    ]);
+    return folders.map(folder => ({ ...folder, icon: registry[folder.id]?.icon || null }));
 }
 
 function renderSpaceIconButton(button, space) {
@@ -3579,9 +3570,7 @@ async function createTabElement(tab, isPinned = false, isBookmarkOnly = false) {
                       live => Boolean(live.mutedInfo?.muted),
                       () => false
                   ),
-            otherWindow
-                ? []
-                : LocalStorage.getOrCreateSidecoveFolder().then(folder => chrome.bookmarks.getChildren(folder.id))
+            otherWindow ? [] : listSpaceFoldersWithIcons()
         ]);
         if (otherWindow) {
             const entries = otherWindowMenuEntries({
