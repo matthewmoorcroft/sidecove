@@ -21,6 +21,7 @@ const event = () => {
 
 function setup({
     allWindows,
+    stored = {},
     tabs = [],
     spaces = [{ id: 'home', pinnedTabs: [], spaceBookmarks: [], temporaryTabs: [] }]
 }) {
@@ -30,7 +31,7 @@ function setup({
     const chrome = {
         runtime: { getURL: path => `chrome-extension://sidecove/${path}`, onMessage: event() },
         storage: {
-            local: area({ spaces }),
+            local: area({ spaces, ...stored }),
             session: area(),
             sync: area(allWindows === undefined ? {} : { showTabsFromAllWindows: allWindows }),
             onChanged: event()
@@ -174,4 +175,24 @@ test('only its own messages get an answer', async () => {
         success: false,
         error: 'Unknown saved favorites action'
     });
+});
+
+test('with the setting off after a restart, unpinning a saved favorite still removes it', async () => {
+    const { chrome, live, settle, local } = setup({
+        allWindows: false,
+        stored: {
+            savedFavorites: [{ id: 'f1', url: 'https://a/', title: 'A', spaceId: 'home' }],
+            favoriteTabs: [{ tabId: 9, favoriteId: 'f1', windowId: 1, url: 'https://a/' }]
+        },
+        tabs: [pin(1, 1, 'https://a/'), pin(2, 1, 'https://b/')]
+    });
+    await settle();
+    assert.deepEqual(
+        local.savedFavorites.map(f => f.url),
+        ['https://a/']
+    );
+    live.get(1).pinned = false;
+    chrome.tabs.onUpdated.listeners[0](1, { pinned: false }, live.get(1));
+    await settle();
+    assert.deepEqual(local.savedFavorites, []);
 });

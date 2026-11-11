@@ -294,6 +294,9 @@ export function createPinnedFavorites({
                             }
                         }
 
+                        // Read before any await: redraws while pinning can move or remove afterElement.
+                        const beforeId = favoriteIdBefore(afterElement, position);
+
                         // Only the dragged tab is pinned; the rest of a selection stays where it was.
                         clearSelection();
 
@@ -309,8 +312,7 @@ export function createPinnedFavorites({
                             }
                         }
 
-                        if (showsSavedList())
-                            await request('place', { tabId, beforeId: favoriteIdBefore(afterElement, position) });
+                        if (showsSavedList()) await request('place', { tabId, beforeId });
 
                         // Step 3: Update the favicon display
                         updatePinnedFavicons();

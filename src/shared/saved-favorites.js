@@ -8,8 +8,8 @@
 //     tab can browse away from. `spaceId` is the space it belongs to with separate favorites.
 //   tabs: [{ tabId, favoriteId, windowId, url }], the pinned tabs that stand for a favorite, at
 //     most one per window. `url` is the tab's latest page, to recognise it after a restart.
-//   restore: [{ favoriteId, url }], tabs from a closed window or the last session that Chrome
-//     may bring back, under the page they last showed.
+//   restore: [{ favoriteId, url }], closed tabs (or last session's) that Chrome may bring back,
+//     under the page they last showed.
 
 export const ALL_WINDOWS_SETTING = 'showTabsFromAllWindows';
 export const SAVED_FAVORITES_KEY = 'savedFavorites';
@@ -19,7 +19,8 @@ export const SAVED_FAVORITES_MESSAGE = 'savedFavorites';
 
 const RESTORE_LIMIT = 100;
 
-const pageOf = tab => tab?.url || tab?.pendingUrl || '';
+// The page a tab shows.
+export const pageOf = tab => tab?.url || tab?.pendingUrl || '';
 
 export const stateFrom = stored => ({
     favorites: stored?.[SAVED_FAVORITES_KEY] || [],
@@ -42,26 +43,41 @@ export function bindTab(state, tab, favoriteId) {
 }
 
 // A pinned tab in a normal window. A tab already standing for a favorite keeps it and refreshes
-// its window, page and, while on the saved page, the title. Otherwise it takes the favorite it was
-// before a restart or a closed window, else a favorite saved on its page that has no tab in its
-// window yet, else it becomes a new favorite at the end. So the same page pinned in two windows
-// is one favorite, and binding the same pins again changes nothing.
-export function bindPin(state, tab, { spaceId = null, newId }) {
+// its window, page and, while on the saved page (or while the favorite has no name yet), the title.
+// Otherwise it takes the favorite it was before it closed or Chrome restarted, else a favorite
+// saved on its page that has no tab in its window yet, else it becomes a new favorite at the end
+// (unless `add` is false). So the same page pinned in two windows is one favorite, and binding the
+// same pins again changes nothing. With separate favorites per space (`perSpace`), only a favorite
+// of the tab's own space is joined, so the same page in two spaces stays two favorites.
+export function bindPin(state, tab, { spaceId = null, perSpace = false, add = true, newId }) {
     const url = pageOf(tab);
     const known = state.tabs.find(record => record.tabId === tab.id);
-    if (known) {
+    // A tab moved into a window that already has one for its favorite starts again, as a window
+    // shows each favorite once.
+    const twin =
+        known &&
+        state.tabs.some(r => r.tabId !== tab.id && r.favoriteId === known.favoriteId && r.windowId === tab.windowId);
+    if (known && !twin) {
         const tabs = state.tabs.map(record =>
             record.tabId === tab.id ? { ...record, windowId: tab.windowId, url: url || record.url } : record
         );
         const favorites = state.favorites.map(favorite =>
-            favorite.id === known.favoriteId && tab.title && url === favorite.url && tab.title !== favorite.title
+            favorite.id === known.favoriteId &&
+            tab.title &&
+            (url === favorite.url || favorite.title === favorite.url) &&
+            tab.title !== favorite.title
                 ? { ...favorite, title: tab.title }
                 : favorite
         );
         return { ...state, favorites, tabs };
     }
+    if (twin) state = { ...state, tabs: state.tabs.filter(record => record.tabId !== tab.id) };
     if (!url) return state;
-    const free = id => state.favorites.some(favorite => favorite.id === id) && !hasTabIn(state, id, tab.windowId);
+    const free = id => {
+        const favorite = state.favorites.find(f => f.id === id);
+        if (!favorite || hasTabIn(state, id, tab.windowId)) return false;
+        return !perSpace || !spaceId || !favorite.spaceId || favorite.spaceId === spaceId;
+    };
     const restoredAt = state.restore.findIndex(record => record.url === url && free(record.favoriteId));
     if (restoredAt >= 0) {
         const { favoriteId } = state.restore[restoredAt];
@@ -69,18 +85,17 @@ export function bindPin(state, tab, { spaceId = null, newId }) {
     }
     const saved = state.favorites.find(favorite => favorite.url === url && free(favorite.id));
     if (saved) return bindTab(state, tab, saved.id);
+    if (!add) return state;
     const favorite = { id: newId(), url, title: tab.title || url, spaceId };
     return bindTab({ ...state, favorites: [...state.favorites, favorite] }, tab, favorite.id);
 }
 
-// A tab that stood for a favorite closed: the favorite stays. If its window closed, Chrome can
-// reopen the window, and the tab is recognised by its page then.
-export function unbindTab(state, tabId, { windowClosing = false } = {}) {
+// A tab that stood for a favorite closed: the favorite stays. Chrome can reopen the tab (or its
+// window), and it is recognised by the page it last showed then.
+export function unbindTab(state, tabId) {
     const record = state.tabs.find(r => r.tabId === tabId);
     if (!record) return state;
-    const restore = windowClosing
-        ? [...state.restore, { favoriteId: record.favoriteId, url: record.url }].slice(-RESTORE_LIMIT)
-        : state.restore;
+    const restore = [...state.restore, { favoriteId: record.favoriteId, url: record.url }].slice(-RESTORE_LIMIT);
     return { ...state, tabs: state.tabs.filter(r => r.tabId !== tabId), restore };
 }
 
@@ -130,11 +145,11 @@ export function startSession(state) {
 // Brings the list up to date with the pins open now: forgets tabs that are gone or no longer
 // pinned, then binds every pin, window by window in tab strip order. Run when the setting is on at
 // startup, this is also the migration: today's favorites become the saved list, once each.
-export function reconcilePins(state, pins, { spaceOf = () => null, newId }) {
+export function reconcilePins(state, pins, { spaceOf = () => null, ...options }) {
     const live = new Set(pins.map(tab => tab.id));
     let next = { ...state, tabs: state.tabs.filter(record => live.has(record.tabId)) };
     const ordered = [...pins].sort((a, b) => a.windowId - b.windowId || a.index - b.index);
-    for (const tab of ordered) next = bindPin(next, tab, { spaceId: spaceOf(tab.id), newId });
+    for (const tab of ordered) next = bindPin(next, tab, { ...options, spaceId: spaceOf(tab.id) });
     return next;
 }
 

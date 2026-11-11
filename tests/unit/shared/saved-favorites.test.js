@@ -42,13 +42,20 @@ test('two pins of one page in the same window stay two favorites, so nothing is 
 });
 
 test('a pin that browsed away keeps its favorite; the favorite keeps the page it saved', () => {
-    let state = bindPin(empty, pin(1, 1, 'mail'), { newId: ids() });
+    let state = bindPin(empty, pin(1, 1, 'mail', { title: 'Mail' }), { newId: ids() });
     state = bindPin(state, pin(1, 1, 'mail/inbox/42', { title: 'Inbox' }), { newId: ids() });
     assert.deepEqual(urls(state), ['mail']);
-    assert.equal(state.favorites[0].title, 'mail');
-    assert.equal(state.tabs[0].url, 'mail/inbox/42');
-    state = bindPin(state, pin(1, 1, 'mail', { title: 'Mail' }), { newId: ids() });
     assert.equal(state.favorites[0].title, 'Mail');
+    assert.equal(state.tabs[0].url, 'mail/inbox/42');
+    state = bindPin(state, pin(1, 1, 'mail', { title: 'Mail and more' }), { newId: ids() });
+    assert.equal(state.favorites[0].title, 'Mail and more');
+});
+
+test('a favorite saved before its page had a name takes the first name its tab shows', () => {
+    let state = bindPin(empty, pin(1, 1, 'http://a/', { title: '' }), { newId: ids() });
+    assert.equal(state.favorites[0].title, 'http://a/');
+    state = bindPin(state, pin(1, 1, 'https://www.a/', { title: 'A' }), { newId: ids() });
+    assert.equal(state.favorites[0].title, 'A');
 });
 
 test('closing a favorite’s tab leaves the favorite; a pin of its page elsewhere joins it', () => {
@@ -70,15 +77,46 @@ test('after a restart, or a window reopened, a pin is recognised by the page it 
     assert.deepEqual(urls(back), ['mail']);
     assert.deepEqual(back.restore, []);
 
-    const closed = unbindTab(state, 1, { windowClosing: true });
-    const reopened = bindPin(closed, pin(60, 3, 'mail/inbox'), { newId: ids() });
+    // A closed tab, or its window, reopened with Cmd+Shift+T.
+    const reopened = bindPin(unbindTab(state, 1), pin(60, 3, 'mail/inbox'), { newId: ids() });
     assert.deepEqual(urls(reopened), ['mail']);
-    assert.deepEqual(unbindTab(state, 1).restore, []);
+});
+
+test('with separate favorites per space, the same page in two spaces stays two favorites', () => {
+    const pins = [pin(1, 1, 'a'), pin(2, 2, 'a')];
+    const spaces = { 1: 'work', 2: 'home' };
+    const apart = reconcilePins(empty, pins, { spaceOf: id => spaces[id], perSpace: true, newId: ids() });
+    assert.deepEqual(
+        apart.favorites.map(f => f.spaceId),
+        ['work', 'home']
+    );
+    const shared = reconcilePins(empty, pins, { spaceOf: id => spaces[id], newId: ids() });
+    assert.equal(shared.favorites.length, 1);
+});
+
+test('without adding, a pin only joins a favorite already saved', () => {
+    const state = unbindTab(bindPin(empty, pin(1, 1, 'a'), { newId: ids() }), 1);
+    assert.deepEqual(bindPin(state, pin(2, 1, 'b'), { add: false, newId: ids() }), state);
+    assert.deepEqual(tabsOfFavorite(bindPin(state, pin(3, 1, 'a'), { add: false, newId: ids() }), 'f1'), [3]);
+});
+
+test('a favorite’s tab moved into a window that already has one is a pin of its own there', () => {
+    const newId = ids();
+    let state = reconcilePins(empty, [pin(1, 1, 'a'), pin(2, 2, 'a')], { newId });
+    state = bindPin(state, pin(2, 1, 'a'), { newId });
+    assert.deepEqual(urls(state), ['a', 'a']);
+    assert.deepEqual(
+        state.tabs.map(r => [r.tabId, r.favoriteId]),
+        [
+            [1, 'f1'],
+            [2, 'f2']
+        ]
+    );
 });
 
 test('removing a favorite drops its tabs and anything waiting to restore it', () => {
     let state = reconcilePins(empty, [pin(1, 1, 'a'), pin(2, 2, 'a'), pin(3, 1, 'b')], { newId: ids() });
-    state = unbindTab(state, 2, { windowClosing: true });
+    state = unbindTab(state, 2);
     state = removeFavorite(state, state.favorites[0].id);
     assert.deepEqual(urls(state), ['b']);
     assert.deepEqual(

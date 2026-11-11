@@ -3,12 +3,12 @@
 // each tab in exactly one window, so picking a page that is open only in another window opens it
 // again here and leaves the other window's tab where it is.
 
-export { ALL_WINDOWS_SETTING } from '../../../shared/saved-favorites.js';
+import { ALL_WINDOWS_SETTING, pageOf } from '../../../shared/saved-favorites.js';
+
+// Two tabs on the same address (pageOf) are one entry in the list.
+export { ALL_WINDOWS_SETTING, pageOf };
 
 export const isOtherWindow = (tab, windowId) => tab?.windowId != null && tab.windowId !== windowId;
-
-// The page a tab shows. Two tabs on the same address are one entry in the list.
-export const pageOf = tab => tab?.url || tab?.pendingUrl || '';
 
 // This window's tabs, or with the setting on every window's. Incognito and normal windows never
 // show each other's tabs.

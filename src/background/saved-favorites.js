@@ -3,6 +3,7 @@ import {
     FAVORITE_RESTORE_KEY,
     FAVORITE_TABS_KEY,
     SAVED_FAVORITES_KEY,
+    pageOf,
     SAVED_FAVORITES_MESSAGE,
     bindPin,
     bindTab,
@@ -40,13 +41,18 @@ export function registerSavedFavorites({
 }) {
     let state;
     let enabled = false;
-    let written = '';
+    let perSpace = false;
+    let written = {};
     let loading;
     let chain = Promise.resolve();
 
     const run = operation => {
         const pending = chain.then(async () => {
-            await (loading ||= load());
+            // A failed load is tried again by the next event rather than kept.
+            await (loading ||= load().catch(error => {
+                loading = null;
+                throw error;
+            }));
             await operation();
             await save();
         });
@@ -55,44 +61,58 @@ export function registerSavedFavorites({
     };
 
     const stored = keys => chrome.storage.local.get(keys);
-    const pageOfTab = tab => tab.url || tab.pendingUrl || '';
     // Sidecove's own pages are never saved, as they are never in a space.
-    const savable = tab => !tab.incognito && !pageOfTab(tab).startsWith(chrome.runtime.getURL(''));
+    const savable = tab => !tab.incognito && !pageOf(tab).startsWith(chrome.runtime.getURL(''));
+    const keys = () => ({
+        [SAVED_FAVORITES_KEY]: state.favorites,
+        [FAVORITE_TABS_KEY]: state.tabs,
+        [FAVORITE_RESTORE_KEY]: state.restore
+    });
+    const snapshot = () =>
+        Object.fromEntries(Object.entries(keys()).map(([key, value]) => [key, JSON.stringify(value)]));
     const spacesNow = async () => (await stored('spaces')).spaces || [];
 
     async function load() {
         state = stateFrom(await stored([SAVED_FAVORITES_KEY, FAVORITE_TABS_KEY, FAVORITE_RESTORE_KEY]));
-        written = JSON.stringify(state);
+        written = snapshot();
         if (!(await chrome.storage.session.get(SESSION_KEY))[SESSION_KEY]) {
             state = startSession(state);
             await chrome.storage.session.set({ [SESSION_KEY]: true });
         }
-        const settings = await chrome.storage.sync.get({ [ALL_WINDOWS_SETTING]: true });
+        const settings = await chrome.storage.sync.get({ [ALL_WINDOWS_SETTING]: true, perSpacePinnedFavorites: false });
         enabled = settings[ALL_WINDOWS_SETTING] !== false;
-        if (enabled) await reconcile();
+        perSpace = settings.perSpacePinnedFavorites === true;
+        await reconcile();
     }
 
+    // Writes only what changed: panels redraw their bar on every write.
     async function save() {
-        const json = JSON.stringify(state);
-        if (json === written) return;
-        written = json;
-        await chrome.storage.local.set({
-            [SAVED_FAVORITES_KEY]: state.favorites,
-            [FAVORITE_TABS_KEY]: state.tabs,
-            [FAVORITE_RESTORE_KEY]: state.restore
-        });
+        const now = snapshot();
+        const changed = Object.keys(now).filter(key => now[key] !== written[key]);
+        if (!changed.length) return;
+        written = now;
+        const values = keys();
+        await chrome.storage.local.set(Object.fromEntries(changed.map(key => [key, values[key]])));
     }
+
+    // With the setting off, pins are only matched to favorites already saved, so nothing new is
+    // saved but an unpin is still noticed.
+    const bindOptions = spaceId => ({ spaceId, perSpace, add: enabled, newId });
 
     async function reconcile() {
         const spaces = await spacesNow();
         const pins = (await chrome.tabs.query({ pinned: true })).filter(savable);
-        state = reconcilePins(state, pins, { spaceOf: id => ownerOf(spaces, id)?.id ?? null, newId });
+        state = reconcilePins(state, pins, {
+            ...bindOptions(null),
+            spaceOf: id => ownerOf(spaces, id)?.id ?? null
+        });
     }
 
     async function bind(tab) {
-        if (!enabled || !tab.pinned || !savable(tab)) return;
+        if (!tab.pinned || !savable(tab)) return;
+        if (!enabled && !state.favorites.length) return;
         const spaces = await spacesNow();
-        state = bindPin(state, tab, { spaceId: ownerOf(spaces, tab.id)?.id ?? null, newId });
+        state = bindPin(state, tab, bindOptions(ownerOf(spaces, tab.id)?.id ?? null));
     }
 
     // Removing a favorite removes it from every window, so its tabs elsewhere are unpinned too;
@@ -106,6 +126,7 @@ export function registerSavedFavorites({
     }
 
     async function followSpaceChanges() {
+        if (!state.favorites.length) return;
         const spaces = await spacesNow();
         if (!spaces.length) return;
         const result = followSpaces(state, spaces, id => ownerOf(spaces, id)?.id ?? null);
@@ -178,9 +199,9 @@ export function registerSavedFavorites({
     chrome.tabs.onAttached.addListener(tabId =>
         run(async () => bind(await chrome.tabs.get(tabId).catch(() => ({ pinned: false }))))
     );
-    chrome.tabs.onRemoved.addListener((tabId, info) =>
+    chrome.tabs.onRemoved.addListener(tabId =>
         run(() => {
-            state = unbindTab(state, tabId, { windowClosing: Boolean(info?.isWindowClosing) });
+            state = unbindTab(state, tabId);
         })
     );
     chrome.tabs.onReplaced.addListener((added, removed) =>
@@ -193,6 +214,10 @@ export function registerSavedFavorites({
             run(async () => {
                 enabled = changes[ALL_WINDOWS_SETTING].newValue !== false;
                 if (enabled) await reconcile();
+            });
+        if (area === 'sync' && changes.perSpacePinnedFavorites)
+            run(() => {
+                perSpace = changes.perSpacePinnedFavorites.newValue === true;
             });
         if (area === 'local' && changes.spaces) run(followSpaceChanges);
     });
