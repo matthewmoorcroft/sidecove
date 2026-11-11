@@ -34,7 +34,8 @@ export async function launchBrowserWithExtension(options = {}) {
             '--disable-dev-shm-usage',
             '--disable-blink-features=AutomationControlled',
             '--disable-web-security', // For testing purposes
-            '--window-size=1920,1080'
+            '--window-size=1920,1080',
+            ...(options.args || [])
         ],
         devtools: false
     });

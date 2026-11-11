@@ -13,7 +13,7 @@ Sidecove is a Chrome extension that shows your tabs in a vertical sidebar and or
 ## Where your data is kept
 
 - Spaces, folders and pinned tabs are kept as Chrome bookmarks.
-- Settings and the state of each space are kept in `chrome.storage`, in your browser.
+- Settings, the state of each space and the saved list of top-bar favorites (their addresses and titles) are kept in `chrome.storage`, in your browser.
 - If you are signed in to Chrome with sync turned on, Chrome syncs your bookmarks and some settings through your Google account, as it does for any bookmark or extension setting.
 
 ## What Sidecove does not do

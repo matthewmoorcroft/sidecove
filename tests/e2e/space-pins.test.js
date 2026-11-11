@@ -154,6 +154,13 @@ test('unpinning removes the icon and returns the tab to its space', async () => 
     await page.waitForSelector(`.space.active .tab[data-tab-id="${pinA}"]`);
     await switchTo(second);
     await waitForPins([pinB]);
+    // Closing a favorite's tab keeps the saved favorite, dimmed, since Show tabs and favorites
+    // from all windows is on by default.
     await page.evaluate(id => chrome.tabs.remove(id), pinB);
-    await waitForPins([]);
+    await page.waitForFunction(
+        () =>
+            !document.querySelector('#pinnedFavicons .pinned-favicon:not(.saved-favorite)') &&
+            document.querySelectorAll('#pinnedFavicons .saved-favorite').length === 1,
+        { polling: 100 }
+    );
 });

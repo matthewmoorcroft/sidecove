@@ -14,12 +14,13 @@ const activeTabId = () =>
     );
 
 // What the panel shows, top to bottom, for this window: the top-bar favorites, then the space.
-// With tabs from all windows on the panel also lists other windows' tabs; the shortcuts stay here.
+// With tabs from all windows on the panel also lists other windows' tabs, and the top bar shows
+// other windows' favorites dimmed, with no tab here; the shortcuts stay here.
 const shownOrder = () =>
     page.evaluate(
         async (rows, windowId) => {
             const shown = [
-                ...[...document.querySelectorAll('#pinnedFavicons .pinned-favicon')],
+                ...[...document.querySelectorAll('#pinnedFavicons .pinned-favicon[data-tab-id]')],
                 ...document.querySelectorAll(rows)
             ].map(el => Number(el.dataset.tabId));
             const here = [];

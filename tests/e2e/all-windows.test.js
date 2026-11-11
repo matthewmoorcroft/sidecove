@@ -1,14 +1,17 @@
 import { createServer } from 'node:http';
 import { launchBrowserWithExtension, openSidebar, openOptionsPage } from './helpers/extension-helper.js';
 
-// Settings -> Show tabs and favorites from all windows (issues 27 and 43, first step), on by
-// default: each window's sidebar lists the space's open tabs and the top-bar favorites of every
-// window as one list, one entry per page. Which window a tab lives in does not show; picking a
-// page open only in another window opens it again in this one and leaves that window's tab alone.
+// Settings -> Show tabs and favorites from all windows (issues 27 and 43), on by default: each
+// window's sidebar lists the space's open tabs of every window as one list, one entry per page,
+// and the top bar is the saved favorites list (more in saved-favorites.test.js). Which window a
+// tab lives in does not show; picking a page open only in another window opens it again in this
+// one and leaves that window's tab alone.
 let browser, page, options, server, base, ids;
 
 const rowSelector = id => `.space.active .tab[data-tab-id="${id}"]`;
 const pinSelector = id => `#pinnedFavicons .pinned-favicon[data-tab-id="${id}"]`;
+// The other window's favorite, which this window has no tab for, so it shows dimmed.
+const savedPinSelector = '#pinnedFavicons .saved-favorite[aria-label="Page other-pin (not open)"]';
 const request = (action, args = {}) =>
     page.evaluate(
         async (action, args) => {
@@ -139,9 +142,10 @@ test('the setting starts on; turned off, each window lists only its own tabs and
     expect(await page.$(rowSelector(ids.own))).not.toBeNull();
     expect(await page.$(pinSelector(ids.otherPin))).toBeNull();
     expect(await page.$$('.other-window')).toHaveLength(0);
+    expect(await page.$$('.saved-favorite')).toHaveLength(0);
 });
 
-test('with it on, the other window’s tab and favorite are in the list and look like any other', async () => {
+test('with it on, the other window’s tab looks like any other, and its favorite is in the bar', async () => {
     await setToggle('showTabsFromAllWindows', true);
     const row = await page.waitForSelector(rowSelector(ids.otherTab));
     const own = await page.$(rowSelector(ids.own));
@@ -153,9 +157,8 @@ test('with it on, the other window’s tab and favorite are in the list and look
     expect(await look(row)).toEqual(await look(own));
     expect(await row.evaluate(el => el.classList.contains('active'))).toBe(false);
 
-    const pin = await page.waitForSelector(pinSelector(ids.otherPin));
-    expect(await pin.$eval('img', img => getComputedStyle(img).opacity)).toBe('1');
-    expect(await pin.$eval('img', img => img.alt)).toBe('Page other-pin');
+    await page.waitForSelector(savedPinSelector);
+    expect(await page.$(pinSelector(ids.otherPin))).toBeNull();
 
     await page.focus('#tabSearchInput');
     await page.keyboard.type('other-tab');
@@ -182,17 +185,17 @@ test('separate favorites per space still decide which pins show, from every wind
     await setToggle('perSpacePinnedFavorites', true);
     try {
         await switchTo(elsewhere);
-        await page.waitForFunction(sel => !document.querySelector(sel), { polling: 100 }, pinSelector(ids.otherPin));
+        await page.waitForFunction(sel => !document.querySelector(sel), { polling: 100 }, savedPinSelector);
         expect(await page.$(rowSelector(ids.otherTab))).toBeNull();
         await switchTo(ids.home);
-        await page.waitForSelector(pinSelector(ids.otherPin));
+        await page.waitForSelector(savedPinSelector);
         await page.waitForSelector(rowSelector(ids.otherTab));
     } finally {
         await setToggle('perSpacePinnedFavorites', false);
     }
-    // Shared favorites again: the other window's pin shows in every space.
+    // Shared favorites again: the other window's favorite shows in every space.
     await switchTo(elsewhere);
-    await page.waitForSelector(pinSelector(ids.otherPin));
+    await page.waitForSelector(savedPinSelector);
     await switchTo(ids.home);
 });
 
@@ -225,7 +228,7 @@ test('picking a tab open only in another window opens it here and leaves that wi
 
 test('picking a favorite pinned only in another window pins it here too, shown once', async () => {
     const url = `${base}/other-pin`;
-    await page.$eval(pinSelector(ids.otherPin), el =>
+    await page.$eval(savedPinSelector, el =>
         el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }))
     );
     await waitForOpenHere(url);
@@ -233,7 +236,7 @@ test('picking a favorite pinned only in another window pins it here too, shown o
     expect(await page.evaluate(id => chrome.tabs.get(id).then(t => t.pinned), copy)).toBe(true);
     expect(await windowTabsAt(ids.other, url)).toEqual([ids.otherPin]);
     await page.waitForSelector(pinSelector(copy));
-    await page.waitForFunction(sel => !document.querySelector(sel), { polling: 100 }, pinSelector(ids.otherPin));
+    await page.waitForFunction(sel => !document.querySelector(sel), { polling: 100 }, savedPinSelector);
     expect(
         await page.$$eval(
             '#pinnedFavicons .pinned-favicon img',
