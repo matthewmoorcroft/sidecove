@@ -4739,14 +4739,6 @@ async function getTabsBoundToBookmark(space, bookmarkId) {
     );
 }
 
-// Tab navigation functions delegate to Utils to avoid code duplication
-async function movToNextTabInSpace(tabId, sourceSpace) {
-    return Utils.movToNextTabInSpace(tabId, sourceSpace);
-}
-
-async function movToPrevTabInSpace(tabId, sourceSpace) {
-    return Utils.movToPrevTabInSpace(tabId, sourceSpace);
-}
 // Reusable function to set up folder context menu
 function setupFolderContextMenu(folderElement, space, item = null) {
     folderElement.addEventListener('contextmenu', async e => {

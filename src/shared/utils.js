@@ -1,6 +1,5 @@
 import { isPracticeUrl } from './tour-practice.js';
 import { getSpaceTabs, spaceRequest } from './space-client.js';
-import { tabsInDisplayOrder, adjacentTabId } from './tab-step.js';
 /**
  * Utils - Shared utility functions and storage management
  *
@@ -409,49 +408,6 @@ const Utils = {
 
     setInvertTabOrder: async function (enabled) {
         await chrome.storage.sync.set({ invertTabOrder: enabled });
-    },
-
-    // Navigate to adjacent tab within a space (next or previous), in the order the panel shows.
-    _navigateTabInSpace: async function (tabId, sourceSpace, direction) {
-        const currentTab = await chrome.tabs.get(tabId);
-        const openTabIds = new Set((await chrome.tabs.query({ windowId: currentTab.windowId })).map(t => t.id));
-        const invertTabOrder = await this.getInvertTabOrder();
-        const ordered = tabsInDisplayOrder(sourceSpace, { invertTabOrder, openTabIds });
-        const targetId = adjacentTabId(ordered, tabId, direction);
-        if (targetId !== null) await chrome.tabs.update(targetId, { active: true });
-    },
-
-    movToNextTabInSpace: async function (tabId, sourceSpace) {
-        return this._navigateTabInSpace(tabId, sourceSpace, 'next');
-    },
-
-    movToPrevTabInSpace: async function (tabId, sourceSpace) {
-        return this._navigateTabInSpace(tabId, sourceSpace, 'prev');
-    },
-    findActiveSpaceAndTab: async function () {
-        Logger.log('[TabNavigation] finding space');
-        const spacesResult = await chrome.storage.local.get('spaces');
-        const spaces = spacesResult.spaces || [];
-        Logger.log('[TabNavigation] Loaded spaces from storage:', spaces);
-        const foundTabs = await chrome.tabs.query({ active: true, currentWindow: true });
-        if (foundTabs.length === 0) {
-            Logger.log('[TabNavigation] No active tab found!:');
-            return undefined;
-        }
-        const foundTab = foundTabs[0];
-        const spaceWithTempTab = spaces.find(space => space.temporaryTabs.includes(foundTab.id));
-        if (spaceWithTempTab) {
-            Logger.log(`[TabNavigation] Tab ${foundTab.id} is a temporary tab in space "${spaceWithTempTab.name}".`);
-            return { space: spaceWithTempTab, tab: foundTab };
-        }
-
-        const spaceWithBookmark = spaces.find(space => space.spaceBookmarks.includes(foundTab.id));
-        if (spaceWithBookmark) {
-            Logger.log(`[TabNavigation] Tab ${foundTab.id} is a bookmarked tab in space "${spaceWithBookmark.name}".`);
-            return { space: spaceWithBookmark, tab: foundTab };
-        }
-
-        return undefined;
     },
 
     // Helper function to adjust menu position to keep it within viewport
