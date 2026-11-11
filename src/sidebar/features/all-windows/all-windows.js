@@ -3,7 +3,7 @@
 // each tab in exactly one window, so picking a page that is open only in another window opens it
 // again here and leaves the other window's tab where it is.
 
-export const ALL_WINDOWS_SETTING = 'showTabsFromAllWindows';
+export { ALL_WINDOWS_SETTING } from '../../../shared/saved-favorites.js';
 
 export const isOtherWindow = (tab, windowId) => tab?.windowId != null && tab.windowId !== windowId;
 

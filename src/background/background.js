@@ -16,11 +16,13 @@ registerTourMessages();
 import { SpaceStore } from '../shared/space-store.js';
 import { registerBookmarkListeners } from './bookmark-events.js';
 import { enqueueBookmarkOperation } from './bookmark-writer.js';
+import { registerSavedFavorites } from './saved-favorites.js';
 
 registerBookmarkListeners();
 
 const spaceStore = new SpaceStore();
 spaceStore.install();
+registerSavedFavorites({ chrome, spaceStore });
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type !== 'spaceStore') return;
     spaceStore.dispatch(message).then(

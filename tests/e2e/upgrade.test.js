@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { createServer } from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -58,6 +59,15 @@ function install(from, version = null) {
         const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
         fs.writeFileSync(manifestPath, JSON.stringify({ ...manifest, version }, null, 2));
     }
+}
+
+// Puts this build in place of the previous one, as an update.
+function installUpdate(version) {
+    install(dist, version);
+    // Chrome keeps the service worker it cached for the profile when an unpacked folder is
+    // replaced, so the new background code would not run. A store update installs the new
+    // worker; dropping the cache gives the same here. Settings and bookmarks live elsewhere.
+    fs.rmSync(path.join(profileDir, 'Default', 'Service Worker'), { recursive: true, force: true });
 }
 
 // Everything a user would lose: spaces, the bookmark tree under Sidecove, and settings.
@@ -145,11 +155,7 @@ test.each(cases)('a profile from %s keeps its spaces, favorites and settings aft
     }
 
     const updatedVersion = updateVersion(previousVersion);
-    install(dist, updatedVersion);
-    // Chrome keeps the service worker it cached for the profile when an unpacked folder is
-    // replaced, so the new background code would not run. A store update installs the new
-    // worker; dropping the cache gives the same here. Settings and bookmarks live elsewhere.
-    fs.rmSync(path.join(profileDir, 'Default', 'Service Worker'), { recursive: true, force: true });
+    installUpdate(updatedVersion);
     ({ browser, extensionId } = await launchBrowserWithExtension({
         extensionPath: extensionDir,
         userDataDir: profileDir
@@ -169,4 +175,98 @@ test.each(cases)('a profile from %s keeps its spaces, favorites and settings aft
     } finally {
         await browser.close();
     }
+});
+
+// Favorites used to be Chrome pins with nothing saved behind them. With "Show tabs and favorites
+// from all windows" on (the default), the update saves them as one list, each page once, even when
+// two windows pin the same page; with it off, nothing is saved. The update restarts Chrome, which
+// brings the pins back as it does when you continue where you left off.
+describe('favorites saved on update', () => {
+    let server, base;
+    beforeAll(async () => {
+        server = createServer((req, res) => {
+            res.setHeader('Content-Type', 'text/html');
+            res.end(`<title>Page ${req.url.slice(1)}</title>`);
+        });
+        await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+        base = `http://127.0.0.1:${server.address().port}`;
+    });
+    afterAll(() => new Promise(resolve => server.close(resolve)));
+
+    const favoriteCases = [...cases.map(([label, dir]) => [label, 'on', dir]), [cases[0][0], 'off', cases[0][1]]];
+
+    test.each(favoriteCases)('a profile from %s keeps its favorites, all windows %s', async (_, setting, previous) => {
+        const on = setting === 'on';
+        install(previous || dist, previous ? null : FALLBACK_PREVIOUS_VERSION);
+        let { browser, extensionId } = await launchBrowserWithExtension({
+            extensionPath: extensionDir,
+            userDataDir: profileDir
+        });
+        try {
+            const page = await openSidebar(browser, extensionId);
+            await page.evaluate(
+                async (base, on) => {
+                    if (!on) await chrome.storage.sync.set({ showTabsFromAllWindows: false });
+                    const other = await chrome.windows.create({ url: `${base}/plain`, focused: false });
+                    for (const path of ['a', 'shared'])
+                        await chrome.tabs.create({ url: `${base}/${path}`, pinned: true, active: false });
+                    for (const path of ['shared', 'b'])
+                        await chrome.tabs.create({ windowId: other.id, url: `${base}/${path}`, pinned: true });
+                },
+                base,
+                on
+            );
+            await page.waitForFunction(
+                async () => (await chrome.tabs.query({ pinned: true })).every(tab => tab.status === 'complete'),
+                { polling: 100, timeout: 10000 }
+            );
+            // Give Chrome a moment to write the session it restores.
+            await new Promise(resolve => setTimeout(resolve, 1500));
+        } finally {
+            await browser.close();
+        }
+
+        installUpdate(updateVersion(manifestVersion(extensionDir)));
+        ({ browser, extensionId } = await launchBrowserWithExtension({
+            extensionPath: extensionDir,
+            userDataDir: profileDir,
+            args: ['--restore-last-session']
+        }));
+        try {
+            const page = await openSidebar(browser, extensionId);
+            await page.waitForFunction(async () => (await chrome.tabs.query({ pinned: true })).length >= 4, {
+                polling: 100,
+                timeout: 15000
+            });
+            const savedUrls = () =>
+                page.evaluate(async () =>
+                    ((await chrome.storage.local.get('savedFavorites')).savedFavorites || []).map(f => f.url).sort()
+                );
+            if (on) {
+                const expected = ['a', 'b', 'shared'].map(path => `${base}/${path}`);
+                await page.waitForFunction(
+                    async expected => {
+                        const list = (await chrome.storage.local.get('savedFavorites')).savedFavorites || [];
+                        return JSON.stringify(list.map(f => f.url).sort()) === JSON.stringify(expected);
+                    },
+                    { polling: 100, timeout: 10000 },
+                    expected
+                );
+                await page.waitForFunction(
+                    () => document.querySelectorAll('#pinnedFavicons .pinned-favicon[data-favorite-id]').length === 3,
+                    { polling: 100, timeout: 10000 }
+                );
+                // Settled, it is still each page once.
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                expect(await savedUrls()).toEqual(expected);
+            } else {
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                expect(await savedUrls()).toEqual([]);
+                expect(await page.evaluate(() => chrome.storage.local.get('savedFavorites'))).toEqual({});
+                expect(await page.$$('#pinnedFavicons .saved-favorite')).toHaveLength(0);
+            }
+        } finally {
+            await browser.close();
+        }
+    });
 });

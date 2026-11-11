@@ -1,0 +1,10 @@
+/* A saved favorite with no tab in this window: faded and grey until picked. Its name also says
+   "not open", so the difference does not rest on colour. */
+.pinned-favicon.saved-favorite img {
+    opacity: 0.4;
+    filter: grayscale(1);
+}
+
+.pinned-favicon.saved-favorite:hover img {
+    opacity: 0.75;
+}

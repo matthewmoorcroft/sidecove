@@ -298,8 +298,7 @@ const updatePinnedFavicons = createPinnedFavorites({
     getDragAfterElementFavicon,
     getDropPosition,
     showDropIndicator,
-    hideAllDropIndicators,
-    calculatePinnedTabIndex
+    hideAllDropIndicators
 });
 
 // Utility function to activate a pinned tab by URL (reuses existing bookmark opening logic)
@@ -1475,28 +1474,6 @@ function getDragAfterElementFavicon(container, x) {
         selector: '.pinned-favicon:not(.dragging)',
         placeholderSelector: '.pinned-placeholder-container'
     });
-}
-
-function calculatePinnedTabIndex(afterElement, position, pinnedFavicons) {
-    if (!afterElement) {
-        // If no target element, append to the end
-        return pinnedFavicons.querySelectorAll('.pinned-favicon').length;
-    }
-
-    const pinnedElements = Array.from(pinnedFavicons.querySelectorAll('.pinned-favicon'));
-    const afterIndex = pinnedElements.indexOf(afterElement);
-
-    if (afterIndex === -1) {
-        // Fallback: append to end if element not found
-        return pinnedElements.length;
-    }
-
-    if (position === 'left') {
-        return afterIndex; // Insert before the target element
-    } else {
-        // position === 'right'
-        return afterIndex + 1; // Insert after the target element
-    }
 }
 
 // Helper function to set up drag event listeners for tab elements
