@@ -53,6 +53,7 @@ import { parseSpaceCommand, switchSpaceWithoutSidebar } from '../shared/space-na
 import { registerAutoArchive, TAB_ACTIVITY_STORAGE_KEY } from './auto-archive.js';
 import { openOnboardingIfDue } from './onboarding-lifecycle.js';
 import { RECENT_TAB_COMMAND, registerRecentTab } from './recent-tab.js';
+import { stepTabInSpace as stepActiveTab } from './tab-step.js';
 import { registerCloseEmptyNewTab } from './close-empty-new-tab.js';
 import { registerPendingClean } from './pending-clean.js';
 
@@ -101,17 +102,20 @@ chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
 
 async function stepTabInSpace(direction) {
     try {
-        await stepActiveTab(direction);
+        await stepActiveTab({
+            chromeApi: chrome,
+            readState: () =>
+                spaceStore.run(() => ({
+                    spaces: spaceStore.spaces,
+                    activeSpaces: spaceStore.active,
+                    perSpaceFavorites: spaceStore.perSpacePinnedFavorites,
+                    invertTabOrder: spaceStore.invertTabOrder
+                })),
+            direction
+        });
     } catch (error) {
         Logger.warn('[TabNavigation] Could not step to the next tab:', error);
     }
-}
-
-async function stepActiveTab(direction) {
-    const found = await Utils.findActiveSpaceAndTab();
-    if (!found?.space) return;
-    if (direction === 'next') await Utils.movToNextTabInSpace(found.tab.id, found.space);
-    else await Utils.movToPrevTabInSpace(found.tab.id, found.space);
 }
 
 // Pages of the extension can ask for the same step as the shortcuts; the end-to-end tests
