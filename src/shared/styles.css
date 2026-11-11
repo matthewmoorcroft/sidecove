@@ -139,6 +139,13 @@ h3 {
     color: #333;
 }
 
+.context-menu-space-icon {
+    display: inline-flex;
+    margin-right: 6px;
+    line-height: 1;
+    vertical-align: middle;
+}
+
 .context-menu-item:hover {
     background-color: var(--tab-hover-bg, rgba(0, 0, 0, 0.05));
 }
