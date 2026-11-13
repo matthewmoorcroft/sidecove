@@ -1657,6 +1657,91 @@ describe('Bookmarks and Pinned Tabs', () => {
                 throw error;
             }
         });
+
+        test('Change Folder Icon sets an icon that survives a reload, and Remove Icon brings the folder glyph back', async () => {
+            const iconOf = id =>
+                sidebarPage.$eval(`${folder(id)} > .folder-header > .folder-icon`, el => ({
+                    text: el.textContent.trim(),
+                    glyph: Boolean(el.querySelector('svg:not(.space-symbol)')),
+                    custom: el.closest('.folder').classList.contains('has-custom-icon')
+                }));
+            const stored = id =>
+                sidebarPage.evaluate(
+                    async id => (await chrome.storage.local.get(`folderIcon:${id}`))[`folderIcon:${id}`],
+                    id
+                );
+            try {
+                const [id, other] = await createFolders(['Icon fixture', 'Icon fixture neighbour']);
+                expect(await iconOf(id)).toEqual({ text: '', glyph: true, custom: false });
+
+                await openFolderMenu(id);
+                await clickMenuItem('Change Folder Icon…');
+                await sidebarPage.waitForSelector('#spaceIconPicker .space-icon-choice');
+                expect(await sidebarPage.$eval('#spaceIconPicker', el => el.getAttribute('aria-label'))).toBe(
+                    'Icon for Icon fixture'
+                );
+                await sidebarPage.evaluate(() =>
+                    [...document.querySelectorAll('#spaceIconPicker .space-icon-choice')]
+                        .find(b => b.textContent === '🎵')
+                        .click()
+                );
+                await waitForCondition(async () => (await iconOf(id)).text === '🎵', 10000, 'icon not drawn');
+                expect(await iconOf(id)).toEqual({ text: '🎵', glyph: false, custom: true });
+                expect(await stored(id)).toBe('🎵');
+                expect(await iconOf(other)).toEqual({ text: '', glyph: true, custom: false });
+
+                await sidebarPage.reload();
+                await sidebarPage.waitForSelector(folder(id));
+                await waitForCondition(async () => (await iconOf(id)).text === '🎵', 10000, 'icon lost on reload');
+
+                await openFolderMenu(id);
+                await clickMenuItem('Change Folder Icon…');
+                await sidebarPage.waitForSelector('#spaceIconPicker .space-icon-remove');
+                expect(
+                    await sidebarPage.$eval('#spaceIconPicker .space-icon-choice.selected', b => b.textContent)
+                ).toBe('🎵');
+                await sidebarPage.$eval('#spaceIconPicker .space-icon-remove', button => button.click());
+                await waitForCondition(async () => (await iconOf(id)).glyph, 10000, 'glyph not restored');
+                expect(await iconOf(id)).toEqual({ text: '', glyph: true, custom: false });
+                expect(await stored(id)).toBeUndefined();
+            } catch (error) {
+                await takeScreenshotOnFailure(sidebarPage, 'folder-icon-failure');
+                throw error;
+            }
+        });
+
+        test('Delete Folder also removes its stored icon', async () => {
+            try {
+                const [id] = await createFolders(['Icon delete fixture']);
+                await sidebarPage.evaluate(id => chrome.storage.local.set({ [`folderIcon:${id}`]: '⭐' }), id);
+                await waitForCondition(
+                    () =>
+                        sidebarPage.$eval(
+                            `${folder(id)} > .folder-header > .folder-icon`,
+                            el => el.textContent === '⭐'
+                        ),
+                    10000,
+                    'icon set in storage was not drawn'
+                );
+                await sidebarPage.evaluate(() => {
+                    window.confirm = () => true;
+                });
+                await openFolderMenu(id);
+                await clickMenuItem('Delete Folder');
+                await waitForCondition(
+                    () =>
+                        sidebarPage.evaluate(
+                            async id => !(`folderIcon:${id}` in (await chrome.storage.local.get(`folderIcon:${id}`))),
+                            id
+                        ),
+                    10000,
+                    'stored icon was not removed'
+                );
+            } catch (error) {
+                await takeScreenshotOnFailure(sidebarPage, 'folder-icon-delete-failure');
+                throw error;
+            }
+        });
     });
 
     describe('Undo Favorite Removal', () => {

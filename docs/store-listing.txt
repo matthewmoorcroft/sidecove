@@ -38,7 +38,7 @@ SPACES
 
 FAVOURITES AND PINNED TABS
 - Favourites are the row of site icons at the top. They are Chrome's own pinned tabs and follow you into every space, or, if you turn on "Separate favorites for each space" in Settings, each space shows only its own.
-- Pinned tabs belong to a single space. Each space keeps its own pinned tabs and nested folders (up to four levels deep).
+- Pinned tabs belong to a single space. Each space keeps its own pinned tabs and nested folders (up to four levels deep), and a folder can have its own icon.
 - An open pinned tab shows a minus button that closes the tab and keeps the pin; a closed one opens in its own new tab.
 - Hold one tab over a pinned tab for a moment and drop it to make a folder of the two.
 - Spaces, folders and pinned tabs are stored as ordinary Chrome bookmarks in a folder called "Sidecove". If you are signed in to Chrome with sync on, Chrome syncs them with your Google account, and you can see them in the bookmark manager.

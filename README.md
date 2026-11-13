@@ -157,6 +157,8 @@ chips afterwards moves the folders and the order sticks.
 
 With **Sync spaces to Chrome tab groups** off, right-click a folder and choose **New Folder** to create a child folder. Spaces support up to four folder levels. Turning sync on disables new nested-folder creation and preserves existing folders.
 
+Right-click a folder and choose **Change Folder Icon…** to give it a line symbol or emoji from the same picker spaces use; **Remove Icon** brings the folder symbol back. Chrome bookmark folders have no place for an icon, so a folder's icon is kept by Sidecove on this computer, like a space's icon, and does not sync to your other computers.
+
 Right-click a folder and choose **Move Up** or **Move Down** to swap it with the item shown above or below it within its space or parent folder. Each option is hidden when the folder has no neighbor in that direction.
 
 Drag a folder by its header to reorder it among its siblings, move it to the space's top level, or drop it into an open folder's content to nest it. A folder cannot be dropped into itself or its own subfolders. Nesting by drag follows the same rules as **New Folder**: sync must be off, and the result must stay within four folder levels; a folder that contains subfolders can only be reordered or moved to the space's top level. Reordering within the folder's current parent works in either sync mode.

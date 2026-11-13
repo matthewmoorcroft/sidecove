@@ -638,6 +638,37 @@ h3 {
 
 /* (open-tab indicator is now part of the SVG icon; no pseudo-elements) */
 
+/* A folder's own icon: a symbol in the text colour, or an emoji, the same in both states.
+   Width and spacing stay those of the glyph, so titles line up. */
+.folder.has-custom-icon > .folder-header > .folder-icon {
+    position: relative;
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    line-height: 1;
+    opacity: 1;
+}
+
+.folder.has-custom-icon > .folder-header > .folder-icon .space-symbol {
+    width: 16px;
+    height: 16px;
+    opacity: 0.8;
+}
+
+/* A closed folder with open tabs: a dot beside the custom icon, as the glyph shows dots. */
+.folder.has-custom-icon.has-open-tabs > .folder-header > .folder-icon::after {
+    content: '';
+    position: absolute;
+    right: -3px;
+    bottom: -1px;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
 .folder-name {
     flex: 1;
     background: none;
