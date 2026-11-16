@@ -21,10 +21,22 @@
     <link rel="stylesheet" href="sidebar/tour/sidebar-tour.css">
     <link rel="stylesheet" href="sidebar/features/saved-favorites/saved-favorites.css">
     <link rel="stylesheet" href="sidebar/features/closed-links/closed-links.css">
+    <link rel="stylesheet" href="sidebar/features/nav-buttons/nav-buttons.css">
 </head>
 
 <body>
     <div id="sidebar-container" class="sidebar-container">
+        <div class="nav-row" id="navRow" role="toolbar" aria-label="Page navigation">
+            <button type="button" class="nav-btn" data-nav="back" aria-label="Back">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
+            </button>
+            <button type="button" class="nav-btn" data-nav="forward" aria-label="Forward">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
+            </button>
+            <button type="button" class="nav-btn" data-nav="reload" aria-label="Reload">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12a7 7 0 1 1-2.05-4.95M19 4v4h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
+            </button>
+        </div>
         <div class="pinned-favicons" id="pinnedFavicons">
             <!-- Persistent pinned tabs will be displayed here -->
             <div class="pinned-placeholder-container">

@@ -1,0 +1,60 @@
+/* Back, forward and reload, above the favorites. Slim: the container's gap is pulled in. */
+.nav-row {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    flex: none;
+    margin-bottom: -8px;
+    color: rgba(0, 0, 0, 0.55);
+}
+
+.nav-row[hidden] {
+    display: none;
+}
+
+.nav-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 28px;
+    padding: 0;
+    border: none;
+    border-radius: 8px;
+    background: none;
+    color: inherit;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+}
+
+.nav-btn:hover {
+    background-color: rgba(255, 255, 255, 0.3);
+}
+
+.nav-btn:active {
+    background-color: rgba(255, 255, 255, 0.5);
+}
+
+.nav-btn:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: -2px;
+}
+
+.nav-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+@media (prefers-color-scheme: dark) {
+    .nav-row {
+        color: rgba(255, 255, 255, 0.7);
+    }
+
+    .nav-btn:hover {
+        background-color: rgba(255, 255, 255, 0.14);
+    }
+
+    .nav-btn:active {
+        background-color: rgba(255, 255, 255, 0.22);
+    }
+}

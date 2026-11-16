@@ -56,6 +56,16 @@
             </div>
             <div class="options-setting-item options-setting-toggle">
                 <div class="options-setting-copy">
+                    <label for="showNavButtons" class="options-label">Show back, forward and reload buttons</label>
+                    <p id="showNavButtonsDescription" class="options-description">A row of buttons at the top of the sidebar that act on the tab you are looking at. Shift-click reload to skip the cache. The keys (Command-[, Command-] and Command-R, or Alt+Left, Alt+Right and Ctrl+R on Windows and Linux) work from the sidebar whether or not the row is shown.</p>
+                </div>
+                <div class="toggle-switch-container">
+                    <input type="checkbox" id="showNavButtons" class="ios-toggle" aria-describedby="showNavButtonsDescription">
+                    <label for="showNavButtons" class="toggle-label" aria-hidden="true"></label>
+                </div>
+            </div>
+            <div class="options-setting-item options-setting-toggle">
+                <div class="options-setting-copy">
                     <label for="perSpacePinnedFavorites" class="options-label">Separate favorites for each space</label>
                     <p id="perSpacePinnedFavoritesDescription" class="options-description">When off, the top favorites bar is shared across spaces in this Chrome profile. Turn on to show only the current space’s favorites. Switching this setting keeps your favorites and their space assignments.</p>
                 </div>

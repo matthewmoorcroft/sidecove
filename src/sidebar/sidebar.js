@@ -10,6 +10,7 @@ import {
     visibleWindowTabs
 } from '../shared/all-windows.js';
 import { trackAllWindowsSetting } from './features/all-windows/all-windows-setting.js';
+import { setupNavButtons } from './features/nav-buttons/nav-buttons.js';
 import { markOtherWindowRow } from './features/all-windows/other-window-mark.js';
 import { createOpenHere } from './features/all-windows/open-here.js';
 import { moveToSpaceEntries } from './features/context-menu/space-menu-entries.js';
@@ -3706,6 +3707,12 @@ tabSearchInput.addEventListener('keydown', event => {
     }
 });
 document.getElementById('tabSearchHint').textContent = /Mac/i.test(navigator.platform) ? '⌘F' : 'Ctrl+F';
+setupNavButtons({
+    row: document.getElementById('navRow'),
+    tabs: chrome.tabs,
+    storage: chrome.storage,
+    isMac: /Mac/i.test(navigator.platform)
+});
 
 // --- Multi-select and bulk actions ---
 

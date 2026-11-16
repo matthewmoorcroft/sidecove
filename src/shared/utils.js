@@ -139,6 +139,7 @@ const Utils = {
             autoArchiveIdleMinutes: 360, // Default: 6 hours
             syncTabGroups: false,
             perSpacePinnedFavorites: false,
+            showNavButtons: true, // Default: back, forward and reload buttons at the top of the sidebar
             showTabsFromAllWindows: true, // Default: each window also lists other windows' tabs and favorites
             invertTabOrder: true, // Default: enabled (new temporary tabs on top; favorites keep bookmark order)
             colorOverrides: null, // Default: no color overrides (these are the light-mode values)
