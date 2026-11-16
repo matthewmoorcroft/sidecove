@@ -47,6 +47,7 @@ import { SpacePatchQueue } from './space-patch-queue.js';
 import { RefreshCoordinator } from './refresh-coordinator.js';
 import { EditSessionRegistry } from './edit-sessions.js';
 import { wireNewTabRow } from './features/new-tab/new-tab-row.js';
+import { wireExternalDrop } from './features/external-drop/external-drop.js';
 import { createSpaceTabShower } from './features/space-switch/show-space-tab.js';
 import {
     selectWindowSpaceTabs,
@@ -507,6 +508,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!request) return;
         event.preventDefault();
         applySpaceRequest(request).catch(error => Logger.error('Could not switch space:', error));
+    });
+
+    wireExternalDrop({
+        root: document.getElementById('sidebar-container'),
+        doc: document,
+        getWindowId: () => currentWindow?.id
     });
 
     document.getElementById('sidebar-container').addEventListener(

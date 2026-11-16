@@ -20,6 +20,7 @@ Sidecove is an independent project, not affiliated with or endorsed by The Brows
 - Pinned tabs, favorites and nested folders, stored as ordinary Chrome bookmarks
 - A top icon bar of Chrome-pinned favorites, shared across spaces in this Chrome profile by default. Enable **Settings → Separate favorites for each space** for a different top bar in each space. Switching this setting keeps your pins and their space assignments. Chrome still shows all native pins in its own tab strip.
 - Drag tabs, favorites and folders between sections, folders and spaces; drop one tab on a favorite to make a folder
+- Drag a link or some selected text from a page onto the sidebar to open it in a new tab of the current space; text opens a Google search for it
 - Multi-select with Cmd or Ctrl click and Shift click to move, pin, archive, close or file several tabs at once
 - Split view, as in Arc, using Chrome's own (Chrome 155 or later): right-click a tab and choose **Split View with…**, or select two tabs and choose **Open in Split View**. The pair shows as one block in the list; **Separate Split View** (or dragging one half away) takes it apart. The entries are hidden on older Chrome.
 - Search open tabs and favorites across spaces (Cmd or Ctrl+F)

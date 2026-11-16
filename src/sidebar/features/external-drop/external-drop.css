@@ -1,0 +1,36 @@
+/* A link or text dragged in from a page: a ring around the whole panel and a caption saying
+   what the drop will do. */
+.sidebar-container.external-drop-active {
+    position: relative;
+    box-shadow: inset 0 0 0 4px color-mix(in srgb, var(--space-bg-color-dark, #8a8a8a) 70%, black);
+}
+
+.sidebar-container.external-drop-active::after {
+    content: 'Drop to open in a new tab';
+    position: absolute;
+    left: 50%;
+    bottom: 56px;
+    transform: translateX(-50%);
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--space-bg-color-dark, #8a8a8a) 70%, black);
+    color: #fff;
+    font-size: 12px;
+    white-space: nowrap;
+    pointer-events: none;
+}
+
+.sidebar-container.external-drop-active[data-external-drop='text']::after {
+    content: 'Drop to search the web';
+}
+
+@media (prefers-color-scheme: dark) {
+    .sidebar-container.external-drop-active {
+        box-shadow: inset 0 0 0 4px color-mix(in srgb, var(--space-bg-color-dark, #8a8a8a) 25%, white);
+    }
+
+    .sidebar-container.external-drop-active::after {
+        background: color-mix(in srgb, var(--space-bg-color-dark, #8a8a8a) 25%, white);
+        color: #000;
+    }
+}
