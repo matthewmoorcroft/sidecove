@@ -44,6 +44,11 @@ FAVOURITES AND PINNED TABS
 - Hold one tab over a pinned tab for a moment and drop it to make a folder of the two.
 - Spaces, folders and pinned tabs are stored as ordinary Chrome bookmarks in a folder called "Sidecove". If you are signed in to Chrome with sync on, Chrome syncs them with your Google account, and you can see them in the bookmark manager.
 
+BROWSING
+- Split view: right-click a tab and choose "Split View with..." to show two tabs side by side using Chrome's own split view, or select two tabs and choose "Open in Split View". The pair shows as one block in the list, and you can separate it from the menu or its button. It needs Chrome 155 or later; on older Chrome the entries are not shown.
+- Back, forward and reload buttons sit at the top of the sidebar and act on the tab you are looking at. Shift-click reload skips the cache. The usual keys (Cmd+[, Cmd+] and Cmd+R on a Mac, Alt+Left, Alt+Right and Ctrl+R elsewhere) work while the sidebar has focus. You can hide the buttons in Settings.
+- Drag a link from a page onto the sidebar to open it in a new tab in your current space. Drag selected text onto it to search Google for it in a new tab.
+
 KEEPS TABS TIDY
 - Auto-archive is optional and off until you turn it on in Settings. It then closes tabs you have not used for the time you choose. Favourites and pinned tabs are never closed this way.
 - Archived tabs are listed so you can open them again.
@@ -62,7 +67,7 @@ KEYBOARD SHORTCUTS
 
 HOW IT DIFFERS FROM ARC
 - Sidecove is an extension, not a browser. You keep Chrome, your profile, your other extensions and your Google account.
-- It lives in Chrome's side panel (Chrome 116 or later). Chrome's own tab strip stays where it is.
+- It lives in Chrome's side panel (Chrome 116 or later; split view needs Chrome 155 or later). Chrome's own tab strip stays where it is.
 - It does not copy everything Arc does, and it cannot import data from Arc. If you already use Chrome tab groups, it can offer to turn them into spaces.
 
 PRIVATE AND OPEN
