@@ -14,6 +14,7 @@ import { setupNavButtons } from './features/nav-buttons/nav-buttons.js';
 import { markOtherWindowRow } from './features/all-windows/other-window-mark.js';
 import { createOpenHere } from './features/all-windows/open-here.js';
 import { moveToSpaceEntries } from './features/context-menu/space-menu-entries.js';
+import { folderMoveEntries } from './features/context-menu/folder-menu-entries.js';
 import { otherWindowMenuActions, otherWindowMenuEntries } from './features/all-windows/other-window-menu.js';
 import {
     getSpaceBookmarkById,
@@ -100,6 +101,7 @@ import {
     handleEmptyContainerDrop,
     showUndoToast,
     showMenu,
+    appendMenuEntries,
     copyText,
     showUrlCopyToast
 } from './dom-manager.js';
@@ -4755,6 +4757,22 @@ function setupFolderContextMenu(folderElement, space, item = null) {
                 showFolderIconPicker(folderElement);
             });
             contextMenu.appendChild(iconOption);
+        }
+
+        // The whole folder moves, as when it is dropped on a space chip.
+        if (folderId) {
+            appendMenuEntries(
+                contextMenu,
+                folderMoveEntries({
+                    spaces,
+                    currentSpaceId: spaceElement?.dataset.spaceId,
+                    onMove: async target => {
+                        await moveItemsToSpace([describeItem(folderElement)], target.id);
+                        flashSpaceChip(target.id);
+                    }
+                }),
+                contextMenu
+            );
         }
 
         const deleteOption = document.createElement('div');
