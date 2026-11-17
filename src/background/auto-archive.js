@@ -8,8 +8,9 @@ export const AUTO_ARCHIVE_ALARM_NAME = 'autoArchiveTabsAlarm';
 export const TAB_ACTIVITY_STORAGE_KEY = 'tabLastActivity'; // Key to store timestamps
 
 // Archives tabs that stay idle past the user's threshold. The service worker calls this once,
-// with its space store, to register the alarm and the activity tracking it relies on.
-export function registerAutoArchive(spaceStore) {
+// with its space store, to register the alarm and the activity tracking it relies on. Links left by
+// a closed window (see closed-links.js) move to Archived once they are as old as the idle setting.
+export function registerAutoArchive(spaceStore, { closedLinks } = {}) {
     // --- Helper: Update Last Activity Timestamp ---
     async function updateTabLastActivity(tabId) {
         if (!tabId) return;
@@ -77,6 +78,12 @@ export function registerAutoArchive(spaceStore) {
 
         const idleThresholdMillis = settings.autoArchiveIdleMinutes * 60 * 1000;
         const now = Date.now();
+
+        try {
+            await closedLinks?.archiveIdle(idleThresholdMillis);
+        } catch (error) {
+            Logger.error('Error archiving closed links:', error);
+        }
 
         try {
             // --- Build the protected favorite set from the durable Sidecove bookmark tree ---

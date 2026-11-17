@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Closing a window keeps its pages as links at the bottom of the list.** When you close a window, each of its ordinary tabs whose page is not open in any other window stays in its space's list as a faded row under a small "Closed links" heading, in every window, whichever way Settings → Show tabs and favorites from all windows is set. Nothing loads until you pick one: it opens that page in the window you are in, in the same space, and the link goes. The × on a row removes just that link. Clear takes the links away with the open tabs and files them in Archived, and its Undo brings them back; Clear now shows even when only links are left. Auto-archive moves links to Archived once they are as old as your idle setting. A page that is still open in a window that stays is not closed at all: its tab stays open in its place in the list and no link is made for it. Links survive quitting Chrome; a page Chrome reopens takes its link back. Pinned tabs, favorites, private windows, New Tab and chrome:// pages never leave links, and a deleted space's links go with it. Sidecove keeps at most 100 links; the oldest go to Archived. The titles and addresses of closed pages are kept in this browser only (see PRIVACY.md). No new permissions. ([#65](https://github.com/matthewmoorcroft/sidecove/issues/65))
+
 ## 1.3.1
 
 Your tabs and favorites can now be shown across all your windows, folders can have their own icon, and Move to Space, Clear and next and previous tab in space work more like Arc. There are also a few small fixes to staying in your space and to where links land.

@@ -1,0 +1,84 @@
+/* Links left by a closed window, under the space's open tabs: faded until picked. Their name also
+   says "closed link", so the difference does not rest on colour. */
+.closed-links {
+    margin-top: 6px;
+}
+
+.closed-links[hidden] {
+    display: none;
+}
+
+.closed-links-heading {
+    padding: 4px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: rgba(0, 0, 0, 0.55);
+}
+
+.closed-link {
+    display: flex;
+    align-items: center;
+    min-height: 36px;
+    padding: 4px 8px 4px 12px;
+    margin-bottom: 2px;
+    border-radius: 10px;
+    cursor: pointer;
+    user-select: none;
+    background: var(--space-bg-color, rgba(255, 255, 255, 0.1));
+}
+
+.closed-link:hover,
+.closed-link:focus-visible {
+    background: color-mix(in srgb, var(--space-bg-color, #ccc) 62%, white);
+}
+
+.closed-link-favicon {
+    width: 16px;
+    height: 16px;
+    margin-right: 8px;
+    opacity: 0.5;
+    filter: grayscale(1);
+}
+
+.closed-link-title {
+    flex-grow: 1;
+    min-width: 0;
+    margin-left: 8px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    color: rgba(51, 51, 51, 0.6);
+}
+
+.closed-link:hover .closed-link-title {
+    color: rgba(51, 51, 51, 0.85);
+}
+
+.closed-link-close {
+    width: 28px;
+    height: 28px;
+    margin-left: 8px;
+    border: none;
+    border-radius: 6px;
+    background: none;
+    color: rgba(0, 0, 0, 0.5);
+    font-size: 22px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition:
+        opacity 0.2s ease,
+        background-color 0.3s ease;
+}
+
+.closed-link:hover .closed-link-close,
+.closed-link-close:focus-visible {
+    opacity: 1;
+}
+
+.closed-link-close:hover {
+    background-color: rgba(0, 0, 0, 0.1);
+}

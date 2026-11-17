@@ -56,15 +56,9 @@ import {
 } from './sidebar-tabs.js';
 import { ownerOf } from '../shared/space-store.js';
 import { canCreateFolder, canMoveFolder, createFolder } from './folder-policy.js';
-import {
-    clearTabs,
-    closableTabs,
-    undoClear,
-    reopenClosedTabs,
-    startPendingClean,
-    undoPendingClean
-} from './features/clean-all/clean-all.js';
-import { UNDO_WINDOW_MS, CLOSE_GRACE_MS } from '../shared/pending-clean.js';
+import { closableTabs, reopenClosedTabs, startPendingClean, undoPendingClean } from './features/clean-all/clean-all.js';
+import { cleanSpace } from './features/clean-all/clean-space.js';
+import { drawClosedLinks, watchClosedLinks } from './features/closed-links/closed-link-rows.js';
 import { loadFolderCollapsed, saveFolderCollapsed } from './folder-state.js';
 import { SPEAKER_ICON, SPEAKER_MUTED_ICON, SPACE_ICON_PLACEHOLDER } from './icons.js';
 import { showIconPicker } from './features/icon-picker/icon-picker.js';
@@ -710,6 +704,8 @@ async function initSidebar() {
         if (area !== 'local' || !changes.spaces || !sidebarReady) return;
         scheduleStoredSpacesRefresh();
     });
+    // Links left by a closed window change in the worker; every window's list follows.
+    watchClosedLinks(() => sidebarReady && scheduleListRedraw(100));
     await offerTabGroupImport();
 }
 function scheduleStoredSpacesRefresh() {
@@ -2659,6 +2655,13 @@ async function renderSpaceTabs(space, pinnedContainer, tempContainer) {
     // A pinned tab binds to its bookmark in its own window only.
     const ownTabs = tabs.filter(t => !isOtherWindow(t, currentWindow.id));
     const pinnedStatesById = await Utils.getPinnedTabStates();
+    // Links a closed window left sit under the list, and Clear clears them too.
+    const closedLinkCount = await drawClosedLinks(tempContainer.closest('.space'), {
+        spaceId: space.id,
+        invertTabOrder,
+        windowId: currentWindow.id,
+        incognito: currentWindow.incognito
+    });
     // Nothing for Clear to close (only favorites and untouched New Tabs): hide the button.
     const clearButton = pinnedContainer.closest('.space')?.querySelector('.clean-tabs-btn');
     if (clearButton) {
@@ -2670,7 +2673,8 @@ async function renderSpaceTabs(space, pinnedContainer, tempContainer) {
                 protectedIds: new Set(space.spaceBookmarks),
                 bindings: pinnedStatesById,
                 favoriteUrlKeys
-            }).length;
+            }).length &&
+            !closedLinkCount;
     }
     const pinnedFragment = document.createDocumentFragment();
     let treeAvailable = true;
@@ -4075,57 +4079,34 @@ async function getSpaceFavoriteUrlKeys(space) {
     return keys;
 }
 
-async function cleanTemporaryTabs(spaceId) {
-    Logger.log('Cleaning temporary tabs for space:', spaceId);
-    const space = spaces.find(s => s.id === spaceId);
-    if (!space) return;
-
-    // Only close live tabs owned by this space, protecting favorite bindings.
-    const ownedTabs = await getOwnedTabs(spaceId);
-    const protectedIds = new Set(space.spaceBookmarks);
-    const favoriteUrlKeys = await getSpaceFavoriteUrlKeys(space);
-    const bindings = await Utils.getPinnedTabStates();
-    const closable = closableTabs(ownedTabs, { protectedIds, bindings, favoriteUrlKeys });
-
-    if (!closable.length) return;
-
-    // Clear in display order so Undo shows them the way they were listed.
-    const displayOrder = getTempSectionTabIds(getSpaceElement(spaceId));
-    closable.sort((a, b) => displayOrder.indexOf(a.id) - displayOrder.indexOf(b.id));
-    await pendingSpaceSaves;
-    const cleared = await clearTabs(closable, spaceId, [...space.temporaryTabs], {
+function cleanTemporaryTabs(spaceId) {
+    return cleanSpace(spaceId, {
+        spaces: () => spaces,
+        ownedTabs: getOwnedTabs,
+        favoriteUrlKeys: getSpaceFavoriteUrlKeys,
+        pinnedStates: () => Utils.getPinnedTabStates(),
+        incognito: currentWindow.incognito,
+        windowId: currentWindow.id,
+        tempSectionTabIds: id => getTempSectionTabIds(getSpaceElement(id)),
+        displayedTabIds,
+        pendingSaves: () => pendingSpaceSaves,
+        activeTabId: () => activeChromeTabId,
         addArchivedTab: entry => Utils.addArchivedTab(entry),
         removeArchivedTab: (url, targetSpaceId) => Utils.removeArchivedTab(url, targetSpaceId),
-        activeTabId: activeChromeTabId,
-        displayOrder: displayedTabIds(spaceId),
         openTabIds: async () => (await chrome.tabs.query({ windowId: currentWindow.id })).map(tab => tab.id),
         activateTab: tabId => chrome.tabs.update(tabId, { active: true }),
         openNewTab: () => createNewTab(),
-        startPendingClean
+        startPendingClean,
+        undoPendingClean,
+        clearedTabs,
+        adoptStoredSpaces,
+        showUndoToast,
+        invertTabOrder: () => Utils.getInvertTabOrder(),
+        createTab: props => chrome.tabs.create(props),
+        assignTab: (tabId, targetSpaceId) => spaceRequest('assign', { tabId, spaceId: targetSpaceId }),
+        fetchSpaces: () => spaceRequest('get'),
+        refresh: () => refreshActiveSpaceUI()
     });
-    // The tabs stay open but leave the list at once.
-    clearedTabs.remember(cleared);
-    await adoptStoredSpaces(cleared.spaces);
-
-    // Arc's Clear can be undone, and the tabs also stay in Archived.
-    const count = cleared.records.length;
-    showUndoToast(
-        `Closed ${count} ${count === 1 ? 'tab' : 'tabs'}. They're in Archived.`,
-        async () => {
-            const invertTabOrder = await Utils.getInvertTabOrder();
-            await pendingSpaceSaves;
-            await undoClear(cleared.records, cleared.batchId, currentWindow.id, invertTabOrder, {
-                undoPendingClean,
-                createTab: props => chrome.tabs.create(props),
-                assignTab: (tabId, targetSpaceId) => spaceRequest('assign', { tabId, spaceId: targetSpaceId }),
-                removeArchivedTab: (url, targetSpaceId) => Utils.removeArchivedTab(url, targetSpaceId)
-            });
-            await adoptStoredSpaces(await spaceRequest('get'));
-            await refreshActiveSpaceUI();
-        },
-        // Ends before the worker closes the tabs, however long the round trip and render took.
-        Math.min(UNDO_WINDOW_MS, cleared.closeAt - Date.now() - CLOSE_GRACE_MS / 2)
-    );
 }
 
 async function handleTabCreated(tab) {

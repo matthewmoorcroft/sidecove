@@ -47,6 +47,7 @@ FAVOURITES AND PINNED TABS
 KEEPS TABS TIDY
 - Auto-archive is optional and off until you turn it on in Settings. It then closes tabs you have not used for the time you choose. Favourites and pinned tabs are never closed this way.
 - Archived tabs are listed so you can open them again.
+- Close a window and its pages stay at the bottom of each space's list as faded links, in every window. Pick one to open it again; a page still open in another window is left alone. Links stay on your computer, and Clear files them in Archived.
 - "↓ Clear", on the divider above New Tab, closes a space's open tabs into the archive, and leaves untouched New Tabs open. Undo is on offer for 8 seconds and brings every tab back.
 - A New Tab you leave empty closes by itself when you switch to another tab. It is on by default and can be turned off in Settings.
 - Search your open tabs, pinned tabs and favourites across every space (Cmd or Ctrl+F).

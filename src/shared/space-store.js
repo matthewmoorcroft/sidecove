@@ -5,6 +5,7 @@ import { LocalStorage } from './localstorage.js';
 
 import { sections, ownerOf, updateNativePinSection, spaceForActivation } from './space-membership.js';
 import { hideTabs, showTabs } from './hidden-tabs.js';
+import { removeTab } from './space-tab-removal.js';
 export { tabIds, ownerOf } from './space-membership.js';
 const clone = value => structuredClone(value);
 
@@ -60,6 +61,8 @@ export class SpaceStore {
         this.initialized = false;
         // Tabs Clean All is hiding until its Undo toast ends. They are open but belong to no space.
         this.hidden = new Set();
+        // Called for every closing tab; the closed links (background/closed-links.js) set it.
+        this.onTabRemoved = null;
     }
     run(operation) {
         const pending = this.chain.then(async () => {
@@ -415,27 +418,7 @@ export class SpaceStore {
         chrome.tabs.onUpdated.addListener((id, change, tab) => {
             if (change.url || change.pinned !== undefined) handle(() => this.track(tab));
         });
-        chrome.tabs.onRemoved.addListener((id, info) =>
-            handle(() => {
-                const record = this.snapshotByTab.get(id);
-                // A tab Clean All is hiding is in no space now; the old record must not bring it back.
-                if (
-                    info?.isWindowClosing &&
-                    record &&
-                    !this.hidden.has(id) &&
-                    this.spaces.some(s => s.id === record.spaceId)
-                )
-                    this.restoreQueue.push(record);
-                this.snapshotByTab.delete(id);
-                this.provisional.delete(id);
-                this.hidden.delete(id);
-                this.linkTails.closed(id);
-                for (const space of this.spaces) {
-                    for (const key of sections) space[key] = space[key].filter(t => t !== id);
-                    if (space.lastTab === id) delete space.lastTab;
-                }
-            })
-        );
+        chrome.tabs.onRemoved.addListener((id, info) => handle(() => removeTab(this, id, info)));
         chrome.tabs.onReplaced.addListener((added, removed) =>
             handle(() => {
                 this.linkTails.replaced(added, removed);

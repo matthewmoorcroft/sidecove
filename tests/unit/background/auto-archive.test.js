@@ -30,7 +30,7 @@ beforeEach(() => {
     removed = [];
     tabs = [{ id: 1, windowId: 1, url: 'https://one.test/', groupId: -1, active: false }];
 });
-function startBackground() {
+function startBackground({ closedLinks } = {}) {
     const event = () => ({
         listeners: [],
         addListener(fn) {
@@ -78,10 +78,26 @@ function startBackground() {
     // As the service worker does: one space store, then auto-archive on top of it.
     const spaceStore = new SpaceStore();
     spaceStore.install();
-    registerAutoArchive(spaceStore);
+    registerAutoArchive(spaceStore, { closedLinks });
     return () => Promise.all(chrome.alarms.onAlarm.listeners.map(fn => fn({ name: 'autoArchiveTabsAlarm' })));
 }
 
+test('the alarm also archives closed links older than the idle time', async () => {
+    const asked = [];
+    await startBackground({ closedLinks: { archiveIdle: async ms => asked.push(ms) } })();
+    assert.deepEqual(asked, [threshold]);
+});
+test('closed links failing to archive does not stop tabs being archived', async () => {
+    local.tabLastActivity = { 1: Date.now() - threshold - 1000 };
+    await startBackground({
+        closedLinks: {
+            archiveIdle: async () => {
+                throw new Error('storage full');
+            }
+        }
+    })();
+    assert.deepEqual(removed, [1]);
+});
 test('a background tab with no activity record is tracked instead of archived', async () => {
     local.tabLastActivity = {};
     await startBackground()();
