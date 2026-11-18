@@ -82,3 +82,33 @@
 .closed-link-close:hover {
     background-color: rgba(0, 0, 0, 0.1);
 }
+
+/* On the dark surfaces the same fade uses light text, as dimmed favourites do. */
+@media (prefers-color-scheme: dark) {
+    .closed-links-heading {
+        color: rgba(236, 239, 241, 0.7);
+    }
+
+    .closed-link-title {
+        color: rgba(236, 239, 241, 0.6);
+    }
+
+    /* Light mode lightens the row on hover; here that would wash the light text out, so the
+       row takes the same hover shade as the open tabs. */
+    .closed-link:hover,
+    .closed-link:focus-visible {
+        background: var(--space-bg-color-dark, rgba(255, 255, 255, 0.1));
+    }
+
+    .closed-link:hover .closed-link-title {
+        color: #eceff1;
+    }
+
+    .closed-link-close {
+        color: rgba(236, 239, 241, 0.7);
+    }
+
+    .closed-link-close:hover {
+        background-color: rgba(255, 255, 255, 0.1);
+    }
+}
