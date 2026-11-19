@@ -45,3 +45,5 @@ tests/e2e/screenshots/
 coverage/
 .nyc_output/
 junit.xml
+# Local browser migration backups
+.arc-migration/
