@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **ESLint skips the local `.arc-migration/` folder.** A browser migration backup kept in the project folder made `npm run lint` report about 250,000 errors. You will not notice this in the extension itself.
 - **No more browser crash from Google sign-in or a Google Meet call.** With Settings → Sync spaces to Chrome tab groups on, Sidecove put the tab of a "Sign in with Google" popup, or of Meet's floating picture-in-picture window, into a tab group. Those windows have no tab strip, and Brave crashed as soon as you opened a new tab or the sign-in window appeared. Sidecove now only groups tabs in regular browser windows.
 - **Closed links are readable in dark mode.** The "Closed links" heading, the faded link rows and the × on a row were dark grey on a dark space colour and almost invisible. They now use light text, and a row you point at takes the same shade as an open tab. Light mode looks as before. No new permissions.
 - **Move a folder to another space from its right-click menu.** Right-click a folder and choose **Move to Space**, then pick the space. The whole folder moves with everything in it (favorites, subfolders, open tabs), keeps its name, icon and order, and leaves the space you moved it from. Before, a folder could only be moved by dragging it onto another space's button on the space bar. No new permissions.
