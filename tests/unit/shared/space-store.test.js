@@ -4,7 +4,7 @@ import { SpaceStore, applySpacePatch, ownerOf } from '../../../src/shared/space-
 import { syncSpaceGroups } from '../../../src/shared/tab-group-sync.js';
 import { Utils } from '../../../src/shared/utils.js';
 
-let local, session, sync, tabs, mutations, groups, focusedWindow;
+let local, session, sync, tabs, mutations, groups, focusedWindow, windows;
 const area = data => ({
     async get(keys) {
         const names = typeof keys === 'string' ? [keys] : Array.isArray(keys) ? keys : Object.keys(keys || data);
@@ -30,6 +30,10 @@ beforeEach(() => {
     mutations = [];
     groups = [];
     focusedWindow = 1;
+    windows = [
+        { id: 1, type: 'normal', alwaysOnTop: false },
+        { id: 2, type: 'normal', alwaysOnTop: false }
+    ];
     tabs = [
         { id: 1, windowId: 1, url: 'https://one.test/', groupId: -1 },
         { id: 2, windowId: 1, url: 'https://two.test/', groupId: -1 }
@@ -80,7 +84,11 @@ beforeEach(() => {
             getChildren: async () => [],
             create: async ({ title }) => ({ id: title, title })
         },
-        windows: { onFocusChanged: event(), get: async id => ({ id, focused: id === focusedWindow }) }
+        windows: {
+            onFocusChanged: event(),
+            get: async id => ({ id, focused: id === focusedWindow }),
+            getAll: async ({ windowTypes }) => windows.filter(w => windowTypes.includes(w.type))
+        }
     };
 });
 test('independent default ignores group identity and order and retains empty spaces', async () => {
@@ -322,6 +330,23 @@ test('sync creates each group in its tabs original window', async () => {
         [
             { tabIds: [1], createProperties: { windowId: 1 } },
             { tabIds: [2], createProperties: { windowId: 2 } }
+        ]
+    );
+});
+test('sync never groups tabs in a popup or picture-in-picture window', async () => {
+    windows.push({ id: 3, type: 'popup', alwaysOnTop: false }, { id: 4, type: 'normal', alwaysOnTop: true });
+    tabs.push(
+        { id: 3, windowId: 3, url: 'https://accounts.test/', groupId: -1 },
+        { id: 4, windowId: 4, url: 'about:blank', groupId: -1 }
+    );
+    local.spaces[0].temporaryTabs.push(3, 4);
+    sync.syncTabGroups = true;
+    await syncSpaceGroups(local.spaces);
+    assert.deepEqual(
+        mutations.filter(m => m[0] === 'group').map(m => m[1]),
+        [
+            { tabIds: [1], createProperties: { windowId: 1 } },
+            { tabIds: [2], createProperties: { windowId: 1 } }
         ]
     );
 });

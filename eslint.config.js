@@ -55,7 +55,17 @@ const legacy = [
 export default [
     {
         // ESLint does not read .gitignore; these are the ignored folders that can hold JavaScript.
-        ignores: ['dist/', 'dist-dev/', 'node_modules/', 'coverage/', '.claude/', '.config/', '.vite/', 'test-results/']
+        ignores: [
+            'dist/',
+            'dist-dev/',
+            'node_modules/',
+            'coverage/',
+            '.arc-migration/',
+            '.claude/',
+            '.config/',
+            '.vite/',
+            'test-results/'
+        ]
     },
     js.configs.recommended,
     {

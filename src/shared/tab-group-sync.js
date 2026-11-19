@@ -1,3 +1,15 @@
+// Only a browser window with a tab strip can hold groups. Chrome lets an extension group the tab
+// of a sign-in popup, or of a picture-in-picture window (which it reports as "normal" but always
+// on top), and the browser then crashes, so those windows are left alone.
+export function canHoldTabGroups(window) {
+    return window.type === 'normal' && !window.alwaysOnTop;
+}
+
+async function groupableWindowIds() {
+    const windows = await chrome.windows.getAll({ windowTypes: ['normal'] });
+    return new Set(windows.filter(canHoldTabGroups).map(window => window.id));
+}
+
 // Optional, one-way projection. This is the only module allowed to mutate groups.
 // Space identity and ordering never depend on the projection succeeding.
 export async function syncSpaceGroups(spaces, activeSpaces = {}) {
@@ -5,7 +17,8 @@ export async function syncSpaceGroups(spaces, activeSpaces = {}) {
     if (!syncTabGroups) return;
     const { spaceGroupProjection = {} } = await chrome.storage.session.get('spaceGroupProjection');
     const groups = await chrome.tabGroups.query({});
-    const tabs = await chrome.tabs.query({});
+    const groupable = await groupableWindowIds();
+    const tabs = (await chrome.tabs.query({})).filter(t => groupable.has(t.windowId));
     const byId = new Map(tabs.map(t => [t.id, t]));
     const next = {};
     for (const space of spaces) {
