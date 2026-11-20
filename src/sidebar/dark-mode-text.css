@@ -54,7 +54,7 @@
         color: var(--dark-text-muted);
     }
 
-    /* A favorite with no open tab is faded at rest and clearer on hover, as closed links are. */
+    /* A favorite with no open tab is faded at rest and clearer on hover. */
     .tab.bookmark-only:hover .tab-title-display {
         color: var(--dark-text-muted);
     }
