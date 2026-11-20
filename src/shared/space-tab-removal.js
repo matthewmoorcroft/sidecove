@@ -1,5 +1,5 @@
 import { sections } from './space-membership.js';
-import { orderAfterWindowClose } from './closed-links.js';
+import { orderAfterWindowClose } from './window-close-order.js';
 import { ALL_WINDOWS_SETTING } from './saved-favorites.js';
 import { Logger } from './logger.js';
 
@@ -24,13 +24,16 @@ async function keepPageInPlace(store, id, info, record) {
 }
 
 // A tab closed: the space store forgets it. A tab closed with its window is also queued to take its
-// place again if Chrome reopens it, and `onTabRemoved` (set by the closed links) hears of it.
+// place again if Chrome reopens it, and `onTabClosedWithWindow` (set by
+// background/closed-window-reopen.js) hears of it with the space's list as it was, so the tab can
+// be reopened in the same place.
 export async function removeTab(store, id, info) {
     const record = store.snapshotByTab.get(id);
     // A tab Clean All is hiding is in no space now; the old record must not bring it back.
     const closedWithWindow = Boolean(
         info?.isWindowClosing && record && !store.hidden.has(id) && store.spaces.some(s => s.id === record.spaceId)
     );
+    const layout = closedWithWindow ? [...(store.spaces.find(s => s.id === record.spaceId)[record.section] || [])] : [];
     if (closedWithWindow) {
         store.restoreQueue.push(record);
         try {
@@ -48,9 +51,10 @@ export async function removeTab(store, id, info) {
         for (const key of sections) space[key] = space[key].filter(t => t !== id);
         if (space.lastTab === id) delete space.lastTab;
     }
+    if (!closedWithWindow) return;
     try {
-        await store.onTabRemoved?.({ tabId: id, info, record: closedWithWindow ? record : null });
+        await store.onTabClosedWithWindow?.({ tabId: id, windowId: info.windowId, record, layout });
     } catch (error) {
-        Logger.warn('Closed links could not note a closed tab:', error);
+        Logger.warn('Could not note a tab closed with its window:', error);
     }
 }

@@ -29,7 +29,7 @@ Sidecove is an independent project, not affiliated with or endorsed by The Brows
 - Keyboard and mouse side-button space switching
 - A shortcut for the most recently used tab in the current space, like Arc's Ctrl+Tab (assign a key at `chrome://extensions/shortcuts`; Chrome keeps Ctrl+Tab for itself)
 - A new tab you leave empty closes by itself, as in Arc (turn it off at **Settings → Close new tabs you leave empty**)
-- Closing a window keeps its pages as faded links under a "Closed links" heading at the bottom of each space's list, in every window. Pick one to open it here, use the × to drop it, or Clear to file them in Archived. A page still open in a window that stays is not touched. Links are kept on this computer only, up to 100.
+- Closing a window while another is open moves its pages into that window as tabs, in the same spaces and places, unloaded until you go to them. Pinned tabs, favorites and private windows are left out.
 - Auto-archive for idle tabs, and "↓ Clear" (on the divider above New Tab) with Undo
 
 See [CHANGELOG.md](CHANGELOG.md) for what changed in each version.
@@ -111,7 +111,7 @@ If you have any questions or suggestions, please open an issue on GitHub.
 
 ## Privacy
 
-Sidecove reads your tabs' titles and URLs only to show and manage them in the sidebar. Spaces and pinned tabs are kept in Chrome bookmarks and settings in `chrome.storage`; the titles and addresses of pages from windows you closed are kept on this computer only, which Chrome may sync through your Google account. Nothing is sent anywhere else: there are no analytics, no tracking and no third parties. See [PRIVACY.md](PRIVACY.md).
+Sidecove reads your tabs' titles and URLs only to show and manage them in the sidebar. Spaces and pinned tabs are kept in Chrome bookmarks and settings in `chrome.storage`, which Chrome may sync through your Google account. Nothing is sent anywhere else: there are no analytics, no tracking and no third parties. See [PRIVACY.md](PRIVACY.md).
 
 ## Acknowledgments
 

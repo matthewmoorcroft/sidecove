@@ -61,8 +61,8 @@ export class SpaceStore {
         this.initialized = false;
         // Tabs Clean All is hiding until its Undo toast ends. They are open but belong to no space.
         this.hidden = new Set();
-        // Called for every closing tab; the closed links (background/closed-links.js) set it.
-        this.onTabRemoved = null;
+        // Called for each tab that closes with its window (see space-tab-removal.js).
+        this.onTabClosedWithWindow = null;
     }
     run(operation) {
         const pending = this.chain.then(async () => {

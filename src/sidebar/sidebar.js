@@ -63,7 +63,6 @@ import { ownerOf } from '../shared/space-store.js';
 import { canCreateFolder, canMoveFolder, createFolder } from './folder-policy.js';
 import { closableTabs, reopenClosedTabs, startPendingClean, undoPendingClean } from './features/clean-all/clean-all.js';
 import { cleanSpace } from './features/clean-all/clean-space.js';
-import { drawClosedLinks, watchClosedLinks } from './features/closed-links/closed-link-rows.js';
 import { loadFolderCollapsed, saveFolderCollapsed } from './folder-state.js';
 import { SPEAKER_ICON, SPEAKER_MUTED_ICON, SPACE_ICON_PLACEHOLDER } from './icons.js';
 import { showIconPicker } from './features/icon-picker/icon-picker.js';
@@ -727,8 +726,6 @@ async function initSidebar() {
         if (area !== 'local' || !changes.spaces || !sidebarReady) return;
         scheduleStoredSpacesRefresh();
     });
-    // Links left by a closed window change in the worker; every window's list follows.
-    watchClosedLinks(() => sidebarReady && scheduleListRedraw(100));
     await offerTabGroupImport();
 }
 function scheduleStoredSpacesRefresh() {
@@ -2690,13 +2687,6 @@ async function renderSpaceTabs(space, pinnedContainer, tempContainer) {
     // A pinned tab binds to its bookmark in its own window only.
     const ownTabs = tabs.filter(t => !isOtherWindow(t, currentWindow.id));
     const pinnedStatesById = await Utils.getPinnedTabStates();
-    // Links a closed window left sit under the list, and Clear clears them too.
-    const closedLinkCount = await drawClosedLinks(tempContainer.closest('.space'), {
-        spaceId: space.id,
-        invertTabOrder,
-        windowId: currentWindow.id,
-        incognito: currentWindow.incognito
-    });
     // Nothing for Clear to close (only favorites and untouched New Tabs): hide the button.
     const clearButton = pinnedContainer.closest('.space')?.querySelector('.clean-tabs-btn');
     if (clearButton) {
@@ -2708,8 +2698,7 @@ async function renderSpaceTabs(space, pinnedContainer, tempContainer) {
                 protectedIds: new Set(space.spaceBookmarks),
                 bindings: pinnedStatesById,
                 favoriteUrlKeys
-            }).length &&
-            !closedLinkCount;
+            }).length;
     }
     const pinnedFragment = document.createDocumentFragment();
     let treeAvailable = true;
@@ -4133,7 +4122,6 @@ function cleanTemporaryTabs(spaceId) {
         ownedTabs: getOwnedTabs,
         favoriteUrlKeys: getSpaceFavoriteUrlKeys,
         pinnedStates: () => Utils.getPinnedTabStates(),
-        incognito: currentWindow.incognito,
         windowId: currentWindow.id,
         tempSectionTabIds: id => getTempSectionTabIds(getSpaceElement(id)),
         displayedTabIds,
