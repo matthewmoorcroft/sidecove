@@ -5,12 +5,13 @@ import {
     openDroppedLink
 } from '../../../../../src/sidebar/features/external-drop/link-drop-position.js';
 
-function position({ overList = true, row = { dataset: { tabId: '4' } } } = {}) {
+function position({ overList = true, row = { dataset: { tabId: '4' } }, rows = [] } = {}) {
     const calls = [];
     const list = { id: 'list' };
     const adapter = createLinkDropPosition({
         listUnder: () => (overList ? list : null),
         rowBefore: () => row,
+        rowsOf: () => rows,
         showLine: (l, r) => calls.push(['show', l, r]),
         hideLine: () => calls.push(['hide']),
         open: (url, beforeId) => calls.push(['open', url, beforeId])
@@ -22,6 +23,18 @@ test('over the list the drop line shows where the link would open', () => {
     const { adapter, calls, list, row } = position();
     adapter.over({});
     assert.deepEqual(calls, [['show', list, row]]);
+    assert.deepEqual(adapter.placeAt({}), { beforeId: 4 });
+});
+
+test('between the two halves of a split pair the link goes above the pair, in the line and in the drop', () => {
+    const rows = [
+        { dataset: { tabId: '3' } },
+        { dataset: { tabId: '4', splitViewId: '7' } },
+        { dataset: { tabId: '5', splitViewId: '7' } }
+    ];
+    const { adapter, calls, list } = position({ rows, row: rows[2] });
+    adapter.over({});
+    assert.deepEqual(calls, [['show', list, rows[1]]]);
     assert.deepEqual(adapter.placeAt({}), { beforeId: 4 });
 });
 
