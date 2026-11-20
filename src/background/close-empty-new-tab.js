@@ -8,8 +8,8 @@ const RETRY_DELAY_MS = 300;
 
 // Closes a new tab you leave without typing or opening anything. It remembers which tabs began
 // as an empty new tab and which tab each window showed last, since the activation event names
-// only the tab that was switched to. Only tabs seen opening are tracked: a new tab page that
-// was already open when the extension started is left alone.
+// only the tab that was switched to. Tabs seen opening are tracked, and so are new tab pages
+// already open when tracking starts from nothing (install, update, reload, browser start).
 export function registerCloseEmptyNewTab({ chromeApi = chrome, spaceStore, getSettings = Utils.getSettings } = {}) {
     const untouched = new Set();
     const shown = new Map(); // windowId -> the tab shown there
@@ -19,16 +19,28 @@ export function registerCloseEmptyNewTab({ chromeApi = chrome, spaceStore, getSe
             .catch(error => Logger.warn('[Empty new tab] Could not save the tracked tabs:', error));
 
     const ready = (async () => {
+        let stored;
+        let readSaved = false;
         try {
-            const stored = (await chromeApi.storage.session.get(EMPTY_TAB_STORAGE_KEY))?.[EMPTY_TAB_STORAGE_KEY];
+            stored = (await chromeApi.storage.session.get(EMPTY_TAB_STORAGE_KEY))?.[EMPTY_TAB_STORAGE_KEY];
             for (const id of stored?.untouched || []) untouched.add(id);
             for (const [windowId, tabId] of stored?.shown || []) shown.set(windowId, tabId);
+            readSaved = true;
         } catch (error) {
             Logger.warn('[Empty new tab] Could not read the tracked tabs:', error);
         }
         // A window the saved list does not cover (the worker restarted) starts from what it shows now.
         for (const tab of await chromeApi.tabs.query({ active: true })) {
             if (!shown.has(tab.windowId)) shown.set(tab.windowId, tab.id);
+        }
+        // Nothing saved means tracking starts now, so a New Tab already open could not be seen
+        // opening. One showing only the new tab page is taken as empty. Saving even an empty list
+        // makes a later worker restart read it back, so a tab seen going to a site is not re-seeded.
+        if (readSaved && !stored) {
+            for (const tab of await chromeApi.tabs.query({})) {
+                if (isNewTabPage(tab.url || tab.pendingUrl) && isUntouchedPage(tab)) untouched.add(tab.id);
+            }
+            save();
         }
     })().catch(error => Logger.warn('[Empty new tab] Could not start tracking:', error));
 
