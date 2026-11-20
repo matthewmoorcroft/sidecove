@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Moving a folder with its right-click menu now takes you to the space it went to.** Choose **Move to Space** on a folder and Sidecove switches to the space you picked, with the folder in it. If the move fails, you stay where you were. Dragging a folder onto a space button works as before. No new permissions.
+
 ## 1.4.0
 
 Sidecove now has split view, back, forward and reload buttons, and links or text you drag onto it open in a new tab. A window you close also leaves its pages behind as links you can open again, and a folder can be moved to another space from its right-click menu. Sidecove also no longer puts the tab of a sign-in popup or a Google Meet picture-in-picture window into a tab group. No new permissions.
