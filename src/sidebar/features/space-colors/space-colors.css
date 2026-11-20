@@ -36,7 +36,8 @@
     background: none;
 }
 
-.add-space-input-container.visible {
+/* By id: the build puts this sheet ahead of shared/styles.css, which sets the closed height. */
+#addSpaceInputContainer.visible {
     height: 6.25rem;
 }
 
