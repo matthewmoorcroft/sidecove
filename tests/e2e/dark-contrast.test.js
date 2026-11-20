@@ -1,18 +1,32 @@
 import { createServer } from 'node:http';
 import { launchBrowserWithExtension, openSidebar } from './helpers/extension-helper.js';
 import { lowContrastText } from './helpers/contrast.js';
+import { PALETTE, choiceForKey } from '../../src/sidebar/features/space-colors/space-palette.js';
 
 // In dark mode every piece of text Sidecove shows meets WCAG AA contrast (4.5:1, or 3:1 for
 // large text; placeholders count as normal text) in every space colour: the sidebar at rest,
 // a folder being named, hovered and selected rows, menus, popups, the tour, and the settings
 // and onboarding pages. Disabled controls and emoji are left out (see helpers/contrast.js).
+// The space colours are the 24 of the colour menu and custom colours at the extremes of what
+// the picker allows (issue #67). Each is checked in light mode too. Light mode has shortfalls
+// of its own in the eight original colours (placeholders, hints, faded titles) that are not
+// about the space colour, so there no other colour may make any text less readable than it
+// already is in the worst of those eight.
 let server, base, browser, extensionId, page;
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
-const COLORS = ['grey', 'blue', 'red', 'yellow', 'green', 'pink', 'purple', 'cyan'];
-const dark = target => target.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: 'dark' }]);
+const CUSTOM_EXTREMES = ['#ffffff', '#000000', '#ff0000', '#ffff00', '#00ff00', '#0000ff', '#ff00ff', '#00ffff'];
+const ORIGINAL = ['grey', 'blue', 'red', 'yellow', 'green', 'pink', 'purple', 'cyan'];
+const COLORS = [
+    ...ORIGINAL,
+    ...PALETTE.map(colour => colour.name).filter(n => !ORIGINAL.includes(n)),
+    ...CUSTOM_EXTREMES
+];
+const MODES = ['dark', 'light'];
+const scheme = (target, value) => target.emulateMediaFeatures([{ name: 'prefers-color-scheme', value }]);
+const dark = target => scheme(target, 'dark');
 const fixture = {};
-// Each test walks all eight space colours, so it gets longer than the default 60 seconds.
-const SLOW = 180000;
+// Each test walks every space colour in both modes, so it gets longer than the default 60 seconds.
+const SLOW = 900000;
 
 const activeSpace = () =>
     page.evaluate(async () => {
@@ -22,16 +36,16 @@ const activeSpace = () =>
     });
 
 async function setSpaceColor(color) {
-    await page.evaluate(async color => {
+    await page.evaluate(async choice => {
         const id = document.querySelector('.space.active').dataset.spaceId;
         const { spaces } = await chrome.runtime.sendMessage({ type: 'spaceStore', action: 'get' });
         await chrome.runtime.sendMessage({
             type: 'spaceStore',
             action: 'patch',
             before: spaces,
-            after: spaces.map(s => (String(s.id) === id ? { ...s, color } : s))
+            after: spaces.map(s => (String(s.id) === id ? { ...s, ...choice } : s))
         });
-    }, color);
+    }, choiceForKey(color));
     await page.waitForFunction(
         color => document.querySelector('.space.active .space-color-select')?.value === color,
         { polling: 100 },
@@ -68,13 +82,30 @@ async function closeMenus() {
     await sleep(100);
 }
 
-// Collects every shortfall in one colour, so a failure lists them all at once.
+// In light mode a shortfall counts when it is worse than the same text in the worst of the
+// original eight colours, or that text falls short in none of them.
+const lightRegressions = shortfalls => {
+    // A colour without a stylesheet variable adds a class to the panel; the text is the same.
+    const key = s => JSON.stringify([s.open, s.step, s.where.replaceAll('.space-shade', ''), s.kind, s.content]);
+    const worstToday = new Map();
+    for (const s of shortfalls.filter(s => ORIGINAL.includes(s.color)))
+        worstToday.set(key(s), Math.min(worstToday.get(key(s)) ?? Infinity, s.ratio));
+    return shortfalls.filter(s => !ORIGINAL.includes(s.color) && s.ratio < (worstToday.get(key(s)) ?? s.needed) - 0.05);
+};
+
+// Collects every shortfall in every colour and mode, so a failure lists them all at once.
 async function auditEachColor(run) {
     const found = [];
-    for (const color of COLORS) {
-        await setSpaceColor(color);
-        for (const shortfall of await run(color)) found.push({ color, ...shortfall });
+    for (const mode of MODES) {
+        await scheme(page, mode);
+        const inMode = [];
+        for (const color of COLORS) {
+            await setSpaceColor(color);
+            for (const shortfall of await run(color)) inMode.push({ mode, color, ...shortfall });
+        }
+        found.push(...(mode === 'light' ? lightRegressions(inMode) : inMode));
     }
+    await dark(page);
     return found;
 }
 
@@ -90,6 +121,9 @@ beforeAll(async () => {
     await page.setViewport({ width: 360, height: 800 });
     page.on('pageerror', error => console.error('Sidebar error:', error.message));
     await dark(page);
+    // Colours are read as they settle, not part way through a hover or theme transition, so
+    // two colours can be compared.
+    await page.addStyleTag({ content: '*, *::before, *::after { transition: none !important; }' });
 
     // A second space, so the switcher has an inactive chip.
     const first = await activeSpace();
