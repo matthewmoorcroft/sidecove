@@ -1,6 +1,6 @@
 # Sidecove privacy policy
 
-Last updated: 22 October 2026
+Last updated: 20 November 2026
 
 Sidecove is a Chrome extension that shows your tabs in a vertical sidebar and organises them into spaces.
 

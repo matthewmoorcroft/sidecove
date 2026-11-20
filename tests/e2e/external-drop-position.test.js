@@ -158,6 +158,63 @@ test('a link dragged away from the list shows no line', async () => {
     expect(await page.$('.drop-line.visible')).toBeNull();
 });
 
+test('a link dropped between the two halves of a split pair opens above the pair and keeps it split', async () => {
+    const supported = await page.evaluate(() => typeof chrome.tabs.createSplit === 'function');
+    if (!supported) return;
+    // Two fresh tabs at the end of the strip, so they stand next to each other in the list too.
+    const [left, right] = await page.evaluate(async base => {
+        const { id: windowId } = await chrome.windows.getCurrent();
+        const made = [];
+        for (const name of ['pair-left', 'pair-right']) {
+            made.push((await chrome.tabs.create({ url: `${base}/${name}`, windowId, active: false })).id);
+        }
+        await chrome.tabs.createSplit(made);
+        return made;
+    }, base);
+    const paired = () =>
+        page.evaluate(
+            ([a, b]) => {
+                const rowA = document.querySelector(`.space.active .tab[data-tab-id="${a}"]`);
+                const rowB = document.querySelector(`.space.active .tab[data-tab-id="${b}"]`);
+                return (
+                    Boolean(rowA?.classList.contains('split-first') && rowB?.classList.contains('split-second')) ||
+                    Boolean(rowB?.classList.contains('split-first') && rowA?.classList.contains('split-second'))
+                );
+            },
+            [left, right]
+        );
+    for (let i = 0; i < 100 && !(await paired()); i++) await sleep(100);
+    expect(await paired()).toBe(true);
+
+    const order = await listedIds();
+    const upper = order.indexOf(left) < order.indexOf(right) ? left : right;
+    const lower = upper === left ? right : left;
+    const url = `${base}/dropped-in-pair`;
+    // The upper edge of the pair's second row is the line between the two halves.
+    const state = await dragLinkOver(url, lower, { at: 0.25 });
+    const upperTop = await page.$eval(
+        `.space.active .tab[data-tab-id="${upper}"]`,
+        el => el.getBoundingClientRect().top
+    );
+    expect(state.line).not.toBeNull();
+    expect(Math.abs(state.line - upperTop)).toBeLessThan(4);
+
+    const tab = await openedTab(url);
+    await sleep(300);
+    const after = await listedIds();
+    // The link is directly above the pair, and the pair is still one block in the list and in Chrome.
+    expect(after[after.indexOf(tab.id) + 1]).toBe(upper);
+    expect(after[after.indexOf(upper) + 1]).toBe(lower);
+    expect(await paired()).toBe(true);
+    const splitIds = await page.evaluate(
+        async ids => Promise.all(ids.map(async id => (await chrome.tabs.get(id)).splitViewId ?? -1)),
+        [left, right, tab.id]
+    );
+    expect(splitIds[0]).not.toBe(-1);
+    expect(splitIds[1]).toBe(splitIds[0]);
+    expect(splitIds[2]).toBe(-1);
+});
+
 function adjacentIn(order, a, b) {
     return Math.abs(order.indexOf(a) - order.indexOf(b)) === 1;
 }

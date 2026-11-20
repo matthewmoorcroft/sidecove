@@ -32,7 +32,7 @@ Sidecove is for people moving from Arc to Chrome, and for anyone who wants verti
 SPACES
 - Separate your tabs into spaces, such as Work, Home or a project. Each space has its own colour and icon, chosen from line symbols or emoji. In dark mode each colour becomes a dark surface tinted with it, and Settings has a light and a dark picker for each colour.
 - The space bar shows every space as an icon, or as a name chip if you prefer names. Switch with a click, the keyboard, or your mouse's side buttons.
-- Move a tab, pinned tab or folder to another space by dropping it on the space's icon, or from its right-click menu with Move to Space.
+- Move a tab, pinned tab or folder to another space by dropping it on the space's icon, or from its right-click menu with Move to Space, which also takes you to that space.
 - New tabs open in the space you are using, including links opened from other apps. Links you open from a tab stack below it, in the order you opened them.
 - Switch to a space with no open tab and a New Tab opens in it. Close the tab you are on and you stay in the same space, unless it is the only tab of an empty space, where Chrome picks the next tab.
 
@@ -45,9 +45,9 @@ FAVOURITES AND PINNED TABS
 - Spaces, folders and pinned tabs are stored as ordinary Chrome bookmarks in a folder called "Sidecove". If you are signed in to Chrome with sync on, Chrome syncs them with your Google account, and you can see them in the bookmark manager.
 
 BROWSING
-- Split view: right-click a tab and choose "Split View with..." to show two tabs side by side using Chrome's own split view, or select two tabs and choose "Open in Split View". The pair shows as one block in the list, and you can separate it from the menu or its button. It needs Chrome 155 or later; on older Chrome the entries are not shown.
+- Split view: right-click a tab and choose "Split View with..." to show two tabs side by side using Chrome's own split view, select two tabs and choose "Open in Split View", or drag a tab onto another and hold it over the middle until "Split View" shows. The pair shows as one block in the list, and you can separate it from the menu or its button. It needs Chrome 155 or later; on older Chrome the entries are not shown.
 - Back, forward and reload buttons sit at the top of the sidebar and act on the tab you are looking at. Shift-click reload skips the cache. The usual keys (Cmd+[, Cmd+] and Cmd+R on a Mac, Alt+Left, Alt+Right and Ctrl+R elsewhere) work while the sidebar has focus. You can hide the buttons in Settings.
-- Drag a link from a page onto the sidebar to open it in a new tab in your current space. Drag selected text onto it to search Google for it in a new tab.
+- Drag a link from a page onto the sidebar to open it in a new tab in your current space. Drag selected text onto it to search Google for it in a new tab. Drop either between two tabs of the list to open it right there.
 
 KEEPS TABS TIDY
 - Auto-archive is optional and off until you turn it on in Settings. It then closes tabs you have not used for the time you choose. Favourites and pinned tabs are never closed this way.

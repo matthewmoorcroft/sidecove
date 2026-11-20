@@ -2914,7 +2914,7 @@ h3 {
 
     .tab-search {
         background-color: rgba(255, 255, 255, 0.08);
-        color: rgba(255, 255, 255, 0.6);
+        color: var(--dark-text-muted);
     }
 
     .tab-search:hover {
@@ -2922,7 +2922,7 @@ h3 {
     }
 
     .tab-search:focus-within {
-        background-color: rgba(255, 255, 255, 0.2);
+        background-color: rgba(255, 255, 255, 0.16);
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
     }
 
@@ -2931,7 +2931,7 @@ h3 {
     }
 
     #tabSearchInput::placeholder {
-        color: rgba(255, 255, 255, 0.5);
+        color: var(--dark-text-muted);
     }
 
     .search-result.highlighted .tab-title-display,
@@ -2971,11 +2971,11 @@ h3 {
     }
 
     #newSpaceName:focus {
-        background-color: rgba(255, 255, 255, 0.2);
+        background-color: rgba(255, 255, 255, 0.16);
     }
 
     #newSpaceName::placeholder {
-        color: rgba(255, 255, 255, 0.5);
+        color: var(--dark-text-muted);
     }
 
     #createSpaceBtn {
@@ -3024,13 +3024,13 @@ h3 {
     }
 
     .pinned-tab-placeholder {
-        color: rgba(255, 255, 255, 0.5);
+        color: var(--dark-text-muted);
         border: 2px dashed rgba(255, 255, 255, 0.2);
         background: rgba(255, 255, 255, 0.05);
     }
 
     .placeholder-close-btn {
-        color: rgba(255, 255, 255, 0.5);
+        color: var(--dark-text-muted);
     }
 
     .placeholder-close-btn:hover {

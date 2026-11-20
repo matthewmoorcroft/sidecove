@@ -6,6 +6,24 @@
  * the top" is on, so the place is worked out on screen and converted back, as for link tabs.
  */
 
+import { pairRoles } from '../split-view/split-logic.js';
+
+/**
+ * A drop line between the two halves of a split pair would tear the pair apart in the list, so it
+ * moves above the whole pair. A drop below the pair already sits after both halves.
+ *
+ * @template {{dataset: {splitViewId?: string}}} Row
+ * @param {Row[]} rows the list's rows in screen order
+ * @param {Row|null} row the row the drop line showed the link above, or null for the end
+ * @returns {Row|null} the row to drop above instead
+ */
+export function rowAbovePair(rows, row) {
+    const at = rows.indexOf(row);
+    if (at < 1) return row;
+    const roles = pairRoles(rows.map(el => ({ splitViewId: Number(el.dataset.splitViewId ?? -1) })));
+    return roles[at] === 'second' ? rows[at - 1] : row;
+}
+
 /**
  * @param {number[]} stored the space's stored tab list (not changed)
  * @param {number} newId the dropped link's tab

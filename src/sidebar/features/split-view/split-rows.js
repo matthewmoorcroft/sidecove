@@ -4,7 +4,7 @@
 import { pairRoles, splitViewIdOf } from './split-logic.js';
 import { SPLIT_VIEW_ICON } from '../../icons.js';
 
-const rowsOf = container =>
+export const rowsOf = container =>
     [...container.children].filter(el => el.classList.contains('tab') || el.classList.contains('folder'));
 
 // Marks the row as a member of the split view; no mark for a tab outside any.

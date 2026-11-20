@@ -1,6 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { chromeIndexFor, placeDroppedTab } from '../../../../../src/sidebar/features/external-drop/drop-position.js';
+import {
+    chromeIndexFor,
+    placeDroppedTab,
+    rowAbovePair
+} from '../../../../../src/sidebar/features/external-drop/drop-position.js';
 
 test('a link dropped above a row goes just above it in the list', () => {
     assert.deepEqual(placeDroppedTab([1, 2, 3], 9, 2, false), [1, 9, 2, 3]);
@@ -65,4 +69,39 @@ test('a split pair is stepped over whole, so the new tab never lands between its
     // Stored with the pair's halves the other way round from Chrome's strip.
     assert.equal(chromeIndexFor([2, 1, 9, 3], 9, byId, 1), 5);
     assert.equal(chromeIndexFor([9, 2, 1], 9, byId, 1), 3);
+});
+
+const row = (tabId, splitViewId) => ({
+    dataset: { tabId: String(tabId), ...(splitViewId ? { splitViewId: String(splitViewId) } : {}) }
+});
+
+test('a drop line between the halves of a split pair moves above the whole pair', () => {
+    const rows = [row(10), row(11, 5), row(12, 5), row(13)];
+    assert.equal(rowAbovePair(rows, rows[2]), rows[1]);
+});
+
+test('a drop line above the pair, below it or outside any pair stays where it is', () => {
+    const rows = [row(10), row(11, 5), row(12, 5), row(13)];
+    assert.equal(rowAbovePair(rows, rows[1]), rows[1]);
+    assert.equal(rowAbovePair(rows, rows[3]), rows[3]);
+    assert.equal(rowAbovePair(rows, rows[0]), rows[0]);
+    assert.equal(rowAbovePair(rows, null), null);
+});
+
+test('two tabs with the same split id that are not next to each other are not a pair', () => {
+    const rows = [row(10, 5), row(11), row(12, 5)];
+    assert.equal(rowAbovePair(rows, rows[2]), rows[2]);
+});
+
+test('above the pair, the list and Chrome keep the pair whole', () => {
+    // Stored [10, 11 | 12, 13]: the pair is 11 and 12. A drop between them lands above 11.
+    const stored = placeDroppedTab([10, 11, 12, 13], 99, 11, false);
+    assert.deepEqual(stored, [10, 99, 11, 12, 13]);
+    const byId = tabs([
+        [10, 3],
+        [11, 4, { splitViewId: 5 }],
+        [12, 5, { splitViewId: 5 }],
+        [13, 6]
+    ]);
+    assert.equal(chromeIndexFor(stored, 99, byId, 1), 4);
 });
