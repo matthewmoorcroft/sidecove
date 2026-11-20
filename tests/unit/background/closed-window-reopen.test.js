@@ -211,24 +211,24 @@ test('a worker that Chrome stopped and woke for the close still reopens the page
     assert.deepEqual(store.spaces[0].temporaryTabs, [10, 100, 101]);
 });
 
-// The captain's report on 7084479: a window with one tab, closed with the tab's close button or
-// Cmd+W. Chrome reports that as a tab closing (isWindowClosing false), then the window going.
-test("closing a window's only tab closes the window, so its page comes back in the window that stays", async () => {
+// Closing a tab closes its page everywhere, also a window's only tab (its close button or Cmd+W),
+// which Chrome reports as a tab closing (isWindowClosing false) and then the window going. Only
+// closing the window itself keeps its pages.
+test("closing a window's only tab closes the page; nothing comes back", async () => {
     tabs = tabs.filter(tab => tab.id !== 21);
     store.spaces[0].temporaryTabs = [10, 20];
     await startAndNote();
     await closeWindow(2, { isWindowClosing: false });
-    assert.deepEqual(created, [{ windowId: 1, url: 'https://a.test/one', active: false }]);
-    assert.deepEqual(store.spaces[0].temporaryTabs, [10, 100]);
+    assert.deepEqual(created, []);
 });
 
-test('closing the last tabs of a window together counts as closing it', async () => {
+test("closing a window with one tab, with the window's close button, moves the page", async () => {
+    tabs = tabs.filter(tab => tab.id !== 21);
+    store.spaces[0].temporaryTabs = [10, 20];
     await startAndNote();
-    await closeWindow(2, { isWindowClosing: false });
-    assert.deepEqual(
-        created.map(tab => tab.url),
-        ['https://a.test/one', 'https://a.test/two']
-    );
+    await closeWindow(2);
+    assert.deepEqual(created, [{ windowId: 1, url: 'https://a.test/one', active: false }]);
+    assert.deepEqual(store.spaces[0].temporaryTabs, [10, 100]);
 });
 
 test('a tab closed while its window stays open is not reopened when the window closes later', async () => {

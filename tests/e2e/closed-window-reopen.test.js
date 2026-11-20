@@ -431,8 +431,9 @@ describe('closing a window that shows another space', () => {
         await expectBackInElsewhere(names);
     }, 150000);
 
-    // The captain's report on 7084479: a window with one tab open, closed. Closing its only tab
-    // (the tab's close button, or Cmd+W) closes the window, and Chrome reports it as a tab closing.
+    // A window with one tab. Closing the window (its red button) keeps the page and moves it into
+    // the window left; closing its only tab (the tab's close button, or Cmd+W) closes the page
+    // everywhere, even though the window closes with it. Chrome reports that as a tab closing.
     async function oneTabWindow(name, spaceId) {
         const { windowId, tabIds } = await d.openWindow([name]);
         await d.assign(tabIds[0], spaceId);
@@ -477,23 +478,38 @@ describe('closing a window that shows another space', () => {
     // His recording on 157: both windows on Home, the window with one tab closed with its red
     // close button. The page must show in the window left at once, as the closed links did.
     const closeButton = ({ windowId }) => close(windowId);
-    for (const [how, closeIt] of [
-        ['its close button', closeButton],
-        ['its only tab (the tab close button, or Cmd+W)', closeOnlyTab]
-    ])
-        for (const [where, spaceOf] of [
-            ['on the same space', () => homeId],
-            ['on another space', () => workId]
-        ])
-            test(`a window with one tab ${where}, closed with ${how}, moves it at once`, async () => {
-                const name = `now-${how.length}-${where.length}`;
-                const win = await oneTabWindow(name, spaceOf());
-                const started = Date.now();
-                await closeIt(win);
-                await waitForPageIn(name, spaceOf());
-                expect(Date.now() - started).toBeLessThan(1500);
-                expect(await d.tabsWith(urlOf(name))).toHaveLength(1);
-            }, 60000);
+    for (const [where, spaceOf] of [
+        ['on the same space', () => homeId],
+        ['on another space', () => workId]
+    ]) {
+        test(`a window with one tab ${where}, closed with its close button, moves it at once`, async () => {
+            const name = `btn-${where.length}`;
+            const win = await oneTabWindow(name, spaceOf());
+            const started = Date.now();
+            await closeButton(win);
+            await waitForPageIn(name, spaceOf());
+            expect(Date.now() - started).toBeLessThan(1500);
+            expect(await d.tabsWith(urlOf(name))).toHaveLength(1);
+        }, 60000);
+
+        test(`a window with one tab ${where}, closed by closing that tab, closes the page everywhere`, async () => {
+            const name = `tab-${where.length}`;
+            const win = await oneTabWindow(name, spaceOf());
+            await closeOnlyTab(win);
+            await helper.waitForFunction(
+                async id => !(await chrome.windows.getAll()).some(w => w.id === id),
+                {
+                    polling: 100,
+                    timeout: 5000
+                },
+                win.windowId
+            );
+            await sleep(1500);
+            expect(await d.tabsWith(urlOf(name))).toHaveLength(0);
+            const lists = await spaceUrls();
+            for (const urls of Object.values(lists)) expect(urls).not.toContain(urlOf(name));
+        }, 60000);
+    }
 
     test('a window with one tab, closed with its close button after the worker went idle, moves it too', async () => {
         const win = await oneTabWindow('btn-idle', workId);
@@ -510,24 +526,8 @@ describe('closing a window that shows another space', () => {
         await waitForPageIn('btn-idle', workId);
     }, 150000);
 
-    test('a window with one tab, closed by closing that tab, puts it in the window left, same space', async () => {
-        const win = await oneTabWindow('one-same', homeId);
-        await closeOnlyTab(win);
-        await waitForPageIn('one-same', homeId);
-        expect(await d.tabsWith(urlOf('one-same'))).toHaveLength(1);
-    }, 60000);
-
-    test('a window with one tab on another space puts it back in that space', async () => {
-        const win = await oneTabWindow('one-other', workId);
-        await closeOnlyTab(win);
-        await waitForPageIn('one-other', workId);
-        const lists = await spaceUrls();
-        expect(lists[homeId]).not.toContain(urlOf('one-other'));
-    }, 60000);
-
-    test('a window with one tab does the same when the worker had stopped, or gone idle', async () => {
-        const stopped = await oneTabWindow('one-stopped', workId);
-        const idle = await oneTabWindow('one-idle', workId);
+    test('a window with one tab, closed with its close button after Chrome stopped the worker, moves it too', async () => {
+        const win = await oneTabWindow('btn-stopped', workId);
         await page.close();
         const cdp = await helper.createCDPSession();
         await cdp.send('ServiceWorker.enable');
@@ -535,27 +535,15 @@ describe('closing a window that shows another space', () => {
         await cdp.detach();
         for (let i = 0; i < 50 && workerRunning(); i++) await sleep(100);
         expect(workerRunning()).toBe(false);
-        await closeOnlyTab(stopped);
-        const reopened = url =>
-            helper.waitForFunction(
-                async url => (await chrome.tabs.query({ url })).length === 1,
-                {
-                    polling: 200,
-                    timeout: 20000
-                },
-                url
-            );
-        await reopened(urlOf('one-stopped'));
-
-        // Nothing talks to the worker now, so Chrome stops it after about 30 seconds.
-        for (let i = 0; i < 900 && workerRunning(); i++) await sleep(100);
-        expect(workerRunning()).toBe(false);
-        await closeOnlyTab(idle);
-        await reopened(urlOf('one-idle'));
+        await closeButton(win);
+        await helper.waitForFunction(
+            async url => (await chrome.tabs.query({ url })).length === 1,
+            { polling: 100, timeout: 10000 },
+            urlOf('btn-stopped')
+        );
         await openPanel();
-        await waitForPageIn('one-stopped', workId);
-        await waitForPageIn('one-idle', workId);
-    }, 150000);
+        await waitForPageIn('btn-stopped', workId);
+    }, 60000);
 
     test('reopening the closed window (as Cmd+Shift+T does) leaves each page open once, in its space', async () => {
         const names = ['rw-one', 'rw-two'];
