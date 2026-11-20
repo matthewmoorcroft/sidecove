@@ -270,63 +270,87 @@ describe('favorites saved on update', () => {
         }
     });
 
-    // Closed links (a new stored key, closedLinks) start empty after an update, and from then on
-    // closing a window leaves them without touching anything the profile already had.
-    test.each(cases)('a profile from %s keeps its data and leaves closed links after updating', async (_, previous) => {
-        install(previous || dist, previous ? null : FALLBACK_PREVIOUS_VERSION);
-        let { browser, extensionId } = await launchBrowserWithExtension({
-            extensionPath: extensionDir,
-            userDataDir: profileDir
-        });
-        let before;
-        try {
-            const page = await openSidebar(browser, extensionId);
-            await page.evaluate(async () => {
-                const { spaces } = await chrome.runtime.sendMessage({ type: 'spaceStore', action: 'get' });
-                await chrome.bookmarks.create({
-                    parentId: spaces[0].bookmarkFolderId,
-                    title: 'Docs',
-                    url: 'https://example.com/docs'
-                });
+    // Unreleased 1.4.0 builds kept a closed window's pages as links under closedLinks. Updating
+    // removes them without touching anything else, and from then on closing a window reopens its
+    // pages as tabs in the window that stays.
+    test.each(cases)(
+        'a profile from %s keeps its data, drops old closed links and reopens a closed window after updating',
+        async (_, previous) => {
+            install(previous || dist, previous ? null : FALLBACK_PREVIOUS_VERSION);
+            let { browser, extensionId } = await launchBrowserWithExtension({
+                extensionPath: extensionDir,
+                userDataDir: profileDir
             });
-            before = await snapshot(page);
-            expect(await page.evaluate(() => chrome.storage.local.get('closedLinks'))).toEqual({});
-        } finally {
-            await browser.close();
-        }
-
-        installUpdate(updateVersion(manifestVersion(extensionDir)));
-        ({ browser, extensionId } = await launchBrowserWithExtension({
-            extensionPath: extensionDir,
-            userDataDir: profileDir
-        }));
-        try {
-            const page = await openSidebar(browser, extensionId);
-            expect(await snapshot(page)).toEqual(before);
-            const closedUrl = `${base}/after-update`;
-            const windowId = await page.evaluate(async url => {
-                const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
-                const win = await chrome.windows.create({ url, focused: false });
-                for (let i = 0; i < 100; i++) {
-                    const [tab] = await chrome.tabs.query({ windowId: win.id });
+            let before;
+            try {
+                const page = await openSidebar(browser, extensionId);
+                await page.evaluate(async () => {
                     const { spaces } = await chrome.runtime.sendMessage({ type: 'spaceStore', action: 'get' });
-                    if (tab?.status === 'complete' && spaces.some(s => s.temporaryTabs.includes(tab.id))) break;
-                    await sleep(100);
-                }
-                return win.id;
-            }, closedUrl);
-            await page.evaluate(id => chrome.windows.remove(id), windowId);
-            await page.waitForFunction(
-                async url => {
-                    const { closedLinks = [] } = await chrome.storage.local.get('closedLinks');
-                    return closedLinks.some(link => link.url === url && link.title === 'Page after-update');
-                },
-                { polling: 100, timeout: 10000 },
-                closedUrl
-            );
-            expect(await snapshot(page)).toEqual(before);
-        } finally {
-            await browser.close();
+                    await chrome.bookmarks.create({
+                        parentId: spaces[0].bookmarkFolderId,
+                        title: 'Docs',
+                        url: 'https://example.com/docs'
+                    });
+                    await chrome.storage.local.set({
+                        closedLinks: [
+                            {
+                                id: 'old',
+                                url: 'https://example.com/old',
+                                title: 'Old',
+                                spaceId: spaces[0].id,
+                                closedAt: 1,
+                                batchAt: 1,
+                                windowId: 1,
+                                order: 0
+                            }
+                        ]
+                    });
+                });
+                before = await snapshot(page);
+            } finally {
+                await browser.close();
+            }
+
+            installUpdate(updateVersion(manifestVersion(extensionDir)));
+            ({ browser, extensionId } = await launchBrowserWithExtension({
+                extensionPath: extensionDir,
+                userDataDir: profileDir
+            }));
+            try {
+                const page = await openSidebar(browser, extensionId);
+                expect(await snapshot(page)).toEqual(before);
+                await page.waitForFunction(async () => !('closedLinks' in (await chrome.storage.local.get(null))), {
+                    polling: 100,
+                    timeout: 10000
+                });
+                const closedUrl = `${base}/after-update`;
+                const mainWindowId = await page.evaluate(async () => (await chrome.windows.getCurrent()).id);
+                const windowId = await page.evaluate(async url => {
+                    const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+                    const win = await chrome.windows.create({ url, focused: false });
+                    for (let i = 0; i < 100; i++) {
+                        const [tab] = await chrome.tabs.query({ windowId: win.id });
+                        const { spaces } = await chrome.runtime.sendMessage({ type: 'spaceStore', action: 'get' });
+                        if (tab?.status === 'complete' && spaces.some(s => s.temporaryTabs.includes(tab.id))) break;
+                        await sleep(100);
+                    }
+                    return win.id;
+                }, closedUrl);
+                await page.evaluate(id => chrome.windows.remove(id), windowId);
+                await page.waitForFunction(
+                    async (url, mainWindowId) => {
+                        const [tab] = await chrome.tabs.query({ url });
+                        return tab?.windowId === mainWindowId;
+                    },
+                    { polling: 100, timeout: 10000 },
+                    closedUrl,
+                    mainWindowId
+                );
+                expect(await snapshot(page)).toEqual(before);
+                expect(await page.evaluate(() => chrome.storage.local.get('closedLinks'))).toEqual({});
+            } finally {
+                await browser.close();
+            }
         }
-    });
+    );
 });

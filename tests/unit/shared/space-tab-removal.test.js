@@ -20,23 +20,28 @@ beforeEach(() => {
         provisional: new Set(),
         hidden: new Set(),
         linkTails: { closed: () => {} },
-        onTabRemoved: async arg => calls.push(arg)
+        onTabClosedWithWindow: async arg => calls.push(arg)
     };
 });
 
-test('a tab that closes with its window is queued to come back and reported with its record', async () => {
+test('a tab that closes with its window is queued to come back and reported with its record and place', async () => {
     store.snapshotByTab.set(2, record(2, 1, 'https://a.test/'));
     await removeTab(store, 2, { windowId: 9, isWindowClosing: true });
     assert.deepEqual(store.spaces[0].temporaryTabs, [1, 3, 4]);
     assert.equal(store.restoreQueue.length, 1);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].tabId, 2);
+    assert.equal(calls[0].windowId, 9);
     assert.equal(calls[0].record.tabId, 2);
+    // The list as it was, so the tab can be reopened in the same place.
+    assert.deepEqual(calls[0].layout, [1, 2, 3, 4]);
 });
 
 test('a tab closed on its own is forgotten and not reported as closed with a window', async () => {
     store.snapshotByTab.set(2, record(2, 1, 'https://a.test/'));
     await removeTab(store, 2, { windowId: 9, isWindowClosing: false });
     assert.equal(store.restoreQueue.length, 0);
-    assert.equal(calls[0].record, null);
+    assert.deepEqual(calls, []);
 });
 
 test('a page open in a surviving window takes the closed tab place in the list', async () => {
@@ -59,11 +64,11 @@ test('a tab Clean All was hiding does not come back with its window', async () =
     store.snapshotByTab.set(2, record(2, 1, 'https://a.test/'));
     await removeTab(store, 2, { windowId: 9, isWindowClosing: true });
     assert.equal(store.restoreQueue.length, 0);
-    assert.equal(calls[0].record, null);
+    assert.deepEqual(calls, []);
 });
 
-test('a failing closed-links hook does not stop the store forgetting the tab', async () => {
-    store.onTabRemoved = async () => {
+test('a failing hook does not stop the store forgetting the tab', async () => {
+    store.onTabClosedWithWindow = async () => {
         throw new Error('boom');
     };
     store.snapshotByTab.set(2, record(2, 1, 'https://a.test/'));

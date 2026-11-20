@@ -17,14 +17,14 @@ import { SpaceStore } from '../shared/space-store.js';
 import { registerBookmarkListeners } from './bookmark-events.js';
 import { enqueueBookmarkOperation } from './bookmark-writer.js';
 import { registerSavedFavorites } from './saved-favorites.js';
-import { registerClosedLinks } from './closed-links.js';
+import { registerClosedWindowReopen } from './closed-window-reopen.js';
 
 registerBookmarkListeners();
 
 const spaceStore = new SpaceStore();
 spaceStore.install();
 registerSavedFavorites({ chrome, spaceStore });
-const closedLinks = registerClosedLinks({ spaceStore });
+registerClosedWindowReopen({ spaceStore });
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type !== 'spaceStore') return;
     spaceStore.dispatch(message).then(
@@ -185,7 +185,7 @@ async function switchSpaceFromCommand(request) {
 }
 
 // Auto-archive: the alarm and the tab activity it reads.
-const { removeTabLastActivity, setupAutoArchiveAlarm } = registerAutoArchive(spaceStore, { closedLinks });
+const { removeTabLastActivity, setupAutoArchiveAlarm } = registerAutoArchive(spaceStore);
 
 // Clean up timestamp when a tab is closed
 chrome.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
