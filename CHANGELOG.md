@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Text is readable in dark mode everywhere in the side panel.** A new folder's name box was a light grey box with a grey "Untitled" in it, hard to read on every dark space colour; it is now a darker field with light text. The same pass fixes other text that was too faint in dark mode: the close and remove × on rows (almost invisible), the Favorites placeholder, the search box's placeholder and ⌘F hint, the addresses in search results, a closed favorite under the pointer, the empty space name, renaming a tab, the icon picker's search field and the new space name field. Every text in the dark side panel now meets WCAG AA contrast in every space colour, and a new end-to-end test fails if any drops below it. Light mode looks the same as before.
+
 ## 1.4.0
 
 Sidecove now has split view, back, forward and reload buttons, and links or text you drag onto it open in a new tab. A window you close also leaves its pages behind as links you can open again, and a folder can be moved to another space from its right-click menu. Sidecove also no longer puts the tab of a sign-in popup or a Google Meet picture-in-picture window into a tab group. No new permissions.
