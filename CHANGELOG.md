@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Drag a tab onto another to show the two in split view.** Hold a tab you are dragging over the middle of another tab for half a second: the right half of that tab turns into a **Split View** label, and dropping there splits the two, as **Split View with…** in the tab's menu does. The tab you dropped on stays where it is and the dragged one joins it on the right. Dragging over the top or bottom edge of a tab, or dropping straight away, still moves the tab as before, and making a folder by holding a tab over a favorite is unchanged. Favorites, Chrome-pinned tabs and tabs already in a split are not offered, and on Chrome older than 155 nothing new shows. No new permissions.
+- **Drop a link from a page between two tabs to open it there.** While you drag a link or some text from a page over the open tabs of a space, the same line that shows where a dragged tab will land shows where the new tab will open, and it opens at that place in the list and next to the same tabs in Chrome's tab strip. Dropping it anywhere else in the sidebar opens it as before. A link is never split with a tab. No new permissions.
+
 ## 1.4.0
 
 Sidecove now has split view, back, forward and reload buttons, and links or text you drag onto it open in a new tab. A window you close also leaves its pages behind as links you can open again, and a folder can be moved to another space from its right-click menu. Sidecove also no longer puts the tab of a sign-in popup or a Google Meet picture-in-picture window into a tab group. No new permissions.
