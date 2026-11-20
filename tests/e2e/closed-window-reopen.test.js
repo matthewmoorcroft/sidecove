@@ -545,6 +545,56 @@ describe('closing a window that shows another space', () => {
         await waitForPageIn('btn-stopped', workId);
     }, 60000);
 
+    // His window B came from dragging a tab out of window A: Chrome moves the tab into a new window
+    // (detached from A, attached to B) rather than opening one, so B's record has to come from the
+    // move. chrome.windows.create({ tabId }) is what a tab dragged out of the tab strip does.
+    async function draggedOut(name) {
+        const tabId = await d.openTab(name, mainWindowId);
+        const windowId = await helper.evaluate(
+            async tabId => (await chrome.windows.create({ tabId, focused: true })).id,
+            tabId
+        );
+        await sleep(1000);
+        return { windowId, tabId };
+    }
+
+    test('a tab dragged out into its own window comes back when that window is closed', async () => {
+        const win = await draggedOut('drag-out');
+        const started = Date.now();
+        await closeButton(win);
+        await waitForPageIn('drag-out', homeId);
+        expect(Date.now() - started).toBeLessThan(1500);
+        expect(await d.tabsWith(urlOf('drag-out'))).toHaveLength(1);
+    }, 60000);
+
+    test('a tab dragged out comes back too when Chrome had stopped the worker before the close', async () => {
+        const win = await draggedOut('drag-stopped');
+        await page.close();
+        const cdp = await helper.createCDPSession();
+        await cdp.send('ServiceWorker.enable');
+        await cdp.send('ServiceWorker.stopAllWorkers');
+        await cdp.detach();
+        for (let i = 0; i < 50 && workerRunning(); i++) await sleep(100);
+        expect(workerRunning()).toBe(false);
+        await closeButton(win);
+        await helper.waitForFunction(
+            async url => (await chrome.tabs.query({ url })).length === 1,
+            { polling: 100, timeout: 10000 },
+            urlOf('drag-stopped')
+        );
+        await openPanel();
+        await waitForPageIn('drag-stopped', homeId);
+    }, 60000);
+
+    test('a tab moved into another open window comes back with it when that window is closed', async () => {
+        const { windowId } = await d.openWindow(['into-stays']);
+        const tabId = await d.openTab('into-moved', mainWindowId);
+        await helper.evaluate((tabId, windowId) => chrome.tabs.move(tabId, { windowId, index: -1 }), tabId, windowId);
+        await sleep(1000);
+        await close(windowId);
+        await d.waitForReopened(['into-stays', 'into-moved'], mainWindowId);
+    }, 60000);
+
     test('reopening the closed window (as Cmd+Shift+T does) leaves each page open once, in its space', async () => {
         const names = ['rw-one', 'rw-two'];
         const windowId = await elsewhereWindow(names);
