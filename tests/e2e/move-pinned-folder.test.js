@@ -118,22 +118,18 @@ describe('moving a pinned folder to another space', () => {
         await chooseMoveTo('Music');
 
         await waitForParent(ids.folder, music.bookmarkFolderId);
-        await page.waitForFunction(
-            id => !document.querySelector(`.space.active .folder[data-bookmark-id="${id}"]`),
-            {
-                polling: 100
-            },
-            ids.folder
+        // The panel follows the folder: it now shows Music, with the folder in it.
+        await page.waitForSelector(
+            `.space.active[data-space-id="${music.id}"] .folder[data-bookmark-id="${ids.folder}"]`
         );
+        expect(await page.$eval('#spaceSwitcher button.active', button => button.dataset.spaceId)).toBe(music.id);
         expect((await bookmark(ids.folder)).title).toBe('MenuFolder');
         expect(await childTitles(ids.folder)).toEqual(before);
         expect(await childTitles(ids.nested)).toEqual(['Deep']);
-
-        await switchTo(music.id);
-        await page.waitForSelector(folderRow(ids.folder));
         expect(await page.$eval(`${folderRow(ids.folder)} .folder-title`, el => el.textContent)).toBe('MenuFolder');
         expect(await page.$$eval(`${folderRow(ids.folder)} .tab`, rows => rows.length)).toBe(3);
         expect(await page.$eval(folderRow(ids.folder), el => el.dataset.folderIcon)).toBe('🎧');
+
         await switchTo(home.id);
         expect(await page.$(folderRow(ids.folder))).toBeNull();
     });

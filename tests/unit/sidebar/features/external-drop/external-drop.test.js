@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { wireExternalDrop } from '../../../../../src/sidebar/features/external-drop/external-drop.js';
 
-function setup() {
+function setup({ position = null } = {}) {
     const doc = new EventTarget();
     const root = Object.assign(new EventTarget(), {
         dataset: {},
@@ -20,7 +20,8 @@ function setup() {
         root,
         doc,
         chromeApi: { tabs: { create: props => created.push(props) } },
-        getWindowId: () => 7
+        getWindowId: () => 7,
+        position
     });
 
     // The root's capture listeners run before any child's, so firing on the root stands in for the whole panel.
@@ -133,4 +134,54 @@ test('drops of anything else are left alone', () => {
     const drop = fire('drop', { data: { 'text/html': '<b>x</b>' } });
     assert.equal(drop.event.defaultPrevented, false);
     assert.deepEqual(created, []);
+});
+
+// Stands in for the open tabs list: `place` is where the pointer is over it, null away from it.
+function listPosition(place) {
+    const calls = [];
+    return {
+        calls,
+        position: {
+            over: () => calls.push('over'),
+            clear: () => calls.push('clear'),
+            placeAt: () => place,
+            open: (url, at) => calls.push(['open', url, at])
+        }
+    };
+}
+
+test('over the open tabs list a dragged link shows its place and opens there', () => {
+    const { calls, position } = listPosition({ beforeId: 4 });
+    const { created, fire } = setup({ position });
+    fire('dragover', { data: link });
+    assert.deepEqual(calls, ['over']);
+    fire('drop', { data: link });
+    assert.deepEqual(calls, ['over', 'clear', ['open', 'https://example.com/a', { beforeId: 4 }]]);
+    assert.deepEqual(created, []);
+});
+
+test('dropped away from the list, a link opens as before', () => {
+    const { calls, position } = listPosition(null);
+    const { created, fire } = setup({ position });
+    fire('drop', { data: link });
+    assert.deepEqual(created, [{ url: 'https://example.com/a', active: true, windowId: 7 }]);
+    assert.deepEqual(calls, ['clear']);
+});
+
+test('leaving the panel, or a file, hides the place', () => {
+    const { calls, position } = listPosition({ beforeId: 4 });
+    const { fire } = setup({ position });
+    fire('dragover', { data: link });
+    fire('dragleave', { relatedTarget: null });
+    fire('dragover', { data: { Files: '' } });
+    assert.deepEqual(calls, ['over', 'clear', 'clear']);
+});
+
+test('a drag that began in the sidebar never shows a link place', () => {
+    const { calls, position } = listPosition({ beforeId: 4 });
+    const { fire } = setup({ position });
+    fire('dragstart');
+    fire('dragover', { data: text });
+    fire('drop', { data: text });
+    assert.deepEqual(calls, []);
 });
