@@ -146,9 +146,7 @@ test('the old closed links are removed when the worker starts', async () => {
 test('the pages of a closed window open again in the window that stays, unloaded, in the same space and order', async () => {
     await startAndNote();
     await closeWindow();
-    // Nothing is opened until it is clear Chrome is not quitting.
-    assert.deepEqual(created, []);
-    await runTimers(1000);
+    // At once, with no wait.
     assert.deepEqual(created, [
         { windowId: 1, url: 'https://a.test/one', active: false },
         { windowId: 1, url: 'https://a.test/two', active: false }
@@ -184,7 +182,6 @@ test("pages go back to the closed window's space even when the lists lost them b
     // A save in between, as any other tab event causes.
     await store.persist();
     await closeWindow();
-    await runTimers(1000);
     assert.deepEqual(store.spaces[0].temporaryTabs, [10]);
     assert.deepEqual(store.spaces[1].temporaryTabs, [30, 100, 101]);
 });
@@ -207,7 +204,6 @@ test('a worker that Chrome stopped and woke for the close still reopens the page
     for (const tab of closing) await store.onTabRemoved(tab.id, { windowId: 2, isWindowClosing: true });
     await chromeApi.windows.onRemoved.fire(2);
     await settle();
-    await runTimers(1000);
     assert.deepEqual(
         created.map(tab => tab.url),
         ['https://a.test/one', 'https://a.test/two']
@@ -222,7 +218,6 @@ test("closing a window's only tab closes the window, so its page comes back in t
     store.spaces[0].temporaryTabs = [10, 20];
     await startAndNote();
     await closeWindow(2, { isWindowClosing: false });
-    await runTimers(1000);
     assert.deepEqual(created, [{ windowId: 1, url: 'https://a.test/one', active: false }]);
     assert.deepEqual(store.spaces[0].temporaryTabs, [10, 100]);
 });
@@ -230,7 +225,6 @@ test("closing a window's only tab closes the window, so its page comes back in t
 test('closing the last tabs of a window together counts as closing it', async () => {
     await startAndNote();
     await closeWindow(2, { isWindowClosing: false });
-    await runTimers(1000);
     assert.deepEqual(
         created.map(tab => tab.url),
         ['https://a.test/one', 'https://a.test/two']
@@ -244,7 +238,6 @@ test('a tab closed while its window stays open is not reopened when the window c
     await store.onTabRemoved(20, { windowId: 2, isWindowClosing: false });
     await store.persist();
     await closeWindow(2);
-    await runTimers(1000);
     assert.deepEqual(
         created.map(tab => tab.url),
         ['https://a.test/two']
@@ -257,7 +250,6 @@ test('moving the tabs of a window into another reopens nothing', async () => {
     windows = windows.filter(w => w.id !== 2);
     await chromeApi.windows.onRemoved.fire(2);
     await settle();
-    await runTimers(1000);
     assert.deepEqual(created, []);
 });
 
@@ -265,7 +257,6 @@ test('closing the last window, or quitting Chrome, reopens nothing', async () =>
     await startAndNote();
     windows = windows.filter(w => w.id !== 1);
     await closeWindow();
-    await runTimers(1000);
     assert.deepEqual(created, []);
     // The tabs stay queued for Chrome's own restore.
     assert.equal(store.restoreQueue.length, 2);
@@ -277,7 +268,6 @@ test('a private window, a popup or a picture-in-picture window leaves nothing be
     store.spaces[0].temporaryTabs.push(30, 40, 50);
     await startAndNote();
     for (const id of [3, 4, 5]) await closeWindow(id);
-    await runTimers(1000);
     assert.deepEqual(created, []);
 });
 
@@ -286,7 +276,6 @@ test('tabs never reopen in a picture-in-picture window, even the one focused las
     await startAndNote();
     await chromeApi.windows.onFocusChanged.fire(3);
     await closeWindow();
-    await runTimers(1000);
     assert.deepEqual(new Set(created.map(tab => tab.windowId)), new Set([1]));
 });
 
@@ -297,7 +286,6 @@ test('a page still open in the same space in the window that stays is not opened
     store.spaces[0].spaceBookmarks.push(12);
     await startAndNote();
     await closeWindow();
-    await runTimers(1000);
     assert.deepEqual(
         created.map(tab => tab.url),
         ['https://a.test/two']
@@ -309,7 +297,6 @@ test('the tabs reopen in the window focused most recently', async () => {
     await startAndNote();
     await chromeApi.windows.onFocusChanged.fire(3);
     await closeWindow();
-    await runTimers(1000);
     assert.deepEqual(new Set(created.map(tab => tab.windowId)), new Set([3]));
 });
 
@@ -318,7 +305,6 @@ test('the tabs of a window are reopened once', async () => {
     await closeWindow();
     await chromeApi.windows.onRemoved.fire(2);
     await settle();
-    await runTimers(1000);
     assert.equal(created.length, 2);
 });
 
@@ -330,7 +316,6 @@ test('a window opened after the worker started is known when it closes', async (
     store.spaces[0].temporaryTabs.push(50);
     await store.persist();
     await closeWindow(5);
-    await runTimers(1000);
     assert.deepEqual(
         created.map(tab => tab.url),
         ['https://c.test/']
@@ -340,7 +325,6 @@ test('a window opened after the worker started is known when it closes', async (
 test('reopening the closed window afterwards keeps one tab of each page, in its place', async () => {
     await startAndNote();
     await closeWindow();
-    await runTimers(1000);
     assert.deepEqual(store.spaces[0].temporaryTabs, [10, 100, 101]);
     // Cmd+Shift+T: Chrome brings the window back, as window 7, with its own tabs.
     windows.push(win(7));
@@ -367,7 +351,6 @@ test('reopening the closed window afterwards keeps one tab of each page, in its 
 test('a copy you have taken to another page, or closed, is left alone when the window comes back', async () => {
     await startAndNote();
     await closeWindow();
-    await runTimers(1000);
     tabs.find(t => t.id === 100).url = 'https://elsewhere.test/';
     await chromeApi.tabs.onUpdated.fire(
         100,
@@ -389,7 +372,6 @@ test('a copy you have taken to another page, or closed, is left alone when the w
 test('a reopened tab you have gone to is not unloaded', async () => {
     await startAndNote();
     await closeWindow();
-    await runTimers(1000);
     tabs.find(t => t.id === 100).active = true;
     await chromeApi.tabs.onUpdated.fire(
         100,

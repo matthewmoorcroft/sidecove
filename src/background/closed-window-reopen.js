@@ -19,9 +19,6 @@ import { Logger } from '../shared/logger.js';
 const WINDOWS_KEY = 'reopenWindows';
 // The tabs Sidecove reopened that still stand in for a closed window's tabs: [{ copyId, url, windowIds }].
 const COPIES_KEY = 'reopenedCopies';
-// Quitting Chrome closes every window one after another. Waiting this long after a window has
-// closed tells a quit (no window left by then) from closing one window.
-export const QUIT_WAIT_MS = 1000;
 // How long a reopened tab may load to get its title before it is unloaded anyway.
 export const NAME_WAIT_MS = 15000;
 // Sidecove 1.4.0 builds before this one kept a closed window's pages as links under these keys.
@@ -36,7 +33,6 @@ export function registerClosedWindowReopen({
     now = Date.now,
     schedule = setTimeout,
     cancel = clearTimeout,
-    quitWaitMs = QUIT_WAIT_MS,
     nameWaitMs = NAME_WAIT_MS
 }) {
     let windows = {};
@@ -111,13 +107,14 @@ export function registerClosedWindowReopen({
     chromeApi.tabs.onAttached.addListener(() => spaceStore.run(() => spaceStore.persist()).catch(() => {}));
 
     // Chrome reports a window removed after the removal of each of its tabs, and the space store
-    // deals with those in order, so by the time this runs in its queue they are all done.
+    // deals with those in order, so by the time this runs in its queue they are all done. The pages
+    // open again at once, so they show in the window left as the closed one goes. When Chrome quits,
+    // the windows close together and no normal window is left by the time this runs, so nothing
+    // opens and Chrome's own restore brings them back.
     chromeApi.windows.onRemoved.addListener(windowId =>
         ready
             .then(() => spaceStore.run(() => takeClosedWindow(windowId)))
-            .then(batch => {
-                if (batch) schedule(() => reopen(windowId, batch), quitWaitMs);
-            })
+            .then(batch => batch && reopen(windowId, batch))
             .catch(error => Logger.error('Could not reopen the tabs of a closed window:', error))
     );
 

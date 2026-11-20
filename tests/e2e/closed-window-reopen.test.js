@@ -474,6 +474,42 @@ describe('closing a window that shows another space', () => {
             mainWindowId
         );
 
+    // His recording on 157: both windows on Home, the window with one tab closed with its red
+    // close button. The page must show in the window left at once, as the closed links did.
+    const closeButton = ({ windowId }) => close(windowId);
+    for (const [how, closeIt] of [
+        ['its close button', closeButton],
+        ['its only tab (the tab close button, or Cmd+W)', closeOnlyTab]
+    ])
+        for (const [where, spaceOf] of [
+            ['on the same space', () => homeId],
+            ['on another space', () => workId]
+        ])
+            test(`a window with one tab ${where}, closed with ${how}, moves it at once`, async () => {
+                const name = `now-${how.length}-${where.length}`;
+                const win = await oneTabWindow(name, spaceOf());
+                const started = Date.now();
+                await closeIt(win);
+                await waitForPageIn(name, spaceOf());
+                expect(Date.now() - started).toBeLessThan(1500);
+                expect(await d.tabsWith(urlOf(name))).toHaveLength(1);
+            }, 60000);
+
+    test('a window with one tab, closed with its close button after the worker went idle, moves it too', async () => {
+        const win = await oneTabWindow('btn-idle', workId);
+        await page.close();
+        for (let i = 0; i < 900 && workerRunning(); i++) await sleep(100);
+        expect(workerRunning()).toBe(false);
+        await closeButton(win);
+        await helper.waitForFunction(
+            async url => (await chrome.tabs.query({ url })).length === 1,
+            { polling: 100, timeout: 10000 },
+            urlOf('btn-idle')
+        );
+        await openPanel();
+        await waitForPageIn('btn-idle', workId);
+    }, 150000);
+
     test('a window with one tab, closed by closing that tab, puts it in the window left, same space', async () => {
         const win = await oneTabWindow('one-same', homeId);
         await closeOnlyTab(win);
