@@ -93,14 +93,28 @@ beforeAll(async () => {
 
     // A second space, so the switcher has an inactive chip.
     const first = await activeSpace();
-    await page.$eval('#addSpaceBtn', button => button.click());
-    await page.$eval('#newSpaceName', input => {
-        input.value = 'Work';
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-    });
-    await page.$eval('#createSpaceBtn', button => button.click());
-    await page.waitForFunction(() =>
-        document.querySelector('#spaceSwitcher button.active')?.textContent.includes('Work')
+    // Created with the New Space form. On a busy machine a click can land before the form is
+    // ready, so it is clicked again until the store has the space, never twice once it does.
+    const hasWork = () =>
+        page.evaluate(async () =>
+            (await chrome.runtime.sendMessage({ type: 'spaceStore', action: 'get' })).spaces.some(
+                s => s.name === 'Work'
+            )
+        );
+    for (let attempt = 0; attempt < 20 && !(await hasWork()); attempt++) {
+        await page.$eval('#addSpaceInputContainer', form => {
+            if (!form.classList.contains('visible')) document.getElementById('addSpaceBtn').click();
+        });
+        await page.$eval('#newSpaceName', input => {
+            input.value = 'Work';
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+        await page.$eval('#createSpaceBtn', button => button.click());
+        await sleep(1000);
+    }
+    await page.waitForFunction(
+        () => [...document.querySelectorAll('#spaceSwitcher button')].some(b => b.textContent.includes('Work')),
+        { polling: 100, timeout: 60000 }
     );
     // Back to the first space; the chip can miss a click while the switcher redraws.
     await page.waitForFunction(
@@ -110,7 +124,7 @@ beforeAll(async () => {
             [...document.querySelectorAll('#spaceSwitcher button')].find(b => b.textContent.includes(name))?.click();
             return false;
         },
-        { polling: 300 },
+        { polling: 300, timeout: 60000 },
         first.name
     );
 
