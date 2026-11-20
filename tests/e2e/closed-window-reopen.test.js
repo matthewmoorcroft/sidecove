@@ -257,6 +257,389 @@ describe('closing a window while another stays open', () => {
     }, 60000);
 });
 
+// The captain's report on 0a282c7: a window showing one space was closed while the window left showed
+// another; the pages came back in the space on screen, so the closed window's space looked empty.
+// A second, test-only extension closes and restores windows, so Sidecove's worker is woken only by
+// Chrome's own events, as when a person clicks the close button or presses Cmd+Shift+T.
+const HELPER_ID = 'fmhbppfaincogejkedjpkopgfeakmiie';
+const helperPath = path.resolve(path.dirname(new URL(import.meta.url).pathname), 'fixtures/window-helper');
+
+describe('closing a window that shows another space', () => {
+    let browser, extensionId, page, helper, d, mainWindowId, workId, homeId;
+    const workerRunning = () =>
+        browser
+            .targets()
+            .some(t => t.type() === 'service_worker' && t.url() === `chrome-extension://${extensionId}/background.js`);
+    const spaceUrls = () =>
+        page.evaluate(async () => {
+            const { spaces } = await chrome.runtime.sendMessage({ type: 'spaceStore', action: 'get' });
+            const tabs = await chrome.tabs.query({});
+            const urlOf = id => tabs.find(tab => tab.id === id)?.url;
+            return Object.fromEntries(spaces.map(space => [space.id, space.temporaryTabs.map(urlOf)]));
+        });
+    const openPanel = async () => {
+        page = await openSidebar(browser, extensionId);
+        d = driver(page);
+    };
+
+    beforeAll(async () => {
+        ({ browser, extensionId } = await launchBrowserWithExtension({ extraExtensions: [helperPath] }));
+        await openPanel();
+        mainWindowId = await page.evaluate(async () => (await chrome.windows.getCurrent()).id);
+        const work = await createSpace(browser, extensionId, 'Elsewhere');
+        await work.close();
+        ({ workId, homeId } = await page.evaluate(async () => {
+            const { spaces } = await chrome.runtime.sendMessage({ type: 'spaceStore', action: 'get' });
+            return { workId: spaces.find(s => s.name === 'Elsewhere').id, homeId: spaces[0].id };
+        }));
+        helper = await browser.newPage();
+        await helper.goto(`chrome-extension://${HELPER_ID}/helper.html`);
+        await page.bringToFront();
+    });
+
+    afterAll(async () => {
+        await browser?.close();
+    });
+
+    beforeEach(async () => {
+        // A test that failed while the panel was closed leaves it closed.
+        if (page.isClosed()) await openPanel();
+        await helper.evaluate(async mainWindowId => {
+            for (const win of await chrome.windows.getAll())
+                if (win.id !== mainWindowId) await chrome.windows.remove(win.id).catch(() => {});
+        }, mainWindowId);
+        await sleep(1500);
+    });
+
+    // A second window showing Elsewhere, with these pages in it; the main window shows Home.
+    async function elsewhereWindow(names) {
+        const { windowId, tabIds } = await d.openWindow(names);
+        for (const id of tabIds) await d.assign(id, workId);
+        // Its own Sidecove panel, as the side panel is part of the window that closes.
+        await page.evaluate(
+            (windowId, url) => chrome.tabs.create({ windowId, url, active: false }),
+            windowId,
+            `chrome-extension://${extensionId}/sidebar.html`
+        );
+        await sleep(1500);
+        // That window shows Elsewhere; the main window shows Home.
+        await page.evaluate(
+            async (windowId, workId, mainWindowId, homeId) => {
+                const activate = (windowId, spaceId) =>
+                    chrome.runtime.sendMessage({ type: 'spaceStore', action: 'activate', windowId, spaceId });
+                await activate(windowId, workId);
+                await activate(mainWindowId, homeId);
+            },
+            windowId,
+            workId,
+            mainWindowId,
+            homeId
+        );
+        return windowId;
+    }
+    // You close the window you are looking at, so focus moves to the one left as it closes.
+    const close = windowId =>
+        helper.evaluate(async id => {
+            await chrome.windows.update(id, { focused: true });
+            await new Promise(resolve => setTimeout(resolve, 300));
+            await chrome.windows.remove(id);
+        }, windowId);
+    async function expectBackInElsewhere(names) {
+        await d.waitForReopened(names, mainWindowId, 20000);
+        const urls = names.map(urlOf);
+        await page.waitForFunction(
+            async (urls, workId) => {
+                const { spaces } = await chrome.runtime.sendMessage({ type: 'spaceStore', action: 'get' });
+                const tabs = await chrome.tabs.query({});
+                const listed = spaces
+                    .find(s => s.id === workId)
+                    .temporaryTabs.map(id => tabs.find(tab => tab.id === id)?.url);
+                return urls.every(url => listed.includes(url));
+            },
+            { polling: 200, timeout: 10000 },
+            urls,
+            workId
+        );
+        const lists = await spaceUrls();
+        expect(lists[workId].filter(url => urls.includes(url))).toEqual(urls);
+        expect(lists[homeId].filter(url => urls.includes(url))).toEqual([]);
+    }
+
+    test('its pages come back in its own space, and that space shows them in the window left', async () => {
+        const names = ['ew-one', 'ew-two', 'ew-three'];
+        const windowId = await elsewhereWindow(names);
+        await close(windowId);
+        await expectBackInElsewhere(names);
+
+        // What the captain looked at: the closed window's space, from the window that stays.
+        await page.$$eval(
+            '.space-switcher button[data-space-id]',
+            (buttons, workId) => buttons.find(button => button.dataset.spaceId === workId).click(),
+            workId
+        );
+        await page.waitForFunction(
+            urls => {
+                const rows = [...document.querySelectorAll('.space.active .tab[data-tab-id]')].map(r => r.dataset.url);
+                return urls.every(url => rows.includes(url));
+            },
+            { polling: 100, timeout: 10000 },
+            names.map(urlOf)
+        );
+        await page.$$eval(
+            '.space-switcher button[data-space-id]',
+            (buttons, homeId) => buttons.find(button => button.dataset.spaceId === homeId).click(),
+            homeId
+        );
+    }, 60000);
+
+    test('it works the same when Chrome had stopped the worker before the close', async () => {
+        const names = ['st-one', 'st-two'];
+        const windowId = await elsewhereWindow(names);
+        await page.close();
+        const cdp = await helper.createCDPSession();
+        await cdp.send('ServiceWorker.enable');
+        await cdp.send('ServiceWorker.stopAllWorkers');
+        await cdp.detach();
+        for (let i = 0; i < 50 && workerRunning(); i++) await sleep(100);
+        expect(workerRunning()).toBe(false);
+
+        await close(windowId);
+        await helper.waitForFunction(
+            async urls => (await Promise.all(urls.map(url => chrome.tabs.query({ url })))).every(t => t.length === 1),
+            { polling: 200, timeout: 20000 },
+            names.map(urlOf)
+        );
+        await openPanel();
+        await expectBackInElsewhere(names);
+    }, 60000);
+
+    test('it works the same after the worker has gone idle and stopped on its own', async () => {
+        const names = ['id-one', 'id-two'];
+        const windowId = await elsewhereWindow(names);
+        // Nothing talks to the worker now, so Chrome stops it after about 30 seconds.
+        await page.close();
+        for (let i = 0; i < 900 && workerRunning(); i++) await sleep(100);
+        expect(workerRunning()).toBe(false);
+
+        await close(windowId);
+        await helper.waitForFunction(
+            async urls => (await Promise.all(urls.map(url => chrome.tabs.query({ url })))).every(t => t.length === 1),
+            { polling: 200, timeout: 20000 },
+            names.map(urlOf)
+        );
+        await openPanel();
+        await expectBackInElsewhere(names);
+    }, 150000);
+
+    // A window with one tab. Closing the window (its red button) keeps the page and moves it into
+    // the window left; closing its only tab (the tab's close button, or Cmd+W) closes the page
+    // everywhere, even though the window closes with it. Chrome reports that as a tab closing.
+    async function oneTabWindow(name, spaceId) {
+        const { windowId, tabIds } = await d.openWindow([name]);
+        await d.assign(tabIds[0], spaceId);
+        await page.evaluate(
+            async (windowId, spaceId, mainWindowId, homeId) => {
+                const activate = (windowId, spaceId) =>
+                    chrome.runtime.sendMessage({ type: 'spaceStore', action: 'activate', windowId, spaceId });
+                await activate(windowId, spaceId);
+                await activate(mainWindowId, homeId);
+            },
+            windowId,
+            spaceId,
+            mainWindowId,
+            homeId
+        );
+        return { windowId, tabId: tabIds[0] };
+    }
+    const closeOnlyTab = ({ windowId, tabId }) =>
+        helper.evaluate(
+            async (windowId, tabId) => {
+                await chrome.windows.update(windowId, { focused: true });
+                await new Promise(resolve => setTimeout(resolve, 300));
+                await chrome.tabs.remove(tabId);
+            },
+            windowId,
+            tabId
+        );
+    const waitForPageIn = (name, spaceId) =>
+        page.waitForFunction(
+            async (url, spaceId, mainWindowId) => {
+                const [tab] = await chrome.tabs.query({ url });
+                if (!tab || tab.windowId !== mainWindowId) return false;
+                const { spaces } = await chrome.runtime.sendMessage({ type: 'spaceStore', action: 'get' });
+                return spaces.find(s => s.id === spaceId).temporaryTabs.includes(tab.id);
+            },
+            { polling: 200, timeout: 15000 },
+            urlOf(name),
+            spaceId,
+            mainWindowId
+        );
+
+    // From the close until the page is a tab in that window, timed in the helper's page.
+    const msUntilOpenIn = (name, windowId) =>
+        helper.evaluate(
+            async (url, windowId) => {
+                const started = Date.now();
+                while (Date.now() - started < 10000) {
+                    if ((await chrome.tabs.query({ url, windowId })).length) return Date.now() - started;
+                    await new Promise(resolve => setTimeout(resolve, 20));
+                }
+                return Infinity;
+            },
+            urlOf(name),
+            windowId
+        );
+
+    // His recording on 157: both windows on Home, the window with one tab closed with its red
+    // close button. The page must show in the window left at once, as the closed links did.
+    const closeButton = ({ windowId }) => close(windowId);
+    for (const [where, spaceOf] of [
+        ['on the same space', () => homeId],
+        ['on another space', () => workId]
+    ]) {
+        test(`a window with one tab ${where}, closed with its close button, moves it at once`, async () => {
+            const name = `btn-${where.length}`;
+            const win = await oneTabWindow(name, spaceOf());
+            await closeButton(win);
+            // At once: the unit tests prove there is no wait; this only allows for a busy machine.
+            expect(await msUntilOpenIn(name, mainWindowId)).toBeLessThan(5000);
+            await waitForPageIn(name, spaceOf());
+            expect(await d.tabsWith(urlOf(name))).toHaveLength(1);
+        }, 60000);
+
+        test(`a window with one tab ${where}, closed by closing that tab, closes the page everywhere`, async () => {
+            const name = `tab-${where.length}`;
+            const win = await oneTabWindow(name, spaceOf());
+            await closeOnlyTab(win);
+            await helper.waitForFunction(
+                async id => !(await chrome.windows.getAll()).some(w => w.id === id),
+                {
+                    polling: 100,
+                    timeout: 5000
+                },
+                win.windowId
+            );
+            await sleep(1500);
+            expect(await d.tabsWith(urlOf(name))).toHaveLength(0);
+            const lists = await spaceUrls();
+            for (const urls of Object.values(lists)) expect(urls).not.toContain(urlOf(name));
+        }, 60000);
+    }
+
+    test('a window with one tab, closed with its close button after the worker went idle, moves it too', async () => {
+        const win = await oneTabWindow('btn-idle', workId);
+        await page.close();
+        for (let i = 0; i < 900 && workerRunning(); i++) await sleep(100);
+        expect(workerRunning()).toBe(false);
+        await closeButton(win);
+        await helper.waitForFunction(
+            async url => (await chrome.tabs.query({ url })).length === 1,
+            { polling: 100, timeout: 10000 },
+            urlOf('btn-idle')
+        );
+        await openPanel();
+        await waitForPageIn('btn-idle', workId);
+    }, 150000);
+
+    test('a window with one tab, closed with its close button after Chrome stopped the worker, moves it too', async () => {
+        const win = await oneTabWindow('btn-stopped', workId);
+        await page.close();
+        const cdp = await helper.createCDPSession();
+        await cdp.send('ServiceWorker.enable');
+        await cdp.send('ServiceWorker.stopAllWorkers');
+        await cdp.detach();
+        for (let i = 0; i < 50 && workerRunning(); i++) await sleep(100);
+        expect(workerRunning()).toBe(false);
+        await closeButton(win);
+        await helper.waitForFunction(
+            async url => (await chrome.tabs.query({ url })).length === 1,
+            { polling: 100, timeout: 10000 },
+            urlOf('btn-stopped')
+        );
+        await openPanel();
+        await waitForPageIn('btn-stopped', workId);
+    }, 60000);
+
+    // His window B came from dragging a tab out of window A: Chrome moves the tab into a new window
+    // (detached from A, attached to B) rather than opening one, so B's record has to come from the
+    // move. chrome.windows.create({ tabId }) is what a tab dragged out of the tab strip does.
+    async function draggedOut(name) {
+        const tabId = await d.openTab(name, mainWindowId);
+        const windowId = await helper.evaluate(
+            async tabId => (await chrome.windows.create({ tabId, focused: true })).id,
+            tabId
+        );
+        await sleep(1000);
+        return { windowId, tabId };
+    }
+
+    test('a tab dragged out into its own window comes back when that window is closed', async () => {
+        const win = await draggedOut('drag-out');
+        await closeButton(win);
+        expect(await msUntilOpenIn('drag-out', mainWindowId)).toBeLessThan(5000);
+        await waitForPageIn('drag-out', homeId);
+        expect(await d.tabsWith(urlOf('drag-out'))).toHaveLength(1);
+    }, 60000);
+
+    test('a tab dragged out comes back too when Chrome had stopped the worker before the close', async () => {
+        const win = await draggedOut('drag-stopped');
+        await page.close();
+        const cdp = await helper.createCDPSession();
+        await cdp.send('ServiceWorker.enable');
+        await cdp.send('ServiceWorker.stopAllWorkers');
+        await cdp.detach();
+        for (let i = 0; i < 50 && workerRunning(); i++) await sleep(100);
+        expect(workerRunning()).toBe(false);
+        await closeButton(win);
+        await helper.waitForFunction(
+            async url => (await chrome.tabs.query({ url })).length === 1,
+            { polling: 100, timeout: 10000 },
+            urlOf('drag-stopped')
+        );
+        await openPanel();
+        await waitForPageIn('drag-stopped', homeId);
+    }, 60000);
+
+    test('a tab moved into another open window comes back with it when that window is closed', async () => {
+        const { windowId } = await d.openWindow(['into-stays']);
+        const tabId = await d.openTab('into-moved', mainWindowId);
+        await helper.evaluate((tabId, windowId) => chrome.tabs.move(tabId, { windowId, index: -1 }), tabId, windowId);
+        await sleep(1000);
+        await close(windowId);
+        await d.waitForReopened(['into-stays', 'into-moved'], mainWindowId);
+    }, 60000);
+
+    test('reopening the closed window (as Cmd+Shift+T does) leaves each page open once, in its space', async () => {
+        const names = ['rw-one', 'rw-two'];
+        const windowId = await elsewhereWindow(names);
+        await close(windowId);
+        await expectBackInElsewhere(names);
+
+        // Chrome's own restore of the window, the one Cmd+Shift+T and History use.
+        await helper.evaluate(() => chrome.sessions.restore());
+        await helper.waitForFunction(async () => (await chrome.windows.getAll()).length === 2, {
+            polling: 100,
+            timeout: 10000
+        });
+        const urls = names.map(urlOf);
+        await helper.waitForFunction(
+            async urls => (await Promise.all(urls.map(url => chrome.tabs.query({ url })))).every(t => t.length === 1),
+            { polling: 200, timeout: 15000 },
+            urls
+        );
+        await sleep(1500);
+        // Still one of each: the restored tabs, in the window Chrome brought back, in Elsewhere's list.
+        for (const url of urls) {
+            const found = await d.tabsWith(url);
+            expect(found).toHaveLength(1);
+            expect(found[0].windowId).not.toBe(mainWindowId);
+        }
+        const lists = await spaceUrls();
+        expect(lists[workId].filter(url => urls.includes(url))).toEqual(urls);
+        expect(lists[homeId].filter(url => urls.includes(url))).toEqual([]);
+    }, 60000);
+});
+
 // Restarting Chrome brings each page back once. The profile is reused, as a restart does, with
 // "continue where you left off".
 describe('restarting Chrome', () => {
@@ -327,11 +710,14 @@ describe('restarting Chrome', () => {
         }
     }, 120000);
 
+    // Both windows hold web pages, so whichever closes first while Chrome quits has pages that
+    // could be copied into the other, which is about to close too.
     test('quitting with two windows open reopens nothing: Chrome brings each window back as it was', async () => {
         const names = ['qt-one', 'qt-two'];
-        let { browser, d } = await launch();
-        let page;
+        let { browser, page, d } = await launch();
         try {
+            const mainWindowId = await page.evaluate(async () => (await chrome.windows.getCurrent()).id);
+            await d.openTab('qt-main', mainWindowId);
             await d.openWindow(names);
             await sleep(1500);
         } finally {
@@ -340,18 +726,21 @@ describe('restarting Chrome', () => {
 
         ({ browser, page, d } = await launch());
         try {
+            const all = ['qt-main', ...names].map(urlOf);
             await page.waitForFunction(
                 async urls => (await Promise.all(urls.map(url => chrome.tabs.query({ url })))).every(t => t.length),
                 { polling: 100, timeout: 15000 },
-                names.map(urlOf)
+                all
             );
             await sleep(2500);
-            expect(await countOf(page, names.map(urlOf))).toEqual([1, 1]);
+            expect(await countOf(page, all)).toEqual([1, 1, 1]);
+            const [main] = await d.tabsWith(urlOf('qt-main'));
             // Still together in the window they were in, not moved into another.
             const [[one], [two]] = await Promise.all(names.map(name => d.tabsWith(urlOf(name))));
             expect(one.windowId).toBe(two.windowId);
             const others = await page.evaluate(id => chrome.tabs.query({ windowId: id }), one.windowId);
             expect(others.filter(tab => /^https?:/.test(tab.url)).map(tab => tab.url)).toEqual(names.map(urlOf));
+            expect(main.windowId).not.toBe(one.windowId);
         } finally {
             await browser.close();
         }
