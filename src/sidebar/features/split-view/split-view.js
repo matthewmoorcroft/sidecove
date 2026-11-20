@@ -2,7 +2,7 @@
  * Split view in the sidebar: the menu entries that start and end a split, and what each does to
  * Chrome and to the space's tab order. The sidebar passes in what it owns.
  */
-import { brokenSplitViewIds, splitCandidates, splitViewSupported } from './split-logic.js';
+import { brokenSplitViewIds, canSplit, splitCandidates, splitViewSupported } from './split-logic.js';
 import { bulkSplitEntries, tabSplitEntries } from './split-menu.js';
 import { separateSplit, splitTabs, splitWithNewTab } from './split-actions.js';
 
@@ -69,6 +69,21 @@ export function createSplitView({ chromeApi, runMutation, listedTabIds, titleOf,
                 await chromeApi.tabs.unsplit(id).catch(() => {});
             }
         },
+
+        // Whether a tab dragged onto another may be split with it: both in the active space's
+        // list and a pair Chrome accepts, exactly what the menu would offer.
+        async canPair(tabId, partnerId) {
+            if (!supported) return false;
+            const listed = listedTabIds();
+            if (!listed.includes(tabId) || !listed.includes(partnerId)) return false;
+            const [tab, partner] = await Promise.all(
+                [tabId, partnerId].map(id => chromeApi.tabs.get(id).catch(() => null))
+            );
+            return canSplit(tab, partner);
+        },
+
+        // The menu's Split View with… <tab>: `partnerId` moves next to `tabId` and they split.
+        splitWith: (tabId, partnerId) => actionsFor(tabId).withTab(partnerId),
 
         separate: tabId => actionsFor(tabId).separate()
     };
