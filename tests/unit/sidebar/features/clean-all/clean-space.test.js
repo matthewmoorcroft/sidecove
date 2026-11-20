@@ -2,26 +2,32 @@ import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { cleanSpace } from '../../../../../src/sidebar/features/clean-all/clean-space.js';
 
-let sent, toasts, refreshed, reply;
+let toasts, refreshed, archived, undone;
+
+const tabsToClose = [
+    { id: 7, url: 'https://a.test/x', title: 'X' },
+    { id: 8, url: 'https://a.test/y', title: 'Y' }
+];
 
 const deps = (over = {}) => ({
-    spaces: () => [{ id: 's1', spaceBookmarks: [], temporaryTabs: [] }],
-    ownedTabs: async () => [],
+    spaces: () => [{ id: 's1', spaceBookmarks: [], temporaryTabs: [7, 8] }],
+    ownedTabs: async () => tabsToClose,
     favoriteUrlKeys: async () => new Set(),
     pinnedStates: async () => ({}),
-    incognito: false,
     windowId: 1,
-    tempSectionTabIds: () => [],
-    displayedTabIds: () => [],
+    tempSectionTabIds: () => [8, 7],
+    displayedTabIds: () => [8, 7],
     pendingSaves: async () => {},
     activeTabId: () => 1,
-    addArchivedTab: async () => true,
+    addArchivedTab: async entry => archived.push(entry.url) && true,
     removeArchivedTab: async () => {},
-    openTabIds: () => new Set(),
+    openTabIds: async () => [1, 7, 8],
     activateTab: async () => {},
     openNewTab: async () => {},
-    startPendingClean: async () => {
-        throw new Error('no tabs to close');
+    startPendingClean: async () => ({ batchId: 'b', closeAt: Date.now() + 10000, spaces: [] }),
+    undoPendingClean: async () => {
+        undone++;
+        return { restored: [7, 8] };
     },
     clearedTabs: { remember: () => {} },
     adoptStoredSpaces: async () => {},
@@ -35,54 +41,39 @@ const deps = (over = {}) => ({
 });
 
 beforeEach(() => {
-    sent = [];
     toasts = [];
     refreshed = 0;
-    reply = { success: true, cleared: [{ link: { id: 'a' }, addedToArchive: true }] };
-    globalThis.chrome = {
-        runtime: {
-            sendMessage: async message => {
-                sent.push(message.action);
-                return reply;
-            }
-        }
-    };
+    archived = [];
+    undone = 0;
 });
 
-test('Clear with only closed links clears them, says so, and Undo brings them back', async () => {
+test('Clear archives the open tabs in list order, says so, and Undo brings them back', async () => {
     await cleanSpace('s1', deps());
-    assert.deepEqual(sent, ['clear']);
-    assert.equal(toasts[0].message, "Closed 1 tab. They're in Archived.");
+    assert.deepEqual(archived, ['https://a.test/y', 'https://a.test/x']);
+    assert.equal(toasts[0].message, "Closed 2 tabs. They're in Archived.");
     await toasts[0].undo();
-    assert.deepEqual(sent, ['clear', 'restore']);
+    assert.equal(undone, 1);
     assert.equal(refreshed, 1);
 });
 
-test('Clear with nothing to clear shows nothing', async () => {
-    reply = { success: true, cleared: [] };
-    await cleanSpace('s1', deps());
+test('Clear with nothing to close shows nothing', async () => {
+    await cleanSpace('s1', deps({ ownedTabs: async () => [] }));
     assert.deepEqual(toasts, []);
-});
-
-test('a private window leaves the links alone', async () => {
-    await cleanSpace('s1', deps({ incognito: true }));
-    assert.deepEqual(sent, []);
-    assert.deepEqual(toasts, []);
+    assert.deepEqual(archived, []);
 });
 
 test('a space that is gone is ignored', async () => {
     await cleanSpace('missing', deps());
-    assert.deepEqual(sent, []);
+    assert.deepEqual(toasts, []);
+    assert.deepEqual(archived, []);
 });
 
-test('if clearing the tabs fails, the links are put back and the error is passed on', async () => {
-    const tabsToClose = [{ id: 7, url: 'https://a.test/x', title: 'X' }];
+test('if clearing the tabs fails, the error is passed on and no toast is shown', async () => {
     await assert.rejects(
         () =>
             cleanSpace(
                 's1',
                 deps({
-                    ownedTabs: async () => tabsToClose,
                     startPendingClean: async () => {
                         throw new Error('worker busy');
                     }
@@ -90,6 +81,5 @@ test('if clearing the tabs fails, the links are put back and the error is passed
             ),
         /worker busy/
     );
-    assert.deepEqual(sent, ['clear', 'restore']);
     assert.deepEqual(toasts, []);
 });

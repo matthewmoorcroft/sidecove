@@ -15,6 +15,9 @@ const loaded = (async () => {
         },
         async set(values) {
             Object.assign(data, structuredClone(values));
+        },
+        async remove(key) {
+            delete data[key];
         }
     });
     const home = {
@@ -57,7 +60,13 @@ const loaded = (async () => {
             create: async () => ({})
         },
         tabGroups: { onRemoved: event, onUpdated: event, query: async () => [] },
-        windows: { onFocusChanged: event, onRemoved: event, get: async id => ({ id, focused: true }) },
+        windows: {
+            onCreated: event,
+            onFocusChanged: event,
+            onRemoved: event,
+            get: async id => ({ id, focused: true }),
+            getAll: async () => []
+        },
         bookmarks: {
             onCreated: event,
             onRemoved: event,
