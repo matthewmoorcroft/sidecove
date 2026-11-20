@@ -111,9 +111,10 @@ export function registerClosedWindowReopen({
 
     // Chrome reports a window removed after the removal of each of its tabs, and the space store
     // deals with those in order, so by the time this runs in its queue they are all done. The pages
-    // open again at once, so they show in the window left as the closed one goes. When Chrome quits,
-    // the windows close together and no normal window is left by the time this runs, so nothing
-    // opens and Chrome's own restore brings them back.
+    // open again at once, so they show in the window left as the closed one goes. Quitting Chrome
+    // with two windows of web pages leaves each page open once after the restart (the e2e test
+    // "quitting with two windows open reopens nothing"): a copy made into a window that is closing
+    // as well does not outlive the quit.
     chromeApi.windows.onRemoved.addListener(windowId =>
         ready
             .then(() => spaceStore.run(() => takeClosedWindow(windowId)))
