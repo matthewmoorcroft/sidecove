@@ -51,6 +51,7 @@ const LocalStorage = {
                     bookmarkFolderId,
                     name: attrs.name ?? null,
                     color: attrs.color ?? null,
+                    ...(attrs.shade ? { shade: attrs.shade } : {}),
                     order: attrs.order ?? 0
                 };
                 registry[bookmarkFolderId] = entry;
@@ -69,7 +70,7 @@ const LocalStorage = {
             }
         });
     },
-    // Update a registry entry's mutable attributes (name/color/order/icon) so the durable record
+    // Update a registry entry's mutable attributes (name/color/shade/order/icon) so the durable record
     // tracks the user's renames/recolors. No-op if the entry doesn't exist yet.
     updateSpaceRegistryEntry: async function (bookmarkFolderId, attrs = {}) {
         if (!bookmarkFolderId) return;
@@ -79,6 +80,7 @@ const LocalStorage = {
             if (!entry) return;
             if (attrs.name !== undefined) entry.name = attrs.name;
             if (attrs.color !== undefined) entry.color = attrs.color;
+            if (attrs.shade !== undefined) entry.shade = attrs.shade;
             if (attrs.order !== undefined) entry.order = attrs.order;
             if (attrs.icon !== undefined) entry.icon = attrs.icon;
             await this.saveSpaceRegistry(registry);

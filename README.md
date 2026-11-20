@@ -16,7 +16,7 @@ Sidecove is an independent project, not affiliated with or endorsed by The Brows
 
 ## Features
 
-- Vertical tabs in Chrome's side panel, organised into spaces with their own colour and icon
+- Vertical tabs in Chrome's side panel, organised into spaces with their own colour and icon. Pick one of 24 colours, or any colour at all under **Custom color**; Sidecove keeps the text readable on it in light and dark mode
 - Pinned tabs, favorites and nested folders, stored as ordinary Chrome bookmarks
 - A top icon bar of Chrome-pinned favorites, shared across spaces in this Chrome profile by default. Enable **Settings → Separate favorites for each space** for a different top bar in each space. Switching this setting keeps your pins and their space assignments. Chrome still shows all native pins in its own tab strip.
 - Drag tabs, favorites and folders between sections, folders and spaces; drop one tab on a favorite to make a folder

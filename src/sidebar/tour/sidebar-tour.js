@@ -1,5 +1,6 @@
 import { PRACTICE_LESSONS } from '../../shared/tour-practice.js';
 import { TOUR_KEY, TOUR_STEPS, tourAction, normalizeTour } from '../../shared/tour-state.js';
+import { spaceColorKey } from '../features/space-colors/space-palette.js';
 
 export async function initSidebarTour() {
     const { id: windowId } = await chrome.windows.getCurrent();
@@ -251,7 +252,11 @@ export async function initSidebarTour() {
         if (changes[TOUR_KEY]) render(changes[TOUR_KEY].newValue);
         if (changes.spaces && active() && !transitioning && TOUR_STEPS[state.step].id === 'color') {
             const saved = changes.spaces.newValue?.find(space => space.id === baseline.spaceId);
-            if (saved && activeSpace()?.dataset.spaceId === baseline.spaceId && saved.color !== baseline.color) {
+            if (
+                saved &&
+                activeSpace()?.dataset.spaceId === baseline.spaceId &&
+                spaceColorKey(saved) !== baseline.color
+            ) {
                 achieved('Color saved. This space has its own look.');
             }
         }
