@@ -9,7 +9,12 @@ import {
     spaceColorKey,
     spaceLook
 } from '../../../../../src/sidebar/features/space-colors/space-palette.js';
-import { BAND, textContrast } from '../../../../../src/sidebar/features/space-colors/readable-surface.js';
+import {
+    BAND,
+    FADED,
+    fadedTextContrast,
+    textContrast
+} from '../../../../../src/sidebar/features/space-colors/readable-surface.js';
 import { COLOR_NAMES, DARK_DEFAULTS, LIGHT_DEFAULTS } from '../../../../../src/shared/color-palette.js';
 
 test('24 colours, each named once, each with a Chrome tab group colour', () => {
@@ -34,6 +39,7 @@ test('every palette colour is readable in both modes', () => {
             const ratio = textContrast(mode, colour[mode]);
             assert.ok(ratio >= BAND[mode].min && ratio <= BAND[mode].max, `${colour.name} ${mode}: ${ratio}`);
         }
+        assert.ok(fadedTextContrast('dark', colour.dark) >= FADED.min, colour.name);
     }
 });
 

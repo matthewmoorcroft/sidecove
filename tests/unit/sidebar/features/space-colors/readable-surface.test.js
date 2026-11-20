@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
     BAND,
+    FADED,
+    fadedTextContrast,
     nearestChromeColor,
     readableSurface,
     textContrast
@@ -22,10 +24,20 @@ for (const mode of ['light', 'dark']) {
             const surface = readableSurface(hex, mode);
             const ratio = textContrast(mode, surface);
             if (ratio < BAND[mode].min || ratio > BAND[mode].max) outside.push({ hex, surface, ratio });
+            // A closed favorite's faded title too, in dark mode.
+            if (mode === 'dark' && fadedTextContrast(mode, surface) < FADED.min)
+                outside.push({ hex, surface, faded: fadedTextContrast(mode, surface) });
         }
         assert.deepEqual(outside, []);
     });
 }
+
+test('a saturated deep blue is deepened until a faded title on it is readable in dark mode', () => {
+    assert.ok(textContrast('dark', '#0000c3') >= BAND.dark.min);
+    assert.ok(fadedTextContrast('dark', '#0000c3') < FADED.min);
+    const surface = readableSurface('#0000c3', 'dark');
+    assert.ok(fadedTextContrast('dark', surface) >= FADED.min);
+});
 
 test('a colour already readable is used exactly', () => {
     assert.equal(readableSurface('#8FD8C9', 'light'), '#8fd8c9');
@@ -50,7 +62,8 @@ test('only lightness moves: the hue stays, and the change is small', () => {
         // Lands near the edge of the band it was outside, not anywhere in it.
         const ratio = textContrast(mode, surface);
         const { min, max, aim } = BAND[mode];
-        assert.ok(ratio <= aim + 0.3 || ratio >= max - 0.6, `${hex} ${mode}: ${ratio}`);
+        const nearFadedFloor = mode === 'dark' && fadedTextContrast(mode, surface) <= FADED.aim + 0.15;
+        assert.ok(ratio <= aim + 0.3 || ratio >= max - 0.6 || nearFadedFloor, `${hex} ${mode}: ${ratio}`);
         assert.ok(ratio >= min && ratio <= max);
     }
 });

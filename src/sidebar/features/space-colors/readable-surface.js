@@ -5,26 +5,45 @@ import { contrast, hexToRgb, normalizeHex, oklchToRgb, rgbToHex, rgbToOklch } fr
 
 export const TEXT = { light: '#333333', dark: '#eceff1' };
 
-// Light: 5.5 keeps the 90% secondary text at WCAG AA, and 11 keeps the tour's white-on-mixed
-// button readable (a white surface would drop it to 4.27). Dark: the 10:1 every built-in dark
-// colour has, which keeps the muted text readable on the lighter hover shade.
+// Light: never darker than blue, the darkest of the original eight (5.92:1), so text that stays
+// readable on those stays so (5.5 would already keep the 90% secondary text at AA); and 11
+// keeps the tour's white-on-mixed button readable (a white surface would drop it to 4.27).
+// Dark: the 10:1 every built-in dark colour has, which keeps the muted text readable on the
+// lighter hover shade.
 export const BAND = {
-    light: { min: 5.5, max: 11, aim: 6 },
+    light: { min: 5.9, max: 11, aim: 6.3 },
     dark: { min: 10, max: 18, aim: 11 }
 };
 
-export const textContrast = (mode, hex) => contrast(hexToRgb(TEXT[mode]), hexToRgb(hex));
+// In dark mode a closed favorite's title is the text at 60%. On a saturated surface that can
+// fall under AA while the full text is still 10:1, so it has a floor of its own there.
+export const FADED = { alpha: 0.6, min: 4.6, aim: 4.7 };
 
-const inBand = (mode, ratio) => ratio >= BAND[mode].min && ratio <= BAND[mode].max;
+const textRgb = mode => hexToRgb(TEXT[mode]);
+const mainContrast = mode => rgb => contrast(textRgb(mode), rgb);
+const fadedContrast = mode => rgb =>
+    contrast(
+        textRgb(mode).map((c, i) => c * FADED.alpha + rgb[i] * (1 - FADED.alpha)),
+        rgb
+    );
 
-// Lighter in light mode raises contrast with the dark text; darker does in dark mode.
-function lightnessFor(mode, chroma, hue, target) {
+export const textContrast = (mode, hex) => mainContrast(mode)(hexToRgb(hex));
+export const fadedTextContrast = (mode, hex) => fadedContrast(mode)(hexToRgb(hex));
+
+// Too little contrast for the text, rather than too much.
+const tooFaint = (mode, hex) =>
+    textContrast(mode, hex) < BAND[mode].min || (mode === 'dark' && fadedTextContrast(mode, hex) < FADED.min);
+const readable = (mode, hex) => !tooFaint(mode, hex) && textContrast(mode, hex) <= BAND[mode].max;
+
+// The lightness at which measure reaches target, on its readable side. Lighter raises contrast
+// with the dark text of light mode; darker does with the light text of dark mode.
+function lightnessFor(mode, chroma, hue, measure, target) {
     let lo = 0;
     let hi = 1;
     for (let i = 0; i < 40; i++) {
         const mid = (lo + hi) / 2;
-        const ratio = contrast(hexToRgb(TEXT[mode]), oklchToRgb([mid, chroma, hue]));
-        if (mode === 'light' ? ratio < target : ratio > target) lo = mid;
+        const value = measure(oklchToRgb([mid, chroma, hue]));
+        if (mode === 'light' ? value < target : value > target) lo = mid;
         else hi = mid;
     }
     return mode === 'light' ? hi : lo;
@@ -35,17 +54,19 @@ function lightnessFor(mode, chroma, hue, target) {
 export function readableSurface(hex, mode) {
     const seed = normalizeHex(hex);
     if (!seed) throw new Error(`Not a hex colour: ${hex}`);
+    if (readable(mode, seed)) return seed;
     const band = BAND[mode];
-    const start = textContrast(mode, seed);
-    if (inBand(mode, start)) return seed;
     const [, chroma, hue] = rgbToOklch(hexToRgb(seed));
-    const aim = start < band.min ? band.aim : band.max - 0.3;
-    let lightness = lightnessFor(mode, chroma, hue, aim);
+    let lightness;
+    if (tooFaint(mode, seed)) {
+        lightness = lightnessFor(mode, chroma, hue, mainContrast(mode), band.aim);
+        if (mode === 'dark')
+            lightness = Math.min(lightness, lightnessFor(mode, chroma, hue, fadedContrast(mode), FADED.aim));
+    } else lightness = lightnessFor(mode, chroma, hue, mainContrast(mode), band.max - 0.3);
     let surface = rgbToHex(oklchToRgb([lightness, chroma, hue]));
     // Rounding to whole sRGB steps can land a hair outside; nudge until it is inside.
-    for (let i = 0; i < 40 && !inBand(mode, textContrast(mode, surface)); i++) {
-        const tooLow = textContrast(mode, surface) < band.min;
-        lightness += tooLow === (mode === 'light') ? 0.004 : -0.004;
+    for (let i = 0; i < 60 && !readable(mode, surface); i++) {
+        lightness += tooFaint(mode, surface) === (mode === 'light') ? 0.004 : -0.004;
         surface = rgbToHex(oklchToRgb([lightness, chroma, hue]));
     }
     return surface;
