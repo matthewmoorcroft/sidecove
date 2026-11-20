@@ -20,28 +20,23 @@ beforeEach(() => {
         provisional: new Set(),
         hidden: new Set(),
         linkTails: { closed: () => {} },
-        onTabClosedWithWindow: async arg => calls.push(arg)
+        onTabRemoved: async (tabId, info) => calls.push({ tabId, info })
     };
 });
 
-test('a tab that closes with its window is queued to come back and reported with its record and place', async () => {
+test('a tab that closes with its window is queued to come back, and reported', async () => {
     store.snapshotByTab.set(2, record(2, 1, 'https://a.test/'));
     await removeTab(store, 2, { windowId: 9, isWindowClosing: true });
     assert.deepEqual(store.spaces[0].temporaryTabs, [1, 3, 4]);
     assert.equal(store.restoreQueue.length, 1);
-    assert.equal(calls.length, 1);
-    assert.equal(calls[0].tabId, 2);
-    assert.equal(calls[0].windowId, 9);
-    assert.equal(calls[0].record.tabId, 2);
-    // The list as it was, so the tab can be reopened in the same place.
-    assert.deepEqual(calls[0].layout, [1, 2, 3, 4]);
+    assert.deepEqual(calls, [{ tabId: 2, info: { windowId: 9, isWindowClosing: true } }]);
 });
 
-test('a tab closed on its own is forgotten and not reported as closed with a window', async () => {
+test('a tab closed on its own is forgotten, not queued, and reported as closed on its own', async () => {
     store.snapshotByTab.set(2, record(2, 1, 'https://a.test/'));
     await removeTab(store, 2, { windowId: 9, isWindowClosing: false });
     assert.equal(store.restoreQueue.length, 0);
-    assert.deepEqual(calls, []);
+    assert.deepEqual(calls, [{ tabId: 2, info: { windowId: 9, isWindowClosing: false } }]);
 });
 
 test('a page open in a surviving window takes the closed tab place in the list', async () => {
@@ -64,11 +59,10 @@ test('a tab Clean All was hiding does not come back with its window', async () =
     store.snapshotByTab.set(2, record(2, 1, 'https://a.test/'));
     await removeTab(store, 2, { windowId: 9, isWindowClosing: true });
     assert.equal(store.restoreQueue.length, 0);
-    assert.deepEqual(calls, []);
 });
 
 test('a failing hook does not stop the store forgetting the tab', async () => {
-    store.onTabClosedWithWindow = async () => {
+    store.onTabRemoved = async () => {
         throw new Error('boom');
     };
     store.snapshotByTab.set(2, record(2, 1, 'https://a.test/'));

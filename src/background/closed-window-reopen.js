@@ -1,28 +1,31 @@
 import {
-    emptyBatch,
+    canTakeTabs,
+    closedBatch,
+    copyReplacedBy,
     hasItsName,
-    noteClosedTab,
+    pageInSpace,
     pickTargetWindow,
     placeReopened,
-    tabsToReopen
+    tabsToReopen,
+    windowContents
 } from './closed-window-tabs.js';
 import { sections } from '../shared/space-membership.js';
-import { pageOf } from '../shared/saved-favorites.js';
 import { Logger } from '../shared/logger.js';
 
-// What the worker knows of each window, kept for the browser session: a window that closes is gone
-// by the time its tabs are reported, so whether it was an ordinary window must be known before.
+// What the worker knows of each window, kept for the browser session so a worker that Chrome has
+// stopped still knows it when woken by the window closing:
+//   { [windowId]: { reopenable, focusedAt, tabs, layouts } }, `tabs` and `layouts` as
+//   windowContents (closed-window-tabs.js) gives them, taken each time the spaces are saved.
 const WINDOWS_KEY = 'reopenWindows';
-// The tabs of one window are reported closing within moments of each other. Waiting this long
-// after the last one also lets Chrome finish quitting, which closes every window, before anything
-// is reopened.
-export const SETTLE_MS = 1000;
+// The tabs Sidecove reopened that still stand in for a closed window's tabs: [{ copyId, url, windowIds }].
+const COPIES_KEY = 'reopenedCopies';
+// Quitting Chrome closes every window one after another. Waiting this long after a window has
+// closed tells a quit (no window left by then) from closing one window.
+export const QUIT_WAIT_MS = 1000;
 // How long a reopened tab may load to get its title before it is unloaded anyway.
 export const NAME_WAIT_MS = 15000;
 // Sidecove 1.4.0 builds before this one kept a closed window's pages as links under these keys.
 const RETIRED_KEYS = { local: 'closedLinks', session: 'closedLinkTabInfo' };
-
-const reopenable = win => win?.type === 'normal' && !win.incognito;
 
 // When a normal window closes while another stays open, each of its ordinary tabs opens again as a
 // tab in the window focused most recently, in the same space and place, and is unloaded until you
@@ -33,21 +36,19 @@ export function registerClosedWindowReopen({
     now = Date.now,
     schedule = setTimeout,
     cancel = clearTimeout,
-    settleMs = SETTLE_MS,
+    quitWaitMs = QUIT_WAIT_MS,
     nameWaitMs = NAME_WAIT_MS
 }) {
-    // id -> { reopenable, focusedAt }
     let windows = {};
-    const batches = new Map();
-    const timers = new Map();
+    let copies = [];
 
     const save = () =>
         chromeApi.storage.session
-            .set({ [WINDOWS_KEY]: windows })
+            .set({ [WINDOWS_KEY]: windows, [COPIES_KEY]: copies })
             .catch(error => Logger.warn('Could not save the windows to reopen tabs in:', error));
     const noteWindow = win => {
         if (win?.id === undefined) return;
-        windows[win.id] = { ...windows[win.id], reopenable: reopenable(win) };
+        windows[win.id] = { ...windows[win.id], reopenable: canTakeTabs(win) };
         if (win.focused) windows[win.id].focusedAt = now();
     };
 
@@ -56,9 +57,10 @@ export function registerClosedWindowReopen({
             chromeApi.storage.local.remove(RETIRED_KEYS.local),
             chromeApi.storage.session.remove(RETIRED_KEYS.session)
         ]).catch(error => Logger.warn('Could not remove the old closed links:', error));
-        const stored = await chromeApi.storage.session.get(WINDOWS_KEY);
+        const stored = await chromeApi.storage.session.get([WINDOWS_KEY, COPIES_KEY]);
         // Windows that are gone are kept: a worker woken by a window closing finds it gone already.
         windows = stored[WINDOWS_KEY] || {};
+        copies = Array.isArray(stored[COPIES_KEY]) ? stored[COPIES_KEY] : [];
         for (const win of await chromeApi.windows.getAll()) noteWindow(win);
         await save();
     })().catch(error => Logger.warn('Could not list the windows to reopen tabs in:', error));
@@ -69,14 +71,6 @@ export function registerClosedWindowReopen({
             return save();
         })
     );
-    // A window whose tabs are being reopened is forgotten once that is done.
-    chromeApi.windows.onRemoved.addListener(id =>
-        schedule(() => {
-            if (!windows[id] || batches.has(id) || timers.has(id)) return;
-            delete windows[id];
-            save();
-        }, settleMs * 10)
-    );
     chromeApi.windows.onFocusChanged.addListener(id =>
         ready.then(() => {
             if (!windows[id]) return;
@@ -85,52 +79,96 @@ export function registerClosedWindowReopen({
         })
     );
 
-    spaceStore.onTabClosedWithWindow = async ({ tabId, windowId, record, layout }) => {
+    // Each time the spaces are saved, what every open window holds is noted. A window that has
+    // closed has no tabs left to report, so its last record stays until it is dealt with below.
+    spaceStore.onPersisted = async tabs => {
         await ready;
-        if (!windows[windowId]?.reopenable) return;
-        batches.set(windowId, noteClosedTab(batches.get(windowId) || emptyBatch(), { tabId, record, layout }));
-        cancel(timers.get(windowId));
-        timers.set(
-            windowId,
-            schedule(() => {
-                timers.delete(windowId);
-                reopen(windowId).catch(error => Logger.error('Could not reopen the tabs of a closed window:', error));
-            }, settleMs)
-        );
+        let changed = false;
+        for (const [id, contents] of Object.entries(windowContents(spaceStore.spaces, tabs))) {
+            const known = windows[id];
+            if (!known) {
+                const win = await chromeApi.windows.get(Number(id)).catch(() => null);
+                if (win) noteWindow(win);
+            }
+            if (JSON.stringify([known?.tabs, known?.layouts]) === JSON.stringify([contents.tabs, contents.layouts]))
+                continue;
+            windows[id] = { ...windows[id], ...contents };
+            changed = true;
+        }
+        if (changed) await save();
     };
+    // A tab you close on its own, even a window's last one, is not reopened.
+    spaceStore.onTabRemoved = async (tabId, info) => {
+        await ready;
+        const before = copies.length;
+        copies = copies.filter(copy => copy.copyId !== tabId);
+        const entry = windows[info?.windowId];
+        const alone = !info?.isWindowClosing && entry?.tabs?.some(tab => tab.tabId === tabId);
+        if (alone) entry.tabs = entry.tabs.filter(tab => tab.tabId !== tabId);
+        if (alone || copies.length !== before) await save();
+    };
+    // A tab moved into another window is listed under that window from then on.
+    chromeApi.tabs.onAttached.addListener(() => spaceStore.run(() => spaceStore.persist()).catch(() => {}));
 
-    async function reopen(windowId) {
-        const batch = batches.get(windowId);
-        batches.delete(windowId);
+    // Chrome reports a window removed after the removal of each of its tabs, and the space store
+    // deals with those in order, so by the time this runs in its queue they are all done.
+    chromeApi.windows.onRemoved.addListener(windowId =>
+        ready
+            .then(() => spaceStore.run(() => takeClosedWindow(windowId)))
+            .then(batch => {
+                if (batch) schedule(() => reopen(windowId, batch), quitWaitMs);
+            })
+            .catch(error => Logger.error('Could not reopen the tabs of a closed window:', error))
+    );
+
+    async function takeClosedWindow(windowId) {
+        const entry = windows[windowId];
+        if (!entry) return null;
         delete windows[windowId];
         await save();
-        if (!batch?.tabs.length) return;
-        const open = (await chromeApi.windows.getAll({ windowTypes: ['normal'] })).filter(
-            win => reopenable(win) && win.id !== windowId
-        );
-        const target = pickTargetWindow(
-            open,
-            Object.fromEntries(Object.entries(windows).map(([id, info]) => [id, info.focusedAt]))
-        );
-        // The last window closed, or Chrome is quitting: Chrome's own restore brings the tabs back.
-        if (!target) return;
-        const reopened = await spaceStore.run(() => openTabs(batch, target.id, open));
-        for (const tabId of reopened) unloadOnceNamed(tabId);
+        if (!entry.reopenable) return null;
+        const openTabIds = new Set((await chromeApi.tabs.query({})).map(tab => tab.id));
+        const batch = closedBatch(entry, openTabIds);
+        return batch.tabs.length ? batch : null;
+    }
+
+    async function reopen(windowId, batch) {
+        try {
+            const open = (await chromeApi.windows.getAll({ windowTypes: ['normal'] })).filter(
+                win => canTakeTabs(win) && win.id !== windowId
+            );
+            const target = pickTargetWindow(
+                open,
+                Object.fromEntries(Object.entries(windows).map(([id, info]) => [id, info.focusedAt]))
+            );
+            // The last window closed, or Chrome is quitting: Chrome's own restore brings the tabs back.
+            if (!target) return;
+            const reopened = await spaceStore.run(() => openTabs(batch, target.id, open));
+            for (const tabId of reopened) unloadOnceNamed(tabId);
+        } catch (error) {
+            Logger.error('Could not reopen the tabs of a closed window:', error);
+        }
     }
 
     // Runs in the space store's queue, so each new tab is in its place before the panels hear of it.
     async function openTabs(batch, targetId, open) {
         const openIds = new Set(open.map(win => win.id));
-        const tabs = await chromeApi.tabs.query({});
-        const plan = tabsToReopen(batch, {
-            openPages: new Set(tabs.filter(tab => openIds.has(tab.windowId)).map(pageOf)),
-            spaceIds: new Set(spaceStore.spaces.map(space => space.id))
-        });
+        const tabs = new Map(
+            (await chromeApi.tabs.query({})).filter(tab => openIds.has(tab.windowId)).map(tab => [tab.id, tab])
+        );
+        const openPages = new Set();
+        for (const space of spaceStore.spaces)
+            for (const id of space.temporaryTabs) {
+                const tab = tabs.get(id);
+                if (tab) openPages.add(pageInSpace(space.id, tab.url || tab.pendingUrl));
+            }
+        const plan = tabsToReopen(batch, { openPages, spaceIds: new Set(spaceStore.spaces.map(space => space.id)) });
         const newIds = new Map();
         for (const { tabId, url } of plan) {
             try {
                 const tab = await chromeApi.tabs.create({ windowId: targetId, url, active: false });
                 newIds.set(tabId, tab.id);
+                copies.push({ copyId: tab.id, url, windowIds: [...openIds] });
             } catch (error) {
                 Logger.warn('Could not reopen a tab of a closed window:', error);
             }
@@ -146,8 +184,44 @@ export function registerClosedWindowReopen({
         }
         // Sidecove has reopened these, so Chrome reopening the window must not file them again.
         spaceStore.restoreQueue = spaceStore.restoreQueue.filter(record => !newIds.has(record.tabId));
+        await save();
         await spaceStore.persist();
         return [...added];
+    }
+
+    // Reopening the closed window (Cmd+Shift+T, or History) brings back its own tabs. Each one
+    // takes the place of Sidecove's copy, which closes, so every page is open once and in its space.
+    chromeApi.tabs.onCreated.addListener(tab =>
+        ready
+            .then(() => {
+                const copy = copyReplacedBy(copies, tab);
+                if (copy) return spaceStore.run(() => replaceCopy(copy, tab.id));
+            })
+            .catch(error => Logger.warn('Could not tidy a reopened window:', error))
+    );
+    // A copy that has gone to another page no longer stands in for the closed tab.
+    chromeApi.tabs.onUpdated.addListener((tabId, change) => {
+        if (!change.url) return;
+        ready.then(() => {
+            const before = copies.length;
+            copies = copies.filter(copy => copy.copyId !== tabId || copy.url === change.url);
+            if (copies.length !== before) save();
+        });
+    });
+
+    async function replaceCopy(copy, restoredId) {
+        copies = copies.filter(other => other !== copy);
+        await save();
+        const live = await chromeApi.tabs.get(copy.copyId).catch(() => null);
+        if (!live || (live.url || live.pendingUrl) !== copy.url) return;
+        const space = spaceStore.spaces.find(s => s.temporaryTabs.includes(copy.copyId));
+        if (space) {
+            for (const other of spaceStore.spaces)
+                for (const key of sections) other[key] = other[key].filter(id => id !== restoredId);
+            space.temporaryTabs = space.temporaryTabs.map(id => (id === copy.copyId ? restoredId : id));
+            await spaceStore.persist();
+        }
+        await chromeApi.tabs.remove(copy.copyId).catch(error => Logger.warn('Could not close a copied tab:', error));
     }
 
     // A tab is created loading; once it has its title it is unloaded, unless you have gone to it.

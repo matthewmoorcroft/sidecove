@@ -1,18 +1,19 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-    emptyBatch,
+    canTakeTabs,
+    closedBatch,
+    copyReplacedBy,
     hasItsName,
     isReopenablePage,
-    noteClosedTab,
+    pageInSpace,
     pickTargetWindow,
     placeReopened,
-    tabsToReopen
+    tabsToReopen,
+    windowContents
 } from '../../../src/background/closed-window-tabs.js';
 
-const record = (tabId, url, over = {}) => ({ tabId, spaceId: 's1', section: 'temporaryTabs', order: 0, url, ...over });
-const close = (batch, tabId, url, layout, over) =>
-    noteClosedTab(batch, { tabId, record: record(tabId, url, over), layout });
+const space = (id, temporaryTabs, over = {}) => ({ id, spaceBookmarks: [], pinnedTabs: [], temporaryTabs, ...over });
 
 test('only http and https pages are reopened', () => {
     assert.equal(isReopenablePage('https://a.test/'), true);
@@ -21,27 +22,56 @@ test('only http and https pages are reopened', () => {
         assert.equal(isReopenablePage(url), false, url);
 });
 
-test('a closing window gathers its ordinary tabs and the list each space had before it closed', () => {
-    let batch = emptyBatch();
-    batch = close(batch, 20, 'https://a.test/1', [10, 20, 30, 40]);
-    // The second tab is reported after the first has left the list; the first list is the one kept.
-    batch = close(batch, 30, 'https://a.test/2', [10, 30, 40]);
-    batch = close(batch, 50, 'https://b.test/', [50, 60], { spaceId: 's2' });
-    assert.deepEqual(batch.tabs, [
-        { tabId: 20, url: 'https://a.test/1', spaceId: 's1' },
-        { tabId: 30, url: 'https://a.test/2', spaceId: 's1' },
-        { tabId: 50, url: 'https://b.test/', spaceId: 's2' }
-    ]);
-    assert.deepEqual(batch.layouts, { s1: [10, 20, 30, 40], s2: [50, 60] });
+test('only a normal window with a tab strip takes reopened tabs', () => {
+    assert.equal(canTakeTabs({ type: 'normal', alwaysOnTop: false, incognito: false }), true);
+    // Google Meet's picture-in-picture window is "normal" but always on top.
+    assert.equal(canTakeTabs({ type: 'normal', alwaysOnTop: true, incognito: false }), false);
+    assert.equal(canTakeTabs({ type: 'normal', incognito: true }), false);
+    for (const type of ['popup', 'app', 'devtools', 'panel']) assert.equal(canTakeTabs({ type }), false, type);
+    assert.equal(canTakeTabs(undefined), false);
 });
 
-test('pinned tabs, favorites, New Tab and other pages that cannot be reopened are left out', () => {
-    let batch = emptyBatch();
-    batch = close(batch, 1, 'https://a.test/', [1], { section: 'pinnedTabs' });
-    batch = close(batch, 2, 'https://a.test/', [2], { section: 'spaceBookmarks' });
-    batch = close(batch, 3, 'chrome://newtab/', [3]);
-    batch = noteClosedTab(batch, { tabId: 4, record: null, layout: [4] });
-    assert.deepEqual(batch, emptyBatch());
+test('each window notes its ordinary tabs, with their spaces and the lists to put them back in', () => {
+    const spaces = [space('s1', [10, 20, 30, 40], { spaceBookmarks: [11] }), space('s2', [50, 60]), space('s3', [])];
+    const tabs = [
+        { id: 10, windowId: 1, url: 'https://a.test/1' },
+        { id: 11, windowId: 2, url: 'https://a.test/favorite' },
+        { id: 20, windowId: 2, url: 'https://a.test/2' },
+        { id: 30, windowId: 2, url: 'chrome://newtab/' },
+        { id: 40, windowId: 2, url: '', pendingUrl: 'https://a.test/4' },
+        { id: 50, windowId: 2, url: 'https://b.test/', pinned: true },
+        { id: 60, windowId: 2, url: 'https://b.test/2' },
+        { id: 70, windowId: 3, url: 'chrome://newtab/' }
+    ];
+    assert.deepEqual(windowContents(spaces, tabs), {
+        1: { tabs: [{ tabId: 10, url: 'https://a.test/1', spaceId: 's1' }], layouts: { s1: [10, 20, 30, 40] } },
+        2: {
+            tabs: [
+                { tabId: 20, url: 'https://a.test/2', spaceId: 's1' },
+                { tabId: 40, url: 'https://a.test/4', spaceId: 's1' },
+                { tabId: 60, url: 'https://b.test/2', spaceId: 's2' }
+            ],
+            layouts: { s1: [10, 20, 30, 40], s2: [50, 60] }
+        },
+        // A window with nothing to reopen is still known, so it is not mistaken for a closed one.
+        3: { tabs: [], layouts: {} }
+    });
+});
+
+test('a closed window gives back only the tabs that closed with it', () => {
+    const contents = {
+        tabs: [
+            { tabId: 20, url: 'https://a.test/2', spaceId: 's1' },
+            { tabId: 60, url: 'https://b.test/2', spaceId: 's2' }
+        ],
+        layouts: { s1: [10, 20], s2: [50, 60] }
+    };
+    // 60 is still open: it was moved into another window.
+    assert.deepEqual(closedBatch(contents, new Set([10, 60])), {
+        tabs: [{ tabId: 20, url: 'https://a.test/2', spaceId: 's1' }],
+        layouts: { s1: [10, 20] }
+    });
+    assert.deepEqual(closedBatch(undefined, new Set()), { tabs: [], layouts: {} });
 });
 
 test('tabs reopen in the order they were listed, space by space', () => {
@@ -60,19 +90,25 @@ test('tabs reopen in the order they were listed, space by space', () => {
     );
 });
 
-test('a page still open in a window that stays, or a tab whose space is gone, is not reopened', () => {
+test('a page still open in the same space in a window that stays, or a tab whose space is gone, is not reopened', () => {
     const batch = {
         tabs: [
             { tabId: 20, url: 'https://a.test/open', spaceId: 's1' },
             { tabId: 30, url: 'https://a.test/closed', spaceId: 's1' },
-            { tabId: 40, url: 'https://a.test/gone', spaceId: 'deleted' }
+            { tabId: 40, url: 'https://a.test/gone', spaceId: 'deleted' },
+            { tabId: 50, url: 'https://a.test/elsewhere', spaceId: 's1' }
         ],
-        layouts: { s1: [20, 30], deleted: [40] }
+        layouts: { s1: [20, 30, 50], deleted: [40] }
     };
-    const plan = tabsToReopen(batch, { openPages: new Set(['https://a.test/open']), spaceIds: new Set(['s1']) });
+    // The page of 50 is open, but in another space: this space still loses it if it is not reopened.
+    const openPages = new Set([
+        pageInSpace('s1', 'https://a.test/open'),
+        pageInSpace('s2', 'https://a.test/elsewhere')
+    ]);
+    const plan = tabsToReopen(batch, { openPages, spaceIds: new Set(['s1']) });
     assert.deepEqual(
         plan.map(tab => tab.tabId),
-        [30]
+        [30, 50]
     );
 });
 
@@ -120,4 +156,20 @@ test('a tab has its own name once its page has a title or has loaded', () => {
     assert.equal(hasItsName({ title: 'A page' }, { ...tab, title: 'A page' }), true);
     assert.equal(hasItsName({ status: 'complete' }, tab), true);
     assert.equal(hasItsName({ status: 'loading' }, { url: '', title: '' }), false);
+});
+
+test("a tab that opens with a copy's page in a window that was not open then replaces that copy", () => {
+    const copies = [
+        { copyId: 100, url: 'https://a.test/1', windowIds: [1] },
+        { copyId: 101, url: 'https://a.test/2', windowIds: [1] }
+    ];
+    // Chrome brings the closed window back as window 7.
+    assert.equal(copyReplacedBy(copies, { id: 200, windowId: 7, url: 'https://a.test/2' }), copies[1]);
+    assert.equal(copyReplacedBy(copies, { id: 201, windowId: 7, url: '', pendingUrl: 'https://a.test/1' }), copies[0]);
+    // A tab opened in a window that was already open, or another page, is just a tab.
+    assert.equal(copyReplacedBy(copies, { id: 202, windowId: 1, url: 'https://a.test/1' }), null);
+    assert.equal(copyReplacedBy(copies, { id: 203, windowId: 7, url: 'https://a.test/3' }), null);
+    assert.equal(copyReplacedBy(copies, { id: 204, windowId: 7, url: 'chrome://newtab/' }), null);
+    // The copy itself is not its own original.
+    assert.equal(copyReplacedBy(copies, { id: 100, windowId: 9, url: 'https://a.test/1' }), null);
 });
