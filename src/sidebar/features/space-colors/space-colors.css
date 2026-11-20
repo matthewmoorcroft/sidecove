@@ -1,0 +1,326 @@
+/* Space colours: the swatches, their names, and the custom colour picker. */
+
+/* A colour with no stylesheet variable (a palette colour beyond the original eight, or a custom
+   one) is set on the element as --shade-light and --shade-dark; this picks the system theme's.
+   The accent is mixed as the original colours' are. */
+.space-shade {
+    --shade-surface: var(--shade-light);
+    --shade-accent: color-mix(in srgb, var(--shade-light) 75%, black);
+}
+
+.color-picker-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    padding: 8px;
+    background: #fff;
+    border-radius: 8px;
+    position: relative;
+}
+
+/* In the space menu the swatches sit on the menu itself, light or dark: two rows of six. */
+.space-options-dropdown .color-picker-grid {
+    grid-template-columns: repeat(6, 24px);
+    gap: 6px;
+    justify-content: center;
+    background: none;
+}
+
+/* The new space form has the width of the panel: one row. */
+.create-space-picker {
+    width: 100%;
+    grid-template-columns: repeat(11, 1fr);
+    justify-items: center;
+    gap: 6px 2px;
+    padding: 0 4px;
+    background: none;
+}
+
+.color-swatch {
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border-radius: 50%;
+    cursor: pointer;
+    border: 2px solid transparent;
+    background-color: var(--swatch-color, #ccc);
+    position: relative;
+    transition: all 0.2s ease;
+}
+
+.create-space-picker .color-swatch {
+    width: 20px;
+    height: 20px;
+}
+
+.color-swatch:hover {
+    transform: scale(1.1);
+}
+
+.color-swatch:focus-visible {
+    outline: 2px solid var(--accent-blue);
+    outline-offset: 1px;
+}
+
+/* The chosen colour carries a tick as well as the ring, so it does not rely on colour. The
+   tick is in the mode's text colour, which every palette colour keeps readable. */
+.color-swatch.selected {
+    border-color: rgba(0, 0, 0, 0.3);
+}
+
+.color-swatch.selected::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 45%;
+    width: 5px;
+    height: 9px;
+    border: solid #333;
+    border-width: 0 2px 2px 0;
+    transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.create-space-picker .color-swatch.selected::after {
+    width: 4px;
+    height: 8px;
+}
+
+/* The name of the swatch under the pointer or keyboard focus. */
+.color-swatch-tip {
+    position: absolute;
+    z-index: 2;
+    transform: translate(-50%, calc(-100% - 6px));
+    padding: 3px 7px;
+    border-radius: 6px;
+    background: #1f2933;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 500;
+    white-space: nowrap;
+    pointer-events: none;
+}
+
+.color-swatch-tip[hidden] {
+    display: none;
+}
+
+/* Custom color: a colour wheel among the swatches, its centre in the menu's colour. Once a
+   custom colour is chosen the centre widens and shows that colour, with the tick. The centre is
+   drawn rather than cut out, so the whole circle takes the pointer. */
+.custom-color-swatch {
+    --custom-hole: #fff;
+    background: conic-gradient(#f44, #fb3, #ee4, #4d6, #3cd, #48f, #a6f, #f5b, #f44);
+}
+
+.custom-color-swatch::before {
+    content: '';
+    position: absolute;
+    inset: 5px;
+    border-radius: 50%;
+    background: var(--custom-hole);
+}
+
+.custom-color-swatch.selected::before {
+    inset: 3px;
+    background: var(--custom-fill, var(--custom-hole));
+}
+
+/* The tick sits above the colour inside the wheel. */
+.custom-color-swatch.selected::after {
+    z-index: 1;
+}
+
+/* The picker replaces the menu's contents while it is open. */
+.space-options-dropdown.picking > :not(.custom-color-picker) {
+    display: none;
+}
+
+.custom-color-picker {
+    display: none;
+    flex-direction: column;
+    gap: 8px;
+    width: 196px;
+    padding: 2px 4px 4px;
+}
+
+.space-options-dropdown.picking .custom-color-picker {
+    display: flex;
+}
+
+.custom-color-head {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.space-options-dropdown .custom-color-back {
+    padding: 2px 8px;
+    font-size: 16px;
+    line-height: 1;
+}
+
+.custom-color-square {
+    position: relative;
+    height: 120px;
+    border-radius: 8px;
+    background:
+        linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, hsl(var(--picker-hue, 0) 100% 50%));
+    cursor: crosshair;
+    touch-action: none;
+}
+
+.custom-color-square:focus-visible {
+    outline: 2px solid var(--accent-blue);
+    outline-offset: 2px;
+}
+
+.custom-color-thumb {
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45);
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+}
+
+.custom-color-hue {
+    appearance: none;
+    width: 100%;
+    height: 12px;
+    margin: 0;
+    border-radius: 6px;
+    background: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);
+    cursor: pointer;
+}
+
+.custom-color-hue::-webkit-slider-thumb {
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45);
+    background: transparent;
+}
+
+.custom-color-hex-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.custom-color-chip {
+    flex: none;
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    background: var(--custom-chip, #ccc);
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.2);
+}
+
+.custom-color-hex {
+    flex: 1;
+    min-width: 0;
+    padding: 4px 6px;
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    border-radius: 6px;
+    background: #fff;
+    color: #333;
+    font: inherit;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    text-transform: uppercase;
+}
+
+/* How the space will look in each mode, with the text on it and its contrast. */
+.custom-color-preview {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+}
+
+.custom-color-preview > div {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+}
+
+.custom-color-preview .preview-light {
+    background: var(--preview-light);
+    color: #333;
+}
+
+.custom-color-preview .preview-dark {
+    background: var(--preview-dark);
+    color: #eceff1;
+}
+
+.custom-color-note {
+    font-size: 11px;
+    line-height: 1.35;
+}
+
+.custom-color-group {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 12px;
+}
+
+.custom-color-group select {
+    padding: 2px 4px;
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    border-radius: 6px;
+    background: #fff;
+    color: #333;
+    font: inherit;
+    font-size: 12px;
+}
+
+@media (prefers-color-scheme: dark) {
+    .space-shade {
+        --shade-surface: var(--shade-dark);
+        --shade-accent: color-mix(in srgb, var(--shade-dark) 88%, white);
+    }
+
+    /* Deep colours get a faint light edge so they stand out on the dark menu. */
+    .color-swatch {
+        border-color: rgba(255, 255, 255, 0.22);
+    }
+
+    .color-swatch.selected {
+        border-color: rgba(255, 255, 255, 0.5);
+    }
+
+    .custom-color-swatch {
+        --custom-hole: #2a2a2a;
+    }
+
+    .color-swatch.selected::after {
+        border-color: #eceff1;
+    }
+
+    .color-swatch-tip {
+        background: #eceff1;
+        color: #1f2933;
+    }
+
+    .custom-color-hex,
+    .custom-color-group select {
+        border-color: rgba(255, 255, 255, 0.25);
+        background: #1f1f1f;
+        color: #eceff1;
+    }
+
+    .custom-color-chip {
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
+    }
+}

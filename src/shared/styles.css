@@ -498,77 +498,6 @@ h3 {
     -webkit-appearance: none;
 }
 
-.color-picker-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 8px;
-    padding: 8px;
-    background: #fff;
-    border-radius: 8px;
-}
-
-/* In the space menu the swatches sit on the menu itself, light or dark. */
-.space-options-dropdown .color-picker-grid {
-    background: none;
-}
-
-.create-space-picker {
-    width: 100%;
-    display: flex;
-    background: none;
-    justify-content: space-between;
-}
-
-.color-swatch {
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    cursor: pointer;
-    border: 2px solid transparent;
-    transition: all 0.2s ease;
-}
-
-.color-swatch:hover {
-    transform: scale(1.1);
-}
-
-.color-swatch.selected {
-    border-color: rgba(0, 0, 0, 0.3);
-}
-
-/* Swatches show the same override as the space background (upstream issue #39). */
-.color-swatch[data-color='grey'] {
-    background-color: var(--user-chrome-grey-color, #9ca3af);
-}
-
-.color-swatch[data-color='blue'] {
-    background-color: var(--user-chrome-blue-color, #60a5fa);
-}
-
-.color-swatch[data-color='red'] {
-    background-color: var(--user-chrome-red-color, #f87171);
-}
-
-.color-swatch[data-color='yellow'] {
-    background-color: var(--user-chrome-yellow-color, #fbbf24);
-}
-
-.color-swatch[data-color='green'] {
-    background-color: var(--user-chrome-green-color, #34d399);
-}
-
-.color-swatch[data-color='pink'] {
-    background-color: var(--user-chrome-pink-color, #f472b6);
-}
-
-.color-swatch[data-color='purple'] {
-    background-color: var(--user-chrome-purple-color, #a78bfa);
-}
-
-.color-swatch[data-color='cyan'] {
-    background-color: var(--user-chrome-cyan-color, #22d3ee);
-}
-
 .folder {
     margin: 8px 0;
     /* background-color: rgba(255, 255, 255, 0.1); */
@@ -2696,39 +2625,6 @@ h3 {
         --accent-blue: #60a5fa;
     }
 
-    /* The space-colour swatches show the dark override when there is one. */
-    .color-swatch[data-color='grey'] {
-        background-color: var(--user-chrome-dark-grey-color, #9ca3af);
-    }
-
-    .color-swatch[data-color='blue'] {
-        background-color: var(--user-chrome-dark-blue-color, #60a5fa);
-    }
-
-    .color-swatch[data-color='red'] {
-        background-color: var(--user-chrome-dark-red-color, #f87171);
-    }
-
-    .color-swatch[data-color='yellow'] {
-        background-color: var(--user-chrome-dark-yellow-color, #fbbf24);
-    }
-
-    .color-swatch[data-color='green'] {
-        background-color: var(--user-chrome-dark-green-color, #34d399);
-    }
-
-    .color-swatch[data-color='pink'] {
-        background-color: var(--user-chrome-dark-pink-color, #f472b6);
-    }
-
-    .color-swatch[data-color='purple'] {
-        background-color: var(--user-chrome-dark-purple-color, #a78bfa);
-    }
-
-    .color-swatch[data-color='cyan'] {
-        background-color: var(--user-chrome-dark-cyan-color, #22d3ee);
-    }
-
     /* Dark mode text colors */
     body {
         color: #eceff1;
@@ -3104,10 +3000,6 @@ h3 {
 
     .context-menu-item.with-submenu::after {
         color: rgba(255, 255, 255, 0.6);
-    }
-
-    .color-swatch.selected {
-        border-color: rgba(255, 255, 255, 0.5);
     }
 }
 

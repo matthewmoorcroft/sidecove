@@ -19,12 +19,13 @@ const swatchColours = page =>
         grey: getComputedStyle(document.querySelector('#createSpaceColorSwatch [data-color="grey"]')).backgroundColor
     }));
 
-test('swatches keep their default colours and follow a colour override', async () => {
+// Swatches show each colour as a space in it looks (issue #67): its light surface here.
+test('swatches show the space colours and follow a colour override', async () => {
     const page = await openSidebar(browser, extensionId);
     expect(await swatchColours(page)).toEqual({
-        create: 'rgb(96, 165, 250)',
-        menu: 'rgb(96, 165, 250)',
-        grey: 'rgb(156, 163, 175)'
+        create: 'rgb(139, 179, 243)',
+        menu: 'rgb(139, 179, 243)',
+        grey: 'rgb(204, 204, 204)'
     });
 
     await page.evaluate(() => chrome.storage.sync.set({ colorOverrides: { blue: '#ff8800' } }));
@@ -37,11 +38,12 @@ test('swatches keep their default colours and follow a colour override', async (
     expect(await swatchColours(page)).toEqual({
         create: 'rgb(255, 136, 0)',
         menu: 'rgb(255, 136, 0)',
-        grey: 'rgb(156, 163, 175)'
+        grey: 'rgb(204, 204, 204)'
     });
 
     await page.reload();
-    await page.waitForSelector('.space.active #spaceOptionColorSwatch');
+    await page.waitForSelector('.space.active #spaceOptionColorSwatch [data-color="blue"]');
+    await page.waitForSelector('#createSpaceColorSwatch [data-color="blue"]');
     expect((await swatchColours(page)).menu).toBe('rgb(255, 136, 0)');
 });
 
