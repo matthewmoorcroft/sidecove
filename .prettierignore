@@ -9,3 +9,4 @@ public/
 *.json
 *.yml
 *.yaml
+.arc-migration/
