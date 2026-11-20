@@ -97,15 +97,15 @@ export function registerClosedWindowReopen({
         }
         if (changed) await save();
     };
-    // A tab you close on its own, even a window's last one, is not reopened.
-    spaceStore.onTabRemoved = async (tabId, info) => {
+    // A tab you close while its window stays open is not reopened: the save that follows its
+    // removal notes the window without it. Closing a window's last tab (its close button, or Cmd+W
+    // in a window with one tab) closes the window, so that tab stays in the window's record and
+    // comes back, although Chrome reports it as closing a tab rather than the window.
+    spaceStore.onTabRemoved = async tabId => {
         await ready;
         const before = copies.length;
         copies = copies.filter(copy => copy.copyId !== tabId);
-        const entry = windows[info?.windowId];
-        const alone = !info?.isWindowClosing && entry?.tabs?.some(tab => tab.tabId === tabId);
-        if (alone) entry.tabs = entry.tabs.filter(tab => tab.tabId !== tabId);
-        if (alone || copies.length !== before) await save();
+        if (copies.length !== before) await save();
     };
     // A tab moved into another window is listed under that window from then on.
     chromeApi.tabs.onAttached.addListener(() => spaceStore.run(() => spaceStore.persist()).catch(() => {}));

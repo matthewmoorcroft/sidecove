@@ -59,7 +59,7 @@ beforeEach(() => {
             onFocusChanged: event()
         },
         tabs: {
-            query: async () => tabs,
+            query: async ({ windowId } = {}) => tabs.filter(tab => windowId === undefined || tab.windowId === windowId),
             get: async id => {
                 const tab = tabs.find(t => t.id === id);
                 if (!tab) throw new Error('No tab');
@@ -215,11 +215,40 @@ test('a worker that Chrome stopped and woke for the close still reopens the page
     assert.deepEqual(store.spaces[0].temporaryTabs, [10, 100, 101]);
 });
 
-test("a window's last tab closed on its own is not reopened", async () => {
+// The captain's report on 7084479: a window with one tab, closed with the tab's close button or
+// Cmd+W. Chrome reports that as a tab closing (isWindowClosing false), then the window going.
+test("closing a window's only tab closes the window, so its page comes back in the window that stays", async () => {
+    tabs = tabs.filter(tab => tab.id !== 21);
+    store.spaces[0].temporaryTabs = [10, 20];
     await startAndNote();
     await closeWindow(2, { isWindowClosing: false });
     await runTimers(1000);
-    assert.deepEqual(created, []);
+    assert.deepEqual(created, [{ windowId: 1, url: 'https://a.test/one', active: false }]);
+    assert.deepEqual(store.spaces[0].temporaryTabs, [10, 100]);
+});
+
+test('closing the last tabs of a window together counts as closing it', async () => {
+    await startAndNote();
+    await closeWindow(2, { isWindowClosing: false });
+    await runTimers(1000);
+    assert.deepEqual(
+        created.map(tab => tab.url),
+        ['https://a.test/one', 'https://a.test/two']
+    );
+});
+
+test('a tab closed while its window stays open is not reopened when the window closes later', async () => {
+    await startAndNote();
+    tabs = tabs.filter(tab => tab.id !== 20);
+    store.spaces[0].temporaryTabs = [10, 21];
+    await store.onTabRemoved(20, { windowId: 2, isWindowClosing: false });
+    await store.persist();
+    await closeWindow(2);
+    await runTimers(1000);
+    assert.deepEqual(
+        created.map(tab => tab.url),
+        ['https://a.test/two']
+    );
 });
 
 test('moving the tabs of a window into another reopens nothing', async () => {
