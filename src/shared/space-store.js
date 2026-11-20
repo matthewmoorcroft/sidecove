@@ -6,6 +6,7 @@ import { LocalStorage } from './localstorage.js';
 import { sections, ownerOf, updateNativePinSection, spaceForActivation } from './space-membership.js';
 import { hideTabs, showTabs } from './hidden-tabs.js';
 import { removeTab } from './space-tab-removal.js';
+import { Logger } from './logger.js';
 export { tabIds, ownerOf } from './space-membership.js';
 const clone = value => structuredClone(value);
 
@@ -318,7 +319,7 @@ export class SpaceStore {
         try {
             await this.onPersisted?.([...tabs.values()]);
         } catch (error) {
-            console.warn('Could not note what each window holds:', error);
+            Logger.warn('Could not note what each window holds:', error);
         }
         try {
             await syncSpaceGroups(this.spaces, this.active);

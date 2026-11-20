@@ -81,6 +81,7 @@ beforeEach(() => {
             },
             onCreated: event(),
             onUpdated: event(),
+            onActivated: event(),
             onAttached: event()
         }
     };
@@ -191,7 +192,7 @@ test('a worker that Chrome stopped and woke for the close still reopens the page
     // The worker stops; everything it held in memory is gone. Chrome then closes window 2 and
     // wakes a new worker, which finds the window and its tabs already gone.
     for (const name of ['onCreated', 'onRemoved', 'onFocusChanged']) chromeApi.windows[name] = event();
-    for (const name of ['onCreated', 'onUpdated', 'onAttached']) chromeApi.tabs[name] = event();
+    for (const name of ['onCreated', 'onUpdated', 'onActivated', 'onAttached']) chromeApi.tabs[name] = event();
     store.onPersisted = store.onTabRemoved = null;
     const closing = tabs.filter(tab => tab.windowId === 2);
     tabs = tabs.filter(tab => tab.windowId !== 2);
@@ -348,15 +349,11 @@ test('reopening the closed window afterwards keeps one tab of each page, in its 
     );
 });
 
-test('a copy you have taken to another page, or closed, is left alone when the window comes back', async () => {
+test('a copy you have gone to, or closed, is left alone when the window comes back', async () => {
     await startAndNote();
     await closeWindow();
-    tabs.find(t => t.id === 100).url = 'https://elsewhere.test/';
-    await chromeApi.tabs.onUpdated.fire(
-        100,
-        { url: 'https://elsewhere.test/' },
-        tabs.find(t => t.id === 100)
-    );
+    // You go to the first copy, perhaps start filling in a form there, and close the second.
+    await chromeApi.tabs.onActivated.fire({ tabId: 100, windowId: 1 });
     tabs = tabs.filter(t => t.id !== 101);
     await store.onTabRemoved(101, { windowId: 1, isWindowClosing: false });
     windows.push(win(7));
@@ -365,6 +362,31 @@ test('a copy you have taken to another page, or closed, is left alone when the w
         [301, 'https://a.test/two']
     ])
         await chromeApi.tabs.onCreated.fire(page(id, 7, url));
+    await settle();
+    assert.deepEqual(removed, []);
+});
+
+test('a copy whose page redirected as it loaded is still replaced by the original', async () => {
+    await startAndNote();
+    await closeWindow();
+    const copy = tabs.find(t => t.id === 100);
+    copy.url = 'https://a.test/login?next=one';
+    await chromeApi.tabs.onUpdated.fire(100, { url: copy.url }, copy);
+    windows.push(win(7));
+    const restored = page(300, 7, 'https://a.test/one', { status: 'loading' });
+    tabs.push(restored);
+    store.spaces[0].temporaryTabs.push(300);
+    await chromeApi.tabs.onCreated.fire(restored);
+    await settle();
+    assert.deepEqual(removed, [100]);
+    assert.deepEqual(store.spaces[0].temporaryTabs, [10, 300, 101]);
+});
+
+test("a private tab with a copy's page does not replace the copy", async () => {
+    await startAndNote();
+    await closeWindow();
+    windows.push(win(8, { incognito: true }));
+    await chromeApi.tabs.onCreated.fire(page(400, 8, 'https://a.test/one', { incognito: true }));
     await settle();
     assert.deepEqual(removed, []);
 });

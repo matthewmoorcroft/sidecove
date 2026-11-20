@@ -99,12 +99,15 @@ export function hasItsName(change, tab) {
 }
 
 // Reopening the closed window afterwards (Cmd+Shift+T, or History) brings back its own tabs while
-// Sidecove's copies are still open. `copies` are { copyId, url, windowIds } with `windowIds` the
-// windows open when the copy was made. A tab that opens with a copy's page in a window that was not
-// open then is the original coming back, so it replaces that copy; the earliest copy goes first.
-export function copyReplacedBy(copies, tab) {
+// Sidecove's copies are still open. `copies` are { copyId, url, windowIds }: the page the copy was
+// opened with, and the windows open then. A copy stands in for the closed tab only until you use it
+// (see closed-window-reopen.js), so it is matched by the page it was opened with even if that page
+// has since redirected. A tab that opens with that page in a window that was not open then, `win`,
+// is the original coming back, so it replaces the copy; the earliest copy goes first. A private
+// tab, or one in a window that cannot take tabs, is never the original.
+export function copyReplacedBy(copies, tab, win) {
     const url = tab.url || tab.pendingUrl;
-    if (!isReopenablePage(url)) return null;
+    if (!isReopenablePage(url) || tab.incognito || !canTakeTabs(win)) return null;
     return (
         copies.find(copy => copy.url === url && copy.copyId !== tab.id && !copy.windowIds.includes(tab.windowId)) ||
         null

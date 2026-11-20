@@ -17,7 +17,8 @@ import { Logger } from '../shared/logger.js';
 //   { [windowId]: { reopenable, focusedAt, tabs, layouts } }, `tabs` and `layouts` as
 //   windowContents (closed-window-tabs.js) gives them, taken each time the spaces are saved.
 const WINDOWS_KEY = 'reopenWindows';
-// The tabs Sidecove reopened that still stand in for a closed window's tabs: [{ copyId, url, windowIds }].
+// The tabs Sidecove reopened that still stand in for a closed window's tabs, until you go to them:
+// [{ copyId, url, windowIds }].
 const COPIES_KEY = 'reopenedCopies';
 // How long a reopened tab may load to get its title before it is unloaded anyway.
 export const NAME_WAIT_MS = 15000;
@@ -192,27 +193,28 @@ export function registerClosedWindowReopen({
     // takes the place of Sidecove's copy, which closes, so every page is open once and in its space.
     chromeApi.tabs.onCreated.addListener(tab =>
         ready
-            .then(() => {
-                const copy = copyReplacedBy(copies, tab);
+            .then(async () => {
+                if (!copies.length) return;
+                const win = await chromeApi.windows.get(tab.windowId).catch(() => null);
+                const copy = copyReplacedBy(copies, tab, win);
                 if (copy) return spaceStore.run(() => replaceCopy(copy, tab.id));
             })
             .catch(error => Logger.warn('Could not tidy a reopened window:', error))
     );
-    // A copy that has gone to another page no longer stands in for the closed tab.
-    chromeApi.tabs.onUpdated.addListener((tabId, change) => {
-        if (!change.url) return;
+    // A copy you have gone to is yours now, with whatever you did in it, so it stays open.
+    chromeApi.tabs.onActivated.addListener(({ tabId }) =>
         ready.then(() => {
             const before = copies.length;
-            copies = copies.filter(copy => copy.copyId !== tabId || copy.url === change.url);
-            if (copies.length !== before) save();
-        });
-    });
+            copies = copies.filter(copy => copy.copyId !== tabId);
+            if (copies.length !== before) return save();
+        })
+    );
 
     async function replaceCopy(copy, restoredId) {
         copies = copies.filter(other => other !== copy);
         await save();
         const live = await chromeApi.tabs.get(copy.copyId).catch(() => null);
-        if (!live || (live.url || live.pendingUrl) !== copy.url) return;
+        if (!live) return;
         const space = spaceStore.spaces.find(s => s.temporaryTabs.includes(copy.copyId));
         if (space) {
             for (const other of spaceStore.spaces)

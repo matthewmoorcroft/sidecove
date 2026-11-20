@@ -163,13 +163,26 @@ test("a tab that opens with a copy's page in a window that was not open then rep
         { copyId: 100, url: 'https://a.test/1', windowIds: [1] },
         { copyId: 101, url: 'https://a.test/2', windowIds: [1] }
     ];
+    const normal = { id: 7, type: 'normal', alwaysOnTop: false, incognito: false };
     // Chrome brings the closed window back as window 7.
-    assert.equal(copyReplacedBy(copies, { id: 200, windowId: 7, url: 'https://a.test/2' }), copies[1]);
-    assert.equal(copyReplacedBy(copies, { id: 201, windowId: 7, url: '', pendingUrl: 'https://a.test/1' }), copies[0]);
+    assert.equal(copyReplacedBy(copies, { id: 200, windowId: 7, url: 'https://a.test/2' }, normal), copies[1]);
+    assert.equal(
+        copyReplacedBy(copies, { id: 201, windowId: 7, url: '', pendingUrl: 'https://a.test/1' }, normal),
+        copies[0]
+    );
     // A tab opened in a window that was already open, or another page, is just a tab.
-    assert.equal(copyReplacedBy(copies, { id: 202, windowId: 1, url: 'https://a.test/1' }), null);
-    assert.equal(copyReplacedBy(copies, { id: 203, windowId: 7, url: 'https://a.test/3' }), null);
-    assert.equal(copyReplacedBy(copies, { id: 204, windowId: 7, url: 'chrome://newtab/' }), null);
+    assert.equal(copyReplacedBy(copies, { id: 202, windowId: 1, url: 'https://a.test/1' }, { ...normal, id: 1 }), null);
+    assert.equal(copyReplacedBy(copies, { id: 203, windowId: 7, url: 'https://a.test/3' }, normal), null);
+    assert.equal(copyReplacedBy(copies, { id: 204, windowId: 7, url: 'chrome://newtab/' }, normal), null);
     // The copy itself is not its own original.
-    assert.equal(copyReplacedBy(copies, { id: 100, windowId: 9, url: 'https://a.test/1' }), null);
+    assert.equal(copyReplacedBy(copies, { id: 100, windowId: 9, url: 'https://a.test/1' }, { ...normal, id: 9 }), null);
+});
+
+test('a private tab, or one in a window that cannot take tabs, is never the original', () => {
+    const copies = [{ copyId: 100, url: 'https://a.test/1', windowIds: [1] }];
+    const tab = { id: 200, windowId: 7, url: 'https://a.test/1' };
+    assert.equal(copyReplacedBy(copies, { ...tab, incognito: true }, { id: 7, type: 'normal', incognito: true }), null);
+    assert.equal(copyReplacedBy(copies, tab, { id: 7, type: 'popup' }), null);
+    assert.equal(copyReplacedBy(copies, tab, { id: 7, type: 'normal', alwaysOnTop: true }), null);
+    assert.equal(copyReplacedBy(copies, tab, null), null);
 });

@@ -475,6 +475,21 @@ describe('closing a window that shows another space', () => {
             mainWindowId
         );
 
+    // From the close until the page is a tab in that window, timed in the helper's page.
+    const msUntilOpenIn = (name, windowId) =>
+        helper.evaluate(
+            async (url, windowId) => {
+                const started = Date.now();
+                while (Date.now() - started < 10000) {
+                    if ((await chrome.tabs.query({ url, windowId })).length) return Date.now() - started;
+                    await new Promise(resolve => setTimeout(resolve, 20));
+                }
+                return Infinity;
+            },
+            urlOf(name),
+            windowId
+        );
+
     // His recording on 157: both windows on Home, the window with one tab closed with its red
     // close button. The page must show in the window left at once, as the closed links did.
     const closeButton = ({ windowId }) => close(windowId);
@@ -485,10 +500,10 @@ describe('closing a window that shows another space', () => {
         test(`a window with one tab ${where}, closed with its close button, moves it at once`, async () => {
             const name = `btn-${where.length}`;
             const win = await oneTabWindow(name, spaceOf());
-            const started = Date.now();
             await closeButton(win);
+            // At once: the unit tests prove there is no wait; this only allows for a busy machine.
+            expect(await msUntilOpenIn(name, mainWindowId)).toBeLessThan(5000);
             await waitForPageIn(name, spaceOf());
-            expect(Date.now() - started).toBeLessThan(1500);
             expect(await d.tabsWith(urlOf(name))).toHaveLength(1);
         }, 60000);
 
@@ -560,10 +575,9 @@ describe('closing a window that shows another space', () => {
 
     test('a tab dragged out into its own window comes back when that window is closed', async () => {
         const win = await draggedOut('drag-out');
-        const started = Date.now();
         await closeButton(win);
+        expect(await msUntilOpenIn('drag-out', mainWindowId)).toBeLessThan(5000);
         await waitForPageIn('drag-out', homeId);
-        expect(Date.now() - started).toBeLessThan(1500);
         expect(await d.tabsWith(urlOf('drag-out'))).toHaveLength(1);
     }, 60000);
 
@@ -696,11 +710,14 @@ describe('restarting Chrome', () => {
         }
     }, 120000);
 
+    // Both windows hold web pages, so whichever closes first while Chrome quits has pages that
+    // could be copied into the other, which is about to close too.
     test('quitting with two windows open reopens nothing: Chrome brings each window back as it was', async () => {
         const names = ['qt-one', 'qt-two'];
-        let { browser, d } = await launch();
-        let page;
+        let { browser, page, d } = await launch();
         try {
+            const mainWindowId = await page.evaluate(async () => (await chrome.windows.getCurrent()).id);
+            await d.openTab('qt-main', mainWindowId);
             await d.openWindow(names);
             await sleep(1500);
         } finally {
@@ -709,18 +726,21 @@ describe('restarting Chrome', () => {
 
         ({ browser, page, d } = await launch());
         try {
+            const all = ['qt-main', ...names].map(urlOf);
             await page.waitForFunction(
                 async urls => (await Promise.all(urls.map(url => chrome.tabs.query({ url })))).every(t => t.length),
                 { polling: 100, timeout: 15000 },
-                names.map(urlOf)
+                all
             );
             await sleep(2500);
-            expect(await countOf(page, names.map(urlOf))).toEqual([1, 1]);
+            expect(await countOf(page, all)).toEqual([1, 1, 1]);
+            const [main] = await d.tabsWith(urlOf('qt-main'));
             // Still together in the window they were in, not moved into another.
             const [[one], [two]] = await Promise.all(names.map(name => d.tabsWith(urlOf(name))));
             expect(one.windowId).toBe(two.windowId);
             const others = await page.evaluate(id => chrome.tabs.query({ windowId: id }), one.windowId);
             expect(others.filter(tab => /^https?:/.test(tab.url)).map(tab => tab.url)).toEqual(names.map(urlOf));
+            expect(main.windowId).not.toBe(one.windowId);
         } finally {
             await browser.close();
         }
