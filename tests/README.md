@@ -35,8 +35,8 @@ tests/
 │   ├── tabs.test.js               # Tab management tests
 │   ├── bookmarks.test.js          # Bookmark/pinned tab tests
 │   ├── drag-drop.test.js          # Drag and drop tests
-│   ├── dark-contrast.test.js      # Dark-mode text meets WCAG AA in every space colour (24 + custom); light mode no worse than today's eight
-│   ├── space-colors.test.js       # The 24-colour menu, custom colour picker and dark-mode swatches
+│   ├── dark-contrast.test.js      # Dark-mode text meets WCAG AA in every space colour (the 11 of the menu and extreme custom colours); light mode no worse than today's eight
+│   ├── space-colors.test.js       # The colour menu, its Custom color circle and picker and dark-mode swatches
 │   ├── upgrade.test.js            # Updating from the latest release keeps user data
 │   ├── *.test.js                  # Other feature suites
 │   ├── setup.js                   # Per-suite setup

@@ -1,41 +1,29 @@
-// The 24 space colours offered with one click, and how a space's stored colour maps to what
+// The space colours offered with one click, and how a space's stored colour maps to what
 // Sidecove paints.
 //
 // A space keeps `color`, one of Chrome's nine tab group colours, as it always has: import, tab
 // group sync and older data all use it. The optional `shade` refines it: a palette name beyond
-// Chrome's nine ('teal') or a custom '#rrggbb'. A space without one looks exactly as before.
+// Chrome's nine ('mint') or a custom '#rrggbb'. A space without one looks exactly as before.
 import { COLOR_NAMES } from '../../../shared/color-palette.js';
 import { normalizeHex } from './color-math.js';
 import { nearestChromeColor, readableSurface } from './readable-surface.js';
 
-// Hand-set light and dark surfaces, in rows of six by hue. The eight original colours keep
-// their values (and their Settings overrides); every light one is 5.5:1 to 11:1 against the
-// light text and every dark one at least 10:1 against the dark text.
+// Hand-set light and dark surfaces, by hue. Chrome's nine, so every space and imported tab
+// group has its colour, and two more that stay as far from all of them, in light and in dark
+// mode, as Chrome's own closest pair (orange and yellow). Any other colour is a custom one.
+// The eight original colours keep their values (and their Settings overrides).
 const ROWS = [
     ['grey', '#cccccc', '#252d30', 'grey'],
-    ['stone', '#d9d2ca', '#37322c', 'grey'],
-    ['slate', '#c2ccd8', '#2c333d', 'grey'],
-    ['sand', '#eadbb7', '#3d3112', 'yellow'],
-    ['brown', '#e0b99d', '#4a2b12', 'orange'],
-    ['olive', '#cfd7a2', '#313601', 'green'],
     ['red', '#ff9e97', '#4f0a10', 'red'],
-    ['coral', '#ffab94', '#601b06', 'red'],
     ['orange', '#ffc38c', '#4d2a01', 'orange'],
-    ['amber', '#ffd37e', '#432f01', 'yellow'],
     ['yellow', '#ffe29f', '#403100', 'yellow'],
-    ['lime', '#d3ea96', '#2c3702', 'green'],
     ['green', '#8bda99', '#003310', 'green'],
     ['mint', '#a9e7c8', '#033b27', 'green'],
-    ['teal', '#8fd8c9', '#013a32', 'cyan'],
     ['cyan', '#a5e2ea', '#013d44', 'cyan'],
-    ['sky', '#a7d5f6', '#073650', 'blue'],
     ['blue', '#8bb3f3', '#002b4a', 'blue'],
     ['indigo', '#acb3f6', '#2c2c64', 'blue'],
-    ['violet', '#c4abf8', '#3e2465', 'purple'],
     ['purple', '#d6a6ff', '#422159', 'purple'],
-    ['orchid', '#eaa9f0', '#531a59', 'purple'],
-    ['pink', '#fbaad7', '#54183e', 'pink'],
-    ['rose', '#ffa9c0', '#5e1832', 'pink']
+    ['pink', '#fbaad7', '#54183e', 'pink']
 ];
 
 const label = name => name.charAt(0).toUpperCase() + name.slice(1);

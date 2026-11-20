@@ -3,13 +3,16 @@ import { hexToRgb, hsvToHex } from '../../src/sidebar/features/space-colors/colo
 import { nearestChromeColor, readableSurface } from '../../src/sidebar/features/space-colors/readable-surface.js';
 import { PALETTE } from '../../src/sidebar/features/space-colors/space-palette.js';
 
-// The space menu offers 24 colours with one click each, named on hover and ticked when chosen,
-// and any colour through Custom color, kept readable in both modes (issue #67).
+// The space menu offers 11 colours with one click each, named on hover and ticked when chosen,
+// and any colour through the Custom color circle beside them, kept readable in both modes
+// (issue #67).
 let browser, extensionId, page;
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const rgb = hex => `rgb(${hexToRgb(hex).join(', ')})`;
 const scheme = value => page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value }]);
 const MENU = '.space.active .space-options-dropdown';
+const SWATCHES = `${MENU} .color-swatch:not(.custom-color-swatch)`;
+const CUSTOM = `${MENU} .custom-color-swatch`;
 
 const storedSpace = () =>
     page.evaluate(async () => {
@@ -59,7 +62,7 @@ async function closeMenu() {
 
 async function openCustom() {
     await openMenu();
-    await page.click(`${MENU} .custom-color-row`);
+    await page.click(CUSTOM);
     await page.waitForSelector(`${MENU} .custom-color-picker`, { visible: true });
 }
 
@@ -84,14 +87,26 @@ beforeEach(async () => {
     await scheme('light');
 });
 
-test('the menu opens on 24 colours, each named for screen readers and on hover', async () => {
+test('the menu opens on 11 colours and a Custom color circle, each named on hover', async () => {
     await openMenu();
     const swatches = await page.$$eval(`${MENU} .color-swatch`, els =>
         els.map(el => ({ name: el.dataset.color, label: el.getAttribute('aria-label'), role: el.role }))
     );
-    expect(swatches).toEqual(PALETTE.map(c => ({ name: c.name, label: c.label, role: 'button' })));
+    expect(swatches).toEqual([
+        ...PALETTE.map(c => ({ name: c.name, label: c.label, role: 'button' })),
+        { name: 'custom', label: 'Custom color', role: 'button' }
+    ]);
+    // All in one grid: the circle is in the second row with the swatches, not a row of its own.
+    const rows = await page.$$eval(`${MENU} .color-swatch`, els => new Set(els.map(el => el.offsetTop)).size);
+    expect(rows).toBe(2);
 
-    for (const name of ['mint', 'coral', 'blue']) {
+    await page.hover(CUSTOM);
+    await page.waitForFunction(
+        menu => document.querySelector(`${menu} .color-swatch-tip`)?.textContent === 'Custom color',
+        { polling: 50, timeout: 3000 },
+        MENU
+    );
+    for (const name of ['mint', 'indigo', 'blue']) {
         await page.hover(`${MENU} .color-swatch[data-color="${name}"]`);
         await page.waitForFunction(
             (menu, label) => {
@@ -104,14 +119,15 @@ test('the menu opens on 24 colours, each named for screen readers and on hover',
         );
     }
     // Keyboard focus names the colour too.
-    await page.focus(`${MENU} .color-swatch[data-color="teal"]`);
-    expect(await page.$eval(`${MENU} .color-swatch-tip`, tip => !tip.hidden && tip.textContent)).toBe('Teal');
-    // The grid is one Tab stop; arrow keys move in it and Enter picks.
+    await page.focus(`${MENU} .color-swatch[data-color="mint"]`);
+    expect(await page.$eval(`${MENU} .color-swatch-tip`, tip => !tip.hidden && tip.textContent)).toBe('Mint');
+    // The grid is one Tab stop; arrow keys move in it, through the circle too, and Enter picks.
     expect(await page.$$eval(`${MENU} .color-swatch[tabindex="0"]`, els => els.length)).toBe(1);
     await page.keyboard.press('ArrowDown');
-    expect(await page.evaluate(() => document.activeElement.dataset.color)).toBe('purple');
+    expect(await page.evaluate(() => document.activeElement.dataset.color)).toBe('custom');
     await page.keyboard.press('ArrowUp');
-    for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowRight');
+    for (let i = 0; i < 4; i++) await page.keyboard.press('ArrowLeft');
+    await page.keyboard.press('ArrowDown');
     expect(await page.evaluate(() => document.activeElement.dataset.color)).toBe('blue');
     expect(await page.$eval(`${MENU} .color-swatch-tip`, tip => tip.textContent)).toBe('Blue');
     await page.keyboard.press('Enter');
@@ -122,9 +138,9 @@ test('the menu opens on 24 colours, each named for screen readers and on hover',
 test('picking a palette colour paints it, ticks it, and stores its tab group colour', async () => {
     const before = await storedSpace();
     await openMenu();
-    await page.click(`${MENU} .color-swatch[data-color="teal"]`);
-    await waitForStored('cyan', 'teal');
-    await panelBackground(rgb('#8fd8c9'));
+    await page.click(`${MENU} .color-swatch[data-color="mint"]`);
+    await waitForStored('green', 'mint');
+    await panelBackground(rgb('#a9e7c8'));
     const marks = await page.$$eval(`${MENU} .color-swatch.selected`, els =>
         els.map(el => ({
             name: el.dataset.color,
@@ -132,10 +148,9 @@ test('picking a palette colour paints it, ticks it, and stores its tab group col
             tick: getComputedStyle(el, '::after').borderRightWidth
         }))
     );
-    expect(marks).toEqual([{ name: 'teal', pressed: 'true', tick: '2px' }]);
-    expect(await page.$eval(`${MENU} .custom-color-row`, el => el.classList.contains('selected'))).toBe(false);
+    expect(marks).toEqual([{ name: 'mint', pressed: 'true', tick: '2px' }]);
     // The durable record follows, so a space rebuilt from its bookmark folder keeps its colour.
-    expect(await registryEntry(before.bookmarkFolderId)).toMatchObject({ color: 'cyan', shade: 'teal' });
+    expect(await registryEntry(before.bookmarkFolderId)).toMatchObject({ color: 'green', shade: 'mint' });
 
     // One of Chrome's own colours needs no shade.
     await page.click(`${MENU} .color-swatch[data-color="blue"]`);
@@ -147,7 +162,7 @@ test('picking a palette colour paints it, ticks it, and stores its tab group col
     await closeMenu();
 });
 
-test('a custom colour typed as hex is kept readable and shown in the Custom color row', async () => {
+test('a custom colour typed as hex is kept readable and shown in the Custom color circle', async () => {
     await openCustom();
     await typeHex('#6A4C93');
     await waitForStored('purple', '#6a4c93');
@@ -171,12 +186,17 @@ test('a custom colour typed as hex is kept readable and shown in the Custom colo
 
     await page.click(`${MENU} .custom-color-back`);
     await page.waitForSelector(`${MENU} .color-picker-grid`, { visible: true });
-    const row = await page.$eval(`${MENU} .custom-color-row`, el => ({
+    const circle = await page.$eval(CUSTOM, el => ({
         selected: el.classList.contains('selected'),
-        text: el.textContent
+        label: el.getAttribute('aria-label'),
+        fill: getComputedStyle(el, '::before').backgroundColor
     }));
-    expect(row).toEqual({ selected: true, text: expect.stringContaining('#6A4C93') });
-    expect(await page.$$(`${MENU} .color-swatch.selected`)).toHaveLength(0);
+    expect(circle).toEqual({
+        selected: true,
+        label: 'Custom color #6A4C93',
+        fill: rgb(readableSurface('#6a4c93', 'light'))
+    });
+    expect(await page.$$(`${SWATCHES}.selected`)).toHaveLength(0);
     expect(await page.$eval('.space.active .space-color-select', select => select.value)).toBe('#6a4c93');
     await closeMenu();
 
@@ -216,19 +236,19 @@ test('a custom colour picked on the colour square, with the hue slider', async (
 test('in dark mode the menu shows each colour’s dark version, and the space uses it', async () => {
     await scheme('dark');
     await openMenu();
-    await page.click(`${MENU} .color-swatch[data-color="mint"]`);
-    await waitForStored('green', 'mint');
-    await panelBackground(rgb('#033b27'));
-    const swatches = await page.$$eval(`${MENU} .color-swatch`, els =>
+    await page.click(`${MENU} .color-swatch[data-color="indigo"]`);
+    await waitForStored('blue', 'indigo');
+    await panelBackground(rgb('#2c2c64'));
+    const swatches = await page.$$eval(SWATCHES, els =>
         Object.fromEntries(els.map(el => [el.dataset.color, getComputedStyle(el).backgroundColor]))
     );
     expect(swatches).toEqual(Object.fromEntries(PALETTE.map(c => [c.name, rgb(c.dark)])));
     expect(await page.$eval(`${MENU} .color-swatch.selected`, el => getComputedStyle(el, '::after').borderColor)).toBe(
         'rgb(236, 239, 241)'
     );
-    await page.hover(`${MENU} .color-swatch[data-color="rose"]`);
+    await page.hover(`${MENU} .color-swatch[data-color="pink"]`);
     await page.waitForFunction(
-        menu => document.querySelector(`${menu} .color-swatch-tip`)?.textContent === 'Rose',
+        menu => document.querySelector(`${menu} .color-swatch-tip`)?.textContent === 'Pink',
         {
             polling: 50
         },
@@ -236,7 +256,7 @@ test('in dark mode the menu shows each colour’s dark version, and the space us
     );
 
     // A custom colour gets a deep version of its hue.
-    await page.click(`${MENU} .custom-color-row`);
+    await page.click(CUSTOM);
     await typeHex('#ffd000');
     await waitForStored('yellow', '#ffd000');
     await panelBackground(rgb(readableSurface('#ffd000', 'dark')));
@@ -245,7 +265,7 @@ test('in dark mode the menu shows each colour’s dark version, and the space us
     // And the light swatches are back in light mode.
     await scheme('light');
     await openMenu();
-    const light = await page.$$eval(`${MENU} .color-swatch`, els =>
+    const light = await page.$$eval(SWATCHES, els =>
         Object.fromEntries(els.map(el => [el.dataset.color, getComputedStyle(el).backgroundColor]))
     );
     expect(light).toEqual(Object.fromEntries(PALETTE.map(c => [c.name, rgb(c.light)])));
@@ -271,7 +291,7 @@ test('a space imported from an orange tab group is painted orange', async () => 
     await closeMenu();
 });
 
-test('the space chip’s Theme Color menu offers the 24 colours', async () => {
+test('the space chip’s Theme Color menu offers the same colours', async () => {
     await page.evaluate(() => chrome.storage.sync.set({ spaceSwitcherStyle: 'names' }));
     await page.waitForSelector('#spaceSwitcher:not(.icons-only) button.active');
     await page.$eval('#spaceSwitcher button.active', el => {
@@ -287,11 +307,11 @@ test('the space chip’s Theme Color menu offers the 24 colours', async () => {
     await page.$$eval('.context-menu .context-menu-item.with-submenu', items => {
         const theme = items.find(item => item.textContent.startsWith('Theme Color'));
         [...theme.querySelectorAll('.context-menu.submenu .context-menu-item')]
-            .find(i => i.textContent === 'Violet')
+            .find(i => i.textContent === 'Indigo')
             .click();
     });
-    await waitForStored('purple', 'violet');
-    await panelBackground(rgb('#c4abf8'));
+    await waitForStored('blue', 'indigo');
+    await panelBackground(rgb('#acb3f6'));
     await page.evaluate(() => chrome.storage.sync.set({ spaceSwitcherStyle: 'icons' }));
     await sleep(200);
 });

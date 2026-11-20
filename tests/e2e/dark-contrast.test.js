@@ -7,7 +7,7 @@ import { PALETTE, choiceForKey } from '../../src/sidebar/features/space-colors/s
 // large text; placeholders count as normal text) in every space colour: the sidebar at rest,
 // a folder being named, hovered and selected rows, menus, popups, the tour, and the settings
 // and onboarding pages. Disabled controls and emoji are left out (see helpers/contrast.js).
-// The space colours are the 24 of the colour menu and custom colours at the extremes of what
+// The space colours are the 11 of the colour menu and custom colours at the extremes of what
 // the picker allows (issue #67). Each is checked in light mode too. Light mode has shortfalls
 // of its own in the eight original colours (placeholders, hints, faded titles) that are not
 // about the space colour, so there no other colour may make any text less readable than it

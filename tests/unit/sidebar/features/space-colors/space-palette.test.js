@@ -16,13 +16,31 @@ import {
     textContrast
 } from '../../../../../src/sidebar/features/space-colors/readable-surface.js';
 import { COLOR_NAMES, DARK_DEFAULTS, LIGHT_DEFAULTS } from '../../../../../src/shared/color-palette.js';
+import { hexToRgb, rgbToOklch } from '../../../../../src/sidebar/features/space-colors/color-math.js';
 
-test('24 colours, each named once, each with a Chrome tab group colour', () => {
-    assert.equal(PALETTE.length, 24);
-    assert.equal(new Set(PALETTE.map(c => c.name)).size, 24);
+test('11 colours, each named once, each with a Chrome tab group colour', () => {
+    assert.equal(PALETTE.length, 11);
+    assert.equal(new Set(PALETTE.map(c => c.name)).size, 11);
     for (const colour of PALETTE) assert.ok(CHROME_COLOR_NAMES.includes(colour.chrome), colour.name);
     // All nine of Chrome's colours are there, so an imported orange group gets a colour.
     for (const name of CHROME_COLOR_NAMES) assert.equal(PALETTE.find(c => c.name === name)?.chrome, name);
+});
+
+// OKLab distance: about 0.02 is a just-visible difference between two flat colours.
+const oklab = hex => {
+    const [L, C, H] = rgbToOklch(hexToRgb(hex));
+    return [L, C * Math.cos((H * Math.PI) / 180), C * Math.sin((H * Math.PI) / 180)];
+};
+const apart = (a, b) => Math.hypot(...oklab(a).map((v, i) => v - oklab(b)[i]));
+
+test('no two suggested colours look alike, in light mode or in dark mode', () => {
+    // As far apart as Chrome's own two closest colours, orange and yellow in dark mode.
+    const floor = apart(PALETTE.find(c => c.name === 'orange').dark, PALETTE.find(c => c.name === 'yellow').dark);
+    for (const a of PALETTE)
+        for (const b of PALETTE)
+            if (a.name < b.name)
+                for (const mode of ['light', 'dark'])
+                    assert.ok(apart(a[mode], b[mode]) >= floor - 1e-9, `${a.name} and ${b.name} in ${mode}`);
 });
 
 test("today's eight keep exactly their light and dark values", () => {
@@ -59,12 +77,12 @@ test('an imported orange space, which had no colour before, now has one', () => 
 });
 
 test('a palette shade paints its own light and dark values', () => {
-    assert.equal(spaceColorKey({ color: 'cyan', shade: 'teal' }), 'teal');
-    assert.deepEqual(spaceLook({ color: 'cyan', shade: 'teal' }), {
-        key: 'teal',
-        light: '#8fd8c9',
-        dark: '#013a32',
-        label: 'Teal'
+    assert.equal(spaceColorKey({ color: 'green', shade: 'mint' }), 'mint');
+    assert.deepEqual(spaceLook({ color: 'green', shade: 'mint' }), {
+        key: 'mint',
+        light: '#a9e7c8',
+        dark: '#033b27',
+        label: 'Mint'
     });
 });
 
@@ -85,8 +103,10 @@ test('an unknown shade is ignored', () => {
 test('a palette choice stores the Chrome colour, and a shade only beyond Chrome’s nine', () => {
     assert.deepEqual(paletteChoice('blue'), { color: 'blue', shade: null });
     assert.deepEqual(paletteChoice('orange'), { color: 'orange', shade: null });
-    assert.deepEqual(paletteChoice('teal'), { color: 'cyan', shade: 'teal' });
-    assert.deepEqual(paletteChoice('stone'), { color: 'grey', shade: 'stone' });
+    assert.deepEqual(paletteChoice('mint'), { color: 'green', shade: 'mint' });
+    assert.deepEqual(paletteChoice('indigo'), { color: 'blue', shade: 'indigo' });
+    // A shade no longer offered is ignored, and the space shows its Chrome colour.
+    assert.equal(paletteChoice('teal'), null);
     assert.equal(paletteChoice('plaid'), null);
 });
 

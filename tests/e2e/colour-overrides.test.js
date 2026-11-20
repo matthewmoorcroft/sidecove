@@ -42,7 +42,8 @@ test('swatches show the space colours and follow a colour override', async () =>
     });
 
     await page.reload();
-    await page.waitForSelector('.space.active #spaceOptionColorSwatch');
+    await page.waitForSelector('.space.active #spaceOptionColorSwatch [data-color="blue"]');
+    await page.waitForSelector('#createSpaceColorSwatch [data-color="blue"]');
     expect((await swatchColours(page)).menu).toBe('rgb(255, 136, 0)');
 });
 

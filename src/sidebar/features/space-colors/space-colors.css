@@ -1,4 +1,4 @@
-/* Space colours: the 24-colour swatches, their names, and the custom colour picker. */
+/* Space colours: the swatches, their names, and the custom colour picker. */
 
 /* A colour with no stylesheet variable (a palette colour beyond the original eight, or a custom
    one) is set on the element as --shade-light and --shade-dark; this picks the system theme's.
@@ -18,7 +18,7 @@
     position: relative;
 }
 
-/* In the space menu the swatches sit on the menu itself, light or dark: six by four, by hue. */
+/* In the space menu the swatches sit on the menu itself, light or dark: two rows of six. */
 .space-options-dropdown .color-picker-grid {
     grid-template-columns: repeat(6, 24px);
     gap: 6px;
@@ -26,19 +26,14 @@
     background: none;
 }
 
-/* The new space form has the width of the panel: two rows of twelve. */
+/* The new space form has the width of the panel: one row. */
 .create-space-picker {
     width: 100%;
-    grid-template-columns: repeat(12, 1fr);
+    grid-template-columns: repeat(11, 1fr);
     justify-items: center;
     gap: 6px 2px;
     padding: 0 4px;
     background: none;
-}
-
-/* By id: the build puts this sheet ahead of shared/styles.css, which sets the closed height. */
-#addSpaceInputContainer.visible {
-    height: 6.25rem;
 }
 
 .color-swatch {
@@ -109,50 +104,30 @@
     display: none;
 }
 
-/* "Custom color": a menu row with a small colour ring, and the chosen custom colour. */
-.space-options-dropdown .custom-color-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.custom-color-ring {
-    flex: none;
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
+/* Custom color: a colour wheel among the swatches, its centre in the menu's colour. Once a
+   custom colour is chosen the centre widens and shows that colour, with the tick. The centre is
+   drawn rather than cut out, so the whole circle takes the pointer. */
+.custom-color-swatch {
+    --custom-hole: #fff;
     background: conic-gradient(#f44, #fb3, #ee4, #4d6, #3cd, #48f, #a6f, #f5b, #f44);
-    mask: radial-gradient(circle, transparent 4px, #000 4.5px);
 }
 
-.custom-color-label {
-    flex: 1;
-    white-space: nowrap;
-}
-
-.custom-color-value {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 11px;
-    font-variant-numeric: tabular-nums;
-}
-
-.custom-color-value i {
-    width: 10px;
-    height: 10px;
+.custom-color-swatch::before {
+    content: '';
+    position: absolute;
+    inset: 5px;
     border-radius: 50%;
-    background: var(--custom-chip);
-    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.2);
+    background: var(--custom-hole);
 }
 
-.custom-color-chevron {
-    font-size: 14px;
-    line-height: 1;
+.custom-color-swatch.selected::before {
+    inset: 3px;
+    background: var(--custom-fill, var(--custom-hole));
 }
 
-.space-options-dropdown .custom-color-row.selected {
-    background-color: rgba(0, 0, 0, 0.06);
+/* The tick sits above the colour inside the wheel. */
+.custom-color-swatch.selected::after {
+    z-index: 1;
 }
 
 /* The picker replaces the menu's contents while it is open. */
@@ -325,6 +300,10 @@
         border-color: rgba(255, 255, 255, 0.5);
     }
 
+    .custom-color-swatch {
+        --custom-hole: #2a2a2a;
+    }
+
     .color-swatch.selected::after {
         border-color: #eceff1;
     }
@@ -334,10 +313,6 @@
         color: #1f2933;
     }
 
-    .space-options-dropdown .custom-color-row.selected {
-        background-color: rgba(255, 255, 255, 0.1);
-    }
-
     .custom-color-hex,
     .custom-color-group select {
         border-color: rgba(255, 255, 255, 0.25);
@@ -345,8 +320,7 @@
         color: #eceff1;
     }
 
-    .custom-color-chip,
-    .custom-color-value i {
+    .custom-color-chip {
         box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
     }
 }

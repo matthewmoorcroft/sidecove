@@ -179,9 +179,6 @@ h3 {
     z-index: 101;
     /* Ensure submenu appears above the parent menu */
     min-width: 150px;
-    /* Theme Color lists 24 colours; a short panel scrolls it rather than cutting it off. */
-    max-height: calc(100vh - 16px);
-    overflow-y: auto;
 }
 
 .context-menu-item.with-submenu:hover > .context-menu.submenu {

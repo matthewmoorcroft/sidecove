@@ -30,7 +30,7 @@ Missing Arc's sidebar? Sidecove brings its way of organising tabs to Chrome's si
 Sidecove is for people moving from Arc to Chrome, and for anyone who wants vertical tabs and spaces without changing browser. It stays close to what Arc's spaces set out to do and adds to it where that helps.
 
 SPACES
-- Separate your tabs into spaces, such as Work, Home or a project. Each space has its own colour and icon. Pick one of 24 colours, or any colour at all with the custom colour picker, and Sidecove keeps the text readable on it. Icons are line symbols or emoji. In dark mode each colour becomes a dark surface tinted with it, and Settings has a light and a dark picker for eight of the colours.
+- Separate your tabs into spaces, such as Work, Home or a project. Each space has its own colour and icon. Pick one of 11 colours chosen to look different from each other in light and dark mode, or any colour at all with the custom colour picker, and Sidecove keeps the text readable on it. Icons are line symbols or emoji. In dark mode each colour becomes a dark surface tinted with it, and Settings has a light and a dark picker for eight of the colours.
 - The space bar shows every space as an icon, or as a name chip if you prefer names. Switch with a click, the keyboard, or your mouse's side buttons.
 - Move a tab, pinned tab or folder to another space by dropping it on the space's icon, or from its right-click menu with Move to Space, which also takes you to that space.
 - New tabs open in the space you are using, including links opened from other apps. Links you open from a tab stack below it, in the order you opened them.
