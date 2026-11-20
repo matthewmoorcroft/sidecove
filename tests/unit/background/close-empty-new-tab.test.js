@@ -121,14 +121,76 @@ test('keeps a tab that is loading an address when it is left', async () => {
 });
 
 test('ignores tabs that did not open as an empty new tab', async () => {
-    tabs.push({ id: 3, windowId: 1, url: NTP, active: false, pinned: false });
+    tabs.push({ id: 3, windowId: 1, url: 'https://three.test/', active: false, pinned: false });
     await start();
     await switchTo(3);
     await switchTo(1);
-    assert.deepEqual(removed, [], 'a new tab page already open before tracking began');
+    assert.deepEqual(removed, [], 'a site already open before tracking began');
     tabs.push({ id: 4, windowId: 1, url: 'https://four.test/', active: false, pinned: false });
     await listeners.created({ id: 4, windowId: 1, url: '', pendingUrl: 'https://four.test/' });
     await switchTo(4);
+    await switchTo(1);
+    assert.deepEqual(removed, []);
+});
+
+test('closes a new tab already open when tracking begins, once it is left', async () => {
+    tabs.push({ id: 3, windowId: 1, url: NTP, active: false, pinned: false });
+    await start();
+    await switchTo(3);
+    assert.deepEqual(removed, [], 'still shown');
+    await switchTo(1);
+    assert.deepEqual(removed, [3]);
+});
+
+test('the "+ New Tab" press from a new tab open before tracking began leaves one, not two', async () => {
+    tabs = [{ id: 3, windowId: 1, url: NTP, active: true, pinned: false }];
+    tabs.push({ id: 4, windowId: 1, url: 'https://four.test/', active: false, pinned: false });
+    await start();
+    await openNewTab(5);
+    await settle();
+    assert.deepEqual(removed, [3]);
+    assert.deepEqual(
+        tabs.map(t => t.id),
+        [4, 5]
+    );
+});
+
+test('keeps what protects a new tab already open when tracking begins', async () => {
+    tabs.push(
+        { id: 3, windowId: 1, url: NTP, active: false, pinned: true },
+        { id: 4, windowId: 1, url: NTP, active: false, pinned: false },
+        { id: 5, windowId: 1, url: NTP, active: false, pinned: false }
+    );
+    spaces = [{ id: 'a', spaceBookmarks: [4] }];
+    await start();
+    for (const id of [3, 4, 5]) await switchTo(id);
+    await switchTo(1);
+    assert.deepEqual(removed, [5], 'only the one that is not pinned or a favourite closes');
+});
+
+test('after a worker restart, only the saved list decides', async () => {
+    await start();
+    await openNewTab(2);
+    const tab = tabs.find(t => t.id === 2);
+    tab.url = 'https://two.test/';
+    await listeners.updated(2, { url: tab.url }, tab);
+    tab.url = NTP; // back on the new tab page after visiting a site
+    await listeners.updated(2, { url: NTP }, tab);
+    await settle();
+    listeners = {};
+    await start();
+    await switchTo(1);
+    assert.deepEqual(removed, [], 'a tab seen going to a site is not taken for an empty one');
+});
+
+test('a restart before any new tab opened still counts as having started', async () => {
+    await start();
+    await settle();
+    assert.deepEqual(session[EMPTY_TAB_STORAGE_KEY].untouched, []);
+    tabs.push({ id: 3, windowId: 1, url: NTP, active: false, pinned: false }); // went to a site and back, unseen
+    listeners = {};
+    await start();
+    await switchTo(3);
     await switchTo(1);
     assert.deepEqual(removed, []);
 });

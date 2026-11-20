@@ -15,6 +15,7 @@ import { markOtherWindowRow } from './features/all-windows/other-window-mark.js'
 import { createOpenHere } from './features/all-windows/open-here.js';
 import { moveToSpaceEntries } from './features/context-menu/space-menu-entries.js';
 import { folderMoveEntries } from './features/context-menu/folder-menu-entries.js';
+import { followFolderMove } from './features/folder-move/follow-folder.js';
 import { otherWindowMenuActions, otherWindowMenuEntries } from './features/all-windows/other-window-menu.js';
 import {
     getSpaceBookmarkById,
@@ -158,7 +159,12 @@ async function switchSpaceBy(delta) {
 // A request is { delta } to step through spaces or { slot } for a numbered shortcut.
 async function applySpaceRequest(request) {
     const targetId = resolveSpaceTarget(spaces, activeSpaceId, request);
-    if (targetId) await setActiveSpace(targetId, true, { openIfEmpty: true });
+    if (targetId) await openSpace(targetId);
+}
+
+// What clicking a space's button does; other ways of going to a space share it.
+async function openSpace(spaceId) {
+    await setActiveSpace(spaceId, true, { openIfEmpty: true });
 }
 
 // Shortcuts from chrome://extensions/shortcuts reach the sidebar of the focused window.
@@ -1143,7 +1149,7 @@ async function updateSpaceSwitcher() {
             if (button.classList.contains('dragging-switcher')) return;
 
             Logger.log('clicked for active', space);
-            await setActiveSpace(space.id, true, { openIfEmpty: true });
+            await openSpace(space.id);
         });
         button.addEventListener('contextmenu', event => {
             event.preventDefault();
@@ -1289,15 +1295,18 @@ function flashSpaceChip(spaceId) {
 
 // Move sidebar items (tabs, favorites, folders, Chrome-pinned favicons) into another space.
 // Favorites and folders carry their bookmarks, so they stay favorites in the new space.
+// Resolves to true when every item moved, false when the move failed or there was no such space.
 async function moveItemsToSpace(items, spaceId) {
     const target = spaces.find(s => s.id === spaceId);
-    if (!target) return;
+    if (!target) return false;
     pendingMutationCount++;
     try {
         for (const item of items) await moveItemToSpace(item, target);
+        return true;
     } catch (error) {
         Logger.warn('Move to space failed; restoring saved state.', error);
         alert(error.message);
+        return false;
     } finally {
         pendingMutationCount--;
         await pendingSpaceSaves;
@@ -4747,17 +4756,17 @@ function setupFolderContextMenu(folderElement, space, item = null) {
             contextMenu.appendChild(iconOption);
         }
 
-        // The whole folder moves, as when it is dropped on a space chip.
+        // The whole folder moves, as when it is dropped on a space chip, and you follow it.
         if (folderId) {
             appendMenuEntries(
                 contextMenu,
                 folderMoveEntries({
                     spaces,
                     currentSpaceId: spaceElement?.dataset.spaceId,
-                    onMove: async target => {
-                        await moveItemsToSpace([describeItem(folderElement)], target.id);
-                        flashSpaceChip(target.id);
-                    }
+                    onMove: followFolderMove({
+                        move: spaceId => moveItemsToSpace([describeItem(folderElement)], spaceId),
+                        switchTo: openSpace
+                    })
                 }),
                 contextMenu
             );
