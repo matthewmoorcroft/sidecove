@@ -1,0 +1,11 @@
+{
+    "manifest_version": 3,
+    "name": "Sidecove test window helper",
+    "description": "Loaded only by the end-to-end tests. Closes and reopens windows the way a person does, without waking Sidecove.",
+    "version": "1.0",
+    "permissions": [
+        "sessions",
+        "tabs"
+    ],
+    "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAoaNrKqzNwgJnPAmP0paw97LYdy5JMhyZnDdQGKAb3n6F6asXmFh1YMG5T5dYuoTpEXEBZ1+oHhdE2FEHSKvLsZN+ojfhshgfFJJsDnqJ1iNT0Z1CNTZiucUWxShPt1+S1vZWd+mCsKxp0SX8+mgfyXdDytLhp8DzuVBxSAyRqb1OdwRw3ByIFvKPks568Jsr7N47kEBZUx0Qo3K6bKoSw2HNTPyKN5GrodyNgMa854RN4idmTBl1JctsyXrY1nO2cB4Wuc1Qw//itiZ8elckakGV4Zxi4x3mf5ivBlhBBFTp6PLEa4Sd7U8jhLYWt7Bm5HScVL2PhdJ+LL5bhI3ZAQIDAQAB"
+}

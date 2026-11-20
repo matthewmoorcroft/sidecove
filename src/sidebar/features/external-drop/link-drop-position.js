@@ -3,7 +3,7 @@
  * rows as a tab being reordered, and opens where that line was: at that place in the space's list
  * and next to the same tabs in Chrome's tab strip. The sidebar passes in what it owns.
  */
-import { chromeIndexFor, placeDroppedTab } from './drop-position.js';
+import { chromeIndexFor, placeDroppedTab, rowAbovePair } from './drop-position.js';
 
 // Stands for the tab while its place is worked out, before Chrome has given it an id.
 const PENDING = -1;
@@ -11,22 +11,25 @@ const PENDING = -1;
 /**
  * listUnder(event)        the shown space's open tabs list when the pointer is over it, else null
  * rowBefore(list, event)  the row a drop at the pointer lands above, or null for the end
+ * rowsOf(list)            the list's rows in screen order, to keep a split pair whole
  * showLine(list, row)     shows the drop line above `row`, or after the last row for null
  * hideLine()
  * open(url, beforeId)     opens the tab above the row with that tab id, or at the end for null
  */
-export function createLinkDropPosition({ listUnder, rowBefore, showLine, hideLine, open }) {
+export function createLinkDropPosition({ listUnder, rowBefore, rowsOf, showLine, hideLine, open }) {
+    // Never between the two halves of a split pair: the link goes above the pair instead.
+    const landingRow = (list, event) => rowAbovePair(rowsOf(list), rowBefore(list, event));
     return {
         over(event) {
             const list = listUnder(event);
-            if (list) showLine(list, rowBefore(list, event));
+            if (list) showLine(list, landingRow(list, event));
             else hideLine();
         },
         clear: () => hideLine(),
         placeAt(event) {
             const list = listUnder(event);
             if (!list) return null;
-            const row = rowBefore(list, event);
+            const row = landingRow(list, event);
             return { beforeId: row?.dataset.tabId ? Number(row.dataset.tabId) : null };
         },
         open: (url, place) => open(url, place.beforeId)

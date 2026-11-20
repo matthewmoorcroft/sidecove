@@ -21,14 +21,16 @@ export async function launchBrowserWithExtension(options = {}) {
     // Set DEBUG=true or HEADED=true to see the browser window
     const isDebug = process.env.DEBUG === 'true' || process.env.HEADED === 'true';
     const headless = options.headless !== undefined ? options.headless : !isDebug;
+    // Test-only extensions loaded next to Sidecove, such as fixtures/window-helper.
+    const extensions = [extensionPath, ...(options.extraExtensions || [])].join(',');
 
     const browser = await puppeteer.launch({
         headless: headless ? 'new' : false,
         // Reusing a profile keeps the extension's storage, as an update does.
         ...(options.userDataDir ? { userDataDir: options.userDataDir } : {}),
         args: [
-            `--disable-extensions-except=${extensionPath}`,
-            `--load-extension=${extensionPath}`,
+            `--disable-extensions-except=${extensions}`,
+            `--load-extension=${extensions}`,
             '--no-sandbox',
             '--disable-setuid-sandbox',
             '--disable-dev-shm-usage',
@@ -48,8 +50,12 @@ export async function launchBrowserWithExtension(options = {}) {
 
     // Method 1: Look for service worker
     let targets = await browser.targets();
+    // Sidecove's worker is background.js; a test extension loaded beside it has none of that name.
     let extensionTarget = targets.find(
-        target => target.type() === 'service_worker' && target.url().startsWith('chrome-extension://')
+        target =>
+            target.type() === 'service_worker' &&
+            target.url().startsWith('chrome-extension://') &&
+            target.url().endsWith('/background.js')
     );
 
     if (extensionTarget) {
@@ -59,7 +65,9 @@ export async function launchBrowserWithExtension(options = {}) {
 
     // Method 2: If no service worker found, try background_page or any extension target
     if (!extensionId) {
-        extensionTarget = targets.find(target => target.url().startsWith('chrome-extension://'));
+        extensionTarget = options.extraExtensions?.length
+            ? null
+            : targets.find(target => target.url().startsWith('chrome-extension://'));
 
         if (extensionTarget) {
             const extensionUrl = extensionTarget.url();

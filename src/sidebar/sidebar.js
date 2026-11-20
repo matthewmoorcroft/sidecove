@@ -117,7 +117,7 @@ import { createTabActivationHandler } from './features/tab-activation/tab-activa
 import { createSplitView } from './features/split-view/split-view.js';
 import { createSplitDrop } from './features/split-view/split-drop.js';
 import { placeNextTo } from './features/split-view/split-logic.js';
-import { markSplitMember, markSplitRows, splitRowsOf } from './features/split-view/split-rows.js';
+import { markSplitMember, markSplitRows, rowsOf, splitRowsOf } from './features/split-view/split-rows.js';
 import { BookmarkUtils } from '../shared/bookmark-utils.js';
 import { Logger } from '../shared/logger.js';
 import { MOUSE_BUTTON, CSS_CLASSES, TIMING } from '../shared/constants.js';
@@ -4351,6 +4351,7 @@ const linkDropPosition = createLinkDropPosition({
         return list?.contains(event.target) ? list : null;
     },
     rowBefore: (list, event) => dropPoint(list, event).before,
+    rowsOf,
     showLine: (list, row) => showDropLine(list, row, TAB_ROW_SELECTOR),
     hideLine: hideAllDropIndicators,
     open: (url, beforeId) =>

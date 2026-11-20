@@ -27,6 +27,7 @@ npm run test:e2e:watch
 tests/
 ├── e2e/
 │   ├── helpers/
+│   │   ├── contrast.js            # WCAG contrast of the text a page shows
 │   │   ├── extension-helper.js    # Extension-specific utilities
 │   │   └── test-utils.js          # Common test utilities
 │   ├── screenshots/                # Test failure screenshots (not committed)
@@ -34,6 +35,7 @@ tests/
 │   ├── tabs.test.js               # Tab management tests
 │   ├── bookmarks.test.js          # Bookmark/pinned tab tests
 │   ├── drag-drop.test.js          # Drag and drop tests
+│   ├── dark-contrast.test.js      # Dark-mode text meets WCAG AA in every space colour
 │   ├── upgrade.test.js            # Updating from the latest release keeps user data
 │   ├── *.test.js                  # Other feature suites
 │   ├── setup.js                   # Per-suite setup
@@ -87,6 +89,10 @@ tests/
 - `clickElement()` - Click an element by selector
 - `typeIntoField()` - Type text into input field
 - `clearExtensionStorage()` - Clear extension storage for clean tests
+
+### Contrast (`contrast.js`)
+- `lowContrastText(page, roots)` - Visible text in the page, or in the elements matching `roots`, below WCAG AA (4.5:1, or 3:1 for large text; placeholders count as normal text). Disabled controls, emoji and screen-reader-only text are left out.
+- `collectText()`, `shortfalls()`, `contrastRatio()` - The parts it is built from; the maths is unit tested in `tests/unit/e2e/helpers/`.
 
 ### Test Utilities (`test-utils.js`)
 - `delay()` - Create async delay

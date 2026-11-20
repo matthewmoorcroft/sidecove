@@ -20,7 +20,7 @@ Sidecove is an independent project, not affiliated with or endorsed by The Brows
 - Pinned tabs, favorites and nested folders, stored as ordinary Chrome bookmarks
 - A top icon bar of Chrome-pinned favorites, shared across spaces in this Chrome profile by default. Enable **Settings → Separate favorites for each space** for a different top bar in each space. Switching this setting keeps your pins and their space assignments. Chrome still shows all native pins in its own tab strip.
 - Drag tabs, favorites and folders between sections, folders and spaces; drop one tab on a favorite to make a folder
-- Drag a link or some selected text from a page onto the sidebar to open it in a new tab of the current space; text opens a Google search for it. Drop it between two tabs of the list to open it right there
+- Drag a link or some selected text from a page onto the sidebar to open it in a new tab of the current space; text opens a Google search for it. Drop it between two tabs of the list to open it right there (between the two tabs of a split pair, it opens above the pair)
 - Multi-select with Cmd or Ctrl click and Shift click to move, pin, archive, close or file several tabs at once
 - Split view, as in Arc, using Chrome's own (Chrome 155 or later): right-click a tab and choose **Split View with…**, select two tabs and choose **Open in Split View**, or drag a tab onto another and hold it over the middle of that tab until **Split View** shows. The pair shows as one block in the list; **Separate Split View** (or dragging one half away) takes it apart. The entries are hidden on older Chrome.
 - Search open tabs and favorites across spaces (Cmd or Ctrl+F)
@@ -29,7 +29,7 @@ Sidecove is an independent project, not affiliated with or endorsed by The Brows
 - Keyboard and mouse side-button space switching
 - A shortcut for the most recently used tab in the current space, like Arc's Ctrl+Tab (assign a key at `chrome://extensions/shortcuts`; Chrome keeps Ctrl+Tab for itself)
 - A new tab you leave empty closes by itself, as in Arc (turn it off at **Settings → Close new tabs you leave empty**)
-- Closing a window while another is open moves its pages into that window as tabs, in the same spaces and places, unloaded until you go to them. Pinned tabs, favorites and private windows are left out.
+- Closing a window while another is open moves its pages into that window as tabs, in the same spaces and places, unloaded until you go to them. Pinned tabs, favorites and private windows are left out. Reopening the closed window with Cmd+Shift+T leaves each page open once.
 - Auto-archive for idle tabs, and "↓ Clear" (on the divider above New Tab) with Undo
 
 See [CHANGELOG.md](CHANGELOG.md) for what changed in each version.
