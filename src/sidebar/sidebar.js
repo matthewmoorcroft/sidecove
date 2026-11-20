@@ -50,6 +50,7 @@ import { RefreshCoordinator } from './refresh-coordinator.js';
 import { EditSessionRegistry } from './edit-sessions.js';
 import { wireNewTabRow } from './features/new-tab/new-tab-row.js';
 import { wireExternalDrop } from './features/external-drop/external-drop.js';
+import { createLinkDropPosition, openDroppedLink } from './features/external-drop/link-drop-position.js';
 import { createSpaceTabShower } from './features/space-switch/show-space-tab.js';
 import {
     selectWindowSpaceTabs,
@@ -111,6 +112,7 @@ import { restoreAfterPick } from './features/close-tab/restore-after-pick.js';
 import { createClearedTabs } from './features/clean-all/restore-cleared-tab.js';
 import { createTabActivationHandler } from './features/tab-activation/tab-activation.js';
 import { createSplitView } from './features/split-view/split-view.js';
+import { createSplitDrop } from './features/split-view/split-drop.js';
 import { placeNextTo } from './features/split-view/split-logic.js';
 import { markSplitMember, markSplitRows, splitRowsOf } from './features/split-view/split-rows.js';
 import { BookmarkUtils } from '../shared/bookmark-utils.js';
@@ -520,7 +522,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     wireExternalDrop({
         root: document.getElementById('sidebar-container'),
         doc: document,
-        getWindowId: () => currentWindow?.id
+        getWindowId: () => currentWindow?.id,
+        position: linkDropPosition
     });
 
     document.getElementById('sidebar-container').addEventListener(
@@ -1431,6 +1434,7 @@ function setupTabDragHandlers(tabElement) {
         document.querySelectorAll('.drag-companion').forEach(el => el.classList.remove('drag-companion'));
         setMergeTarget(null);
         mergeHover = null;
+        splitDrop.end();
         dragSourceFolderElement = null;
         refreshCoordinator.schedule();
     });
@@ -2236,7 +2240,10 @@ async function setupDragAndDrop(pinnedContainer, tempContainer) {
                 }
                 const mergeTarget = mergeTargetFor(e, draggingElement, container);
                 setMergeTarget(mergeTarget);
-                if (mergeTarget) {
+                if (
+                    mergeTarget ||
+                    splitDrop.over(e, draggingElement, container, dragItemsFor(draggingElement).length)
+                ) {
                     hideAllDropIndicators();
                     clearFolderOpenTimer();
                     return;
@@ -2281,6 +2288,7 @@ async function setupDragAndDrop(pinnedContainer, tempContainer) {
                 hideAllDropIndicators();
                 setMergeTarget(null);
                 mergeHover = null;
+                splitDrop.clear();
                 // Remove any placeholder drag-over state in this container
                 const placeholder = container.querySelector('.tab-placeholder');
                 if (placeholder) placeholder.classList.remove('drag-over');
@@ -2303,6 +2311,9 @@ async function setupDragAndDrop(pinnedContainer, tempContainer) {
             const mergeTarget = armedMergeTarget;
             setMergeTarget(null);
             mergeHover = null;
+            // Dropping a tab held over the middle of another tab splits the two.
+            const splitPair = splitDrop.take(container);
+            if (splitPair) return splitView.splitWith(splitPair.targetId, splitPair.draggedId);
             if (draggingElement && mergeTarget?.isConnected) {
                 // Dropping a tab onto a favorite makes a folder holding both.
                 await createFolderFromItems(
@@ -4338,10 +4349,45 @@ const splitView = createSplitView({
         space.temporaryTabs = placeNextTo(space.temporaryTabs, anchorId, movedId);
         await persistSpaceTabOrder(space.id);
     },
-    adoptNewTab: async tab => {
-        await spaceRequest('assign', { tabId: tab.id, spaceId: activeSpaceId });
-        await adoptStoredSpaces(await spaceRequest('get'));
-    }
+    adoptNewTab: tab => adoptIntoActiveSpace(tab)
+});
+const splitDrop = createSplitDrop({ splitView });
+
+// Files a tab Chrome just opened under the shown space.
+async function adoptIntoActiveSpace(tab) {
+    await spaceRequest('assign', { tabId: tab.id, spaceId: activeSpaceId });
+    await adoptStoredSpaces(await spaceRequest('get'));
+}
+
+// A link dragged in from a page opens where it is dropped among the open tabs.
+const linkDropPosition = createLinkDropPosition({
+    listUnder: event => {
+        const list = getTempContainer(getSpaceElement(activeSpaceId));
+        return list?.contains(event.target) ? list : null;
+    },
+    rowBefore: (list, event) => dropPoint(list, event).before,
+    showLine: (list, row) => showDropLine(list, row, TAB_ROW_SELECTOR),
+    hideLine: hideAllDropIndicators,
+    open: (url, beforeId) =>
+        runSpaceMutation(async () => {
+            const spaceId = activeSpaceId;
+            const storedTabs = () => spaces.find(s => s.id === spaceId)?.temporaryTabs ?? [];
+            await openDroppedLink({
+                chromeApi: chrome,
+                url,
+                beforeId,
+                windowId: currentWindow?.id,
+                inverted: await Utils.getInvertTabOrder(),
+                storedTabs,
+                adopt: adoptIntoActiveSpace,
+                saveOrder: async ids => {
+                    const space = spaces.find(s => s.id === spaceId);
+                    if (!space) return;
+                    space.temporaryTabs = ids;
+                    await persistSpaceTabOrder(space.id);
+                }
+            });
+        })
 });
 
 // Tabs Clear is hiding come back one at a time when picked in Chrome's own tab strip.

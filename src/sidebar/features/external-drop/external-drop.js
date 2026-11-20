@@ -3,7 +3,11 @@ import { dragKind, dropAction } from './drop-action.js';
 // Dragging a link or some text from a page onto the sidebar opens it in a new tab. The service
 // worker files the new tab in the selected space, as for the New Tab row. Drags that start in
 // the sidebar (reordering tabs, folders, favorites, spaces) are left to their own handlers.
-export function wireExternalDrop({ root, doc, chromeApi = chrome, getWindowId = () => undefined }) {
+//
+// `position`, when given, lets a drop over the open tabs list choose the new tab's place there:
+// over(event) shows it, clear() hides it, placeAt(event) gives it (null when the pointer is not
+// over the list) and open(url, place) opens the tab there.
+export function wireExternalDrop({ root, doc, chromeApi = chrome, getWindowId = () => undefined, position = null }) {
     // dragstart only fires in the document the drag began in, so seeing one means it is ours.
     let internalDrag = false;
     doc.addEventListener('dragstart', () => (internalDrag = true), true);
@@ -31,23 +35,31 @@ export function wireExternalDrop({ root, doc, chromeApi = chrome, getWindowId = 
         claim(event);
         if (kind === 'files') {
             event.dataTransfer.dropEffect = 'none';
+            position?.clear();
             return setActive(null);
         }
         event.dataTransfer.dropEffect = 'copy';
         setActive(kind);
+        position?.over(event);
     }
 
     function onDragLeave(event) {
-        if (!root.contains(event.relatedTarget)) setActive(null);
+        if (root.contains(event.relatedTarget)) return;
+        setActive(null);
+        position?.clear();
     }
 
     function onDrop(event) {
         if (internalDrag || isTextField(event.target)) return;
         setActive(null);
+        const place = position?.placeAt(event) ?? null;
+        position?.clear();
         if (!dragKind(event.dataTransfer?.types)) return;
         claim(event);
         const action = dropAction(event.dataTransfer);
-        if (action) chromeApi.tabs.create({ url: action.url, active: true, windowId: getWindowId() });
+        if (!action) return;
+        if (place) position.open(action.url, place);
+        else chromeApi.tabs.create({ url: action.url, active: true, windowId: getWindowId() });
     }
 
     root.addEventListener('dragenter', onDrag, true);
