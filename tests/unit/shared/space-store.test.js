@@ -417,10 +417,34 @@ test('background event handlers track tab replacement and preserve window-close 
     assert.equal(local.spaces[0].temporaryTabs.length, 0);
     assert.equal(local.spaceTabSnapshot.find(t => t.url === 'https://one.test/').spaceId, 'a');
 });
-test('extension pages are removed when a blank helper tab finishes navigating', async () => {
+// Sidecove's own pages (settings, the setup guide shown after an update) are tabs the user
+// opened or is reading, so they belong in a space like any other tab (#103).
+for (const page of ['options.html', 'installation-onboarding.html']) {
+    test(`Sidecove's own ${page} tab is listed in a space`, async () => {
+        const store = new SpaceStore();
+        await store.dispatch({ action: 'get' });
+        tabs.push({ id: 3, windowId: 1, url: `chrome-extension://sidecove/${page}`, groupId: -1 });
+        await store.run(async () => {
+            store.track(tabs[2]);
+            await store.persist();
+        });
+        assert.ok(ownerOf(local.spaces, 3), `${page} should belong to a space`);
+    });
+    test(`a tab that navigates to Sidecove's own ${page} keeps its space`, async () => {
+        const store = new SpaceStore();
+        await store.dispatch({ action: 'get' });
+        tabs[0].url = `chrome-extension://sidecove/${page}`;
+        await store.run(async () => {
+            store.track(tabs[0]);
+            await store.persist();
+        });
+        assert.equal(ownerOf(local.spaces, 1)?.id, 'a');
+    });
+}
+test('the side panel page opened in a tab stays out of every space', async () => {
     const store = new SpaceStore();
     await store.dispatch({ action: 'get' });
-    tabs[0].url = 'chrome-extension://sidecove/options.html';
+    tabs[0].url = 'chrome-extension://sidecove/sidebar.html';
     await store.run(async () => {
         store.track(tabs[0]);
         await store.persist();

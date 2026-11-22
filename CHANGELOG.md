@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Sidecove's settings page and the setup guide that opens after an update now show in the tab list.** Before, these tabs were only in Chrome's own tab strip, so you could not see, switch to or close them from Sidecove. They now join the space you are in like any other tab. No new permissions. ([#103](https://github.com/matthewmoorcroft/sidecove/issues/103))
+
 ## 1.4.0
 
 Sidecove now has split view (start it by dragging one tab onto another, or from a tab's menu), back, forward and reload buttons, and links or text you drag onto it open in a new tab, at the place you drop them among your tabs. Closing a window now moves its pages into the window that stays, and a folder can be moved to another space from its right-click menu. Sidecove also no longer puts the tab of a sign-in popup or a Google Meet picture-in-picture window into a tab group. No new permissions.

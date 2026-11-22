@@ -1,4 +1,3 @@
-import { isPracticeUrl } from './tour-practice.js';
 import { syncSpaceGroups } from './tab-group-sync.js';
 import { LinkTails } from './link-tab-placement.js';
 import { LocalStorage } from './localstorage.js';
@@ -9,6 +8,11 @@ import { removeTab } from './space-tab-removal.js';
 import { Logger } from './logger.js';
 export { tabIds, ownerOf } from './space-membership.js';
 const clone = value => structuredClone(value);
+
+function isSidePanelPage(url) {
+    const page = globalThis.chrome?.runtime?.getURL?.('sidebar.html');
+    return Boolean(page && url && (url === page || url.startsWith(`${page}?`) || url.startsWith(`${page}#`)));
+}
 
 // The service worker is the only writer. UI patches express changes relative to the
 // panel's previous view, so a stale panel cannot erase tabs created in another window.
@@ -213,7 +217,10 @@ export class SpaceStore {
     track(tab) {
         if (this.hidden.has(tab.id)) return;
         const url = tab.url || tab.pendingUrl;
-        if (url?.startsWith(chrome.runtime?.getURL?.('') || 'chrome-extension://invalid/') && !isPracticeUrl(url)) {
+        // The side panel's own page is not a tab the user reads, so it never joins a space (tests
+        // and debugging open it in a tab). Every other Sidecove page, such as settings or the
+        // setup guide shown after an update, is listed like any other tab.
+        if (isSidePanelPage(url)) {
             for (const space of this.spaces)
                 for (const key of sections) space[key] = space[key].filter(id => id !== tab.id);
             return;
