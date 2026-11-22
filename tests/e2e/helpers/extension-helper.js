@@ -99,6 +99,14 @@ export async function launchBrowserWithExtension(options = {}) {
         throw new Error('Extension not loaded properly. Make sure the extension is built in dist/ directory.');
     }
 
+    // Installing (or updating) opens the setup guide in a tab, and Sidecove lists its own pages
+    // like any other tab. Close it so each test starts from the tabs it opens itself, unless the
+    // test is about that guide.
+    if (!options.keepSetupGuide) {
+        const guide = `chrome-extension://${extensionId}/installation-onboarding.html`;
+        for (const page of await browser.pages()) if (page.url().startsWith(guide)) await page.close();
+    }
+
     return { browser, extensionId };
 }
 
