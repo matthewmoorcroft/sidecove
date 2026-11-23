@@ -18,6 +18,12 @@ export async function createSpacePin(chromeApi, tab, { parentId, index, title = 
         title,
         url
     });
-    await Utils.setPinnedTabState(tab.id, { pinnedUrl: url, bookmarkId: bookmark.id });
+    try {
+        await Utils.setPinnedTabState(tab.id, { pinnedUrl: url, bookmarkId: bookmark.id });
+    } catch (error) {
+        // A bookmark no tab is bound to would show as a second, closed pinned tab.
+        await chromeApi.bookmarks.remove(bookmark.id).catch(() => {});
+        throw error;
+    }
     return bookmark;
 }

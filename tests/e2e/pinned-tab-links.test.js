@@ -29,7 +29,9 @@ describe('Links opened from a pinned tab', () => {
             const name = req.url.split('?')[0].slice(1);
             res.setHeader('Content-Type', 'text/html');
             res.setHeader('Connection', 'close');
-            const links = LINKS.map(c => `<a id="${c}" href="/${c}">${c}</a>`).join(' ');
+            const links = LINKS.map(c => `<a id="${c}" href="/${c}">${c}</a>`)
+                .concat('<button id="popup" onclick="window.open(\'/popup\')">popup</button>')
+                .join(' ');
             res.end(`<title>Page ${name}</title>${['p', 'fav'].includes(name) ? links : name}`);
         });
         await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
@@ -64,16 +66,16 @@ describe('Links opened from a pinned tab', () => {
         await expectPinned(['p']);
     }
 
-    async function clickLinks(page, ids) {
+    async function clickLinks(page, ids, { meta = true } = {}) {
         await page.bringToFront();
         for (const id of ids) {
             const { x, y } = await page.$eval(`#${id}`, el => {
                 const box = el.getBoundingClientRect();
                 return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
             });
-            await page.keyboard.down('Meta');
+            if (meta) await page.keyboard.down('Meta');
             await page.mouse.click(x, y);
-            await page.keyboard.up('Meta');
+            if (meta) await page.keyboard.up('Meta');
             await delay(400);
         }
     }
@@ -107,7 +109,10 @@ describe('Links opened from a pinned tab', () => {
     const expectPinned = expected => eventually(() => shown('pinned'), expected);
     // Only the pages this test opens; the list may also hold the sidebar's own helper tabs.
     const expectListed = expected =>
-        eventually(async () => (await shown('temporary')).filter(name => [...LINKS, 't1'].includes(name)), expected);
+        eventually(
+            async () => (await shown('temporary')).filter(name => [...LINKS, 't1', 'popup'].includes(name)),
+            expected
+        );
 
     // The bookmarks of the space folder, folders as [name, children], read in the worker.
     async function spaceBookmarks() {
@@ -170,6 +175,26 @@ describe('Links opened from a pinned tab', () => {
         await eventually(spaceBookmarks, [['Work', ['p', 'other']]]);
         await clickLinks(pages.p, ['c1']);
         await eventually(spaceBookmarks, [['Work', ['p', 'c1', 'other']]]);
+    }, 90000);
+
+    test('a page a pinned tab opens with window.open becomes a pinned tab too', async () => {
+        await start('pin');
+        await clickLinks(pages.p, ['popup'], { meta: false });
+        await expectPinned(['p', 'popup']);
+        expect(await spaceBookmarks()).toEqual(['p', 'popup']);
+    }, 90000);
+
+    test('a page Sidecove opens while a pinned tab is active is not pinned', async () => {
+        await start('pin');
+        await pages.p.bringToFront();
+        await delay(400);
+        // As opening a favorite or restoring an archived tab does.
+        const worker = await getBackgroundServiceWorker(browser);
+        await worker.evaluate(url => chrome.tabs.create({ url, active: false }), `${origin}/c1`);
+        await expectListed(['c1', 't1']);
+        await delay(1000);
+        await expectPinned(['p']);
+        expect(await spaceBookmarks()).toEqual(['p']);
     }, 90000);
 
     test('a link from a top-bar favorite opens unpinned in the tab list, even set to open as a new pinned tab', async () => {

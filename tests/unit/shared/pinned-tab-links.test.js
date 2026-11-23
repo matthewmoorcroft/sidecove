@@ -68,6 +68,9 @@ function fakeChrome() {
                 created.push(node);
                 return node;
             },
+            remove: async id => {
+                bookmarks = bookmarks.filter(b => b.id !== id);
+            },
             update: async (id, changes) => {
                 Object.assign(
                     bookmarks.find(b => b.id === id),
@@ -219,6 +222,31 @@ test('a link that cannot be pinned there stays in the tab list, and the next lin
     }
 });
 
+test('a waiting link that loads blank, or after the setting is turned off, is not pinned', async () => {
+    // Chrome reports a window.open tab created with no address and already complete.
+    const blank = await openLink(4, 2, { url: '', status: 'complete' });
+    assert.equal(store.linkPins.waiting.size, 1);
+    await pinWaitingLink(chrome, store, { ...blank, url: 'about:blank', status: 'complete' }, { loaded: true });
+    assert.equal(store.linkPins.waiting.size, 0);
+    // The user later types an address into it.
+    await pinWaitingLink(chrome, store, { ...blank, url: 'https://typed.test/' });
+    assert.equal(created.length, 0);
+
+    const late = await openLink(5, 2, { url: '' });
+    store.pinsLinks = false;
+    await pinWaitingLink(chrome, store, { ...late, url: 'https://late.test/' });
+    assert.equal(created.length, 0);
+    assert.deepEqual(store.spaces[0].spaceBookmarks, [2, 3]);
+});
+
+test('a bookmark whose binding cannot be saved is removed again, and the link stays in the list', async () => {
+    chrome.storage.local.set = async () => Promise.reject(new Error('quota'));
+    await openLink(4, 2);
+    assert.equal(created.length, 1);
+    assert.deepEqual(await children('s'), ['a', 'f', 'p']);
+    assert.deepEqual(store.spaces[0].temporaryTabs, [9, 4]);
+});
+
 test('a waiting link that the user moved, or that closed, is left alone', async () => {
     store.linkPins.waiting.set(4, 2);
     await pinWaitingLink(chrome, store, { id: 4, windowId: 1, url: 'https://gone.test/' });
@@ -250,6 +278,21 @@ test('a page that sets its title after loading still names its bookmark', async 
     assert.equal(store.linkPins.titles.size, 1);
     await nameLinkPin(chrome, store, { ...link, status: 'complete', title: 'Inbox' });
     assert.equal(created[0].title, 'Inbox');
+});
+
+test('an untitled page whose address has no trailing slash still waits for its title', async () => {
+    const link = await openLink(4, 2);
+    await nameLinkPin(chrome, store, { ...link, status: 'complete', title: 'link4.test' });
+    assert.equal(created[0].title, 'https://link4.test/');
+    assert.equal(store.linkPins.titles.size, 1);
+});
+
+test('once the tab goes on to another page, its bookmark is no longer renamed', async () => {
+    const link = await openLink(4, 2);
+    await nameLinkPin(chrome, store, { ...link, status: 'complete', title: 'link4.test/' });
+    await nameLinkPin(chrome, store, { ...link, status: 'complete', url: 'https://else.test/', title: 'Dashboard' });
+    assert.equal(created[0].title, 'https://link4.test/');
+    assert.equal(store.linkPins.titles.size, 0);
 });
 
 test('a link that redirected keeps the address it landed on, unless the address was changed', async () => {
