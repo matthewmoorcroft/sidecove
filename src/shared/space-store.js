@@ -1,7 +1,7 @@
 import { isPracticeUrl } from './tour-practice.js';
 import { syncSpaceGroups } from './tab-group-sync.js';
 import { LinkTails } from './link-tab-placement.js';
-import { LinkPins, nameLinkPin, pinWaitingLink } from './pinned-tab-links.js';
+import { LinkPins, followLinkPins } from './pinned-tab-links.js';
 import { followStoreSettings, readStoreSettings } from './space-store-settings.js';
 import { LocalStorage } from './localstorage.js';
 
@@ -260,16 +260,6 @@ export class SpaceStore {
             space[key].sort(
                 (a, b) => (this.restoredRanks.get(a) ?? Infinity) - (this.restoredRanks.get(b) ?? Infinity)
             );
-        } else if (
-            key === 'temporaryTabs' &&
-            this.pinsLinks &&
-            space.spaceBookmarks.includes(tab.openerTabId) &&
-            !(url && isNewTabPage)
-        ) {
-            // With the setting on, a link from a pinned tab is a pinned tab; pinWaitingLink
-            // gives it its bookmark.
-            space.spaceBookmarks.push(tab.id);
-            this.linkPins.wait(tab.id, tab.openerTabId);
         } else if (key === 'temporaryTabs' && tab.openerTabId !== undefined && !(url && isNewTabPage)) {
             // A link opened from a tab goes below it, whichever way the list is drawn. Chrome reports
             // no address yet for some link tabs, so only a named new-tab page is left out.
@@ -430,16 +420,11 @@ export class SpaceStore {
                 await operation();
                 await this.persist();
             }).catch(console.error);
-        const trackAndPin = async tab => {
-            this.track(tab);
-            await pinWaitingLink(chrome, this, tab);
-        };
-        chrome.tabs.onCreated.addListener(tab => handle(() => trackAndPin(tab)));
+        chrome.tabs.onCreated.addListener(tab => handle(() => this.track(tab)));
         chrome.tabs.onUpdated.addListener((id, change, tab) => {
-            if (change.url || change.pinned !== undefined) handle(() => trackAndPin(tab));
-            if (change.status === 'complete' && this.linkPins.titles.has(id))
-                handle(() => nameLinkPin(chrome, this, tab));
+            if (change.url || change.pinned !== undefined) handle(() => this.track(tab));
         });
+        followLinkPins(chrome, this);
         chrome.tabs.onRemoved.addListener((id, info) => handle(() => removeTab(this, id, info)));
         chrome.tabs.onReplaced.addListener((added, removed) =>
             handle(() => {

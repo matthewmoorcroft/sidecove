@@ -173,3 +173,15 @@ test('a link from a favourite opens unpinned in the tab list whatever the settin
         assert.deepEqual(folderOrder(), ['https://p.test/', 'https://q.test/'], String(value));
     }
 });
+
+test('tabs the worker files again at start-up are not taken for new links from a pinned tab', async () => {
+    sync.pinnedTabLinks = 'pin';
+    // Tab 4 was opened from the pinned tab while the worker was not running.
+    tabs.push({ id: 4, windowId: 1, openerTabId: 1, url: 'https://old.test/' });
+    const store = await startStore();
+    assert.deepEqual(store.linkPins.entries().waiting, []);
+    chrome.tabs.onUpdated.emit(4, { url: 'https://old.test/next' }, { ...tabs[3], url: 'https://old.test/next' });
+    await store.run(() => {});
+    assert.deepEqual(ownerOf(local.spaces, 4).spaceBookmarks, [1]);
+    assert.deepEqual(folderOrder(), ['https://p.test/', 'https://q.test/']);
+});
