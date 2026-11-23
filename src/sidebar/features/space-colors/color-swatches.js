@@ -1,9 +1,24 @@
 import { SHADE_CLASS, paintSpaceColor } from '../color-overrides/space-color-vars.js';
 import { normalizeHex } from './color-math.js';
-import { PALETTE, spaceLook } from './space-palette.js';
+import { PALETTE, spaceLook, wheelStops } from './space-palette.js';
+import { arrowTarget, tipShift } from './swatch-geometry.js';
 
 const CUSTOM = 'custom';
 const CUSTOM_LABEL = 'Custom color';
+// Each grid's tip, so markSwatch can refresh one that shows a name it changes.
+const tips = new WeakMap();
+
+// The horizontal edges the tip is clipped to: its nearest ancestor that clips overflow (the
+// spaces list, inside the panel's padding), else the panel itself.
+function clipEdges(element) {
+    for (let node = element.parentElement; node && node !== document.body; node = node.parentElement) {
+        if (getComputedStyle(node).overflowX !== 'visible') {
+            const { left, right } = node.getBoundingClientRect();
+            return { left, right };
+        }
+    }
+    return { left: 0, right: document.documentElement.clientWidth };
+}
 
 function makeSwatch(name, label) {
     const swatch = document.createElement('div');
@@ -15,15 +30,6 @@ function makeSwatch(name, label) {
     swatch.setAttribute('aria-label', label);
     swatch.setAttribute('aria-pressed', 'false');
     return swatch;
-}
-
-// Where an arrow key moves focus in a grid of count swatches, columns wide; null for other keys.
-export function arrowTarget(index, key, columns, count) {
-    const step = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -columns, ArrowDown: columns, Home: -index }[key];
-    if (key === 'End') return count - 1;
-    if (step === undefined) return null;
-    const next = index + step;
-    return next >= 0 && next < count ? next : index;
 }
 
 // Fills grid with one swatch per palette colour. Each shows the colour as a space will look in
@@ -40,6 +46,8 @@ export function renderSwatches(grid, onPick, { onCustom } = {}) {
     if (onCustom) {
         const custom = makeSwatch(CUSTOM, CUSTOM_LABEL);
         custom.classList.add('custom-color-swatch');
+        custom.style.setProperty('--wheel-light', wheelStops('light').join(', '));
+        custom.style.setProperty('--wheel-dark', wheelStops('dark').join(', '));
         swatches.push(custom);
     }
     const choose = swatch => (swatch.dataset.color === CUSTOM ? onCustom() : onPick(swatch.dataset.color));
@@ -51,12 +59,23 @@ export function renderSwatches(grid, onPick, { onCustom } = {}) {
     grid.append(tip);
 
     const show = swatch => {
+        const centre = swatch.offsetLeft + swatch.offsetWidth / 2;
         tip.textContent = swatch.dataset.tip;
-        tip.style.left = `${swatch.offsetLeft + swatch.offsetWidth / 2}px`;
+        tip.style.left = `${centre}px`;
         tip.style.top = `${swatch.offsetTop}px`;
         tip.hidden = false;
+        // A name at the end of a row (the custom colour's hex is the longest) would run past the
+        // panel's edge, so it moves back inside.
+        const { left, right } = tip.getBoundingClientRect();
+        const edges = clipEdges(grid);
+        const shift = tipShift(left, right, edges.left, edges.right);
+        if (shift) tip.style.left = `${centre + shift}px`;
+        tips.set(grid, { show, shownFor: swatch });
     };
-    const hide = () => (tip.hidden = true);
+    const hide = () => {
+        tip.hidden = true;
+        tips.delete(grid);
+    };
     const swatchOf = target => target?.closest?.('.color-swatch');
     grid.addEventListener('pointerover', e => swatchOf(e.target) && show(swatchOf(e.target)));
     grid.addEventListener('pointerout', e => !swatchOf(e.relatedTarget) && hide());
@@ -105,6 +124,9 @@ export function markSwatch(grid, key) {
         const label = hex ? `${CUSTOM_LABEL} ${hex.toUpperCase()}` : CUSTOM_LABEL;
         custom.dataset.tip = label;
         custom.setAttribute('aria-label', label);
+        // A tip already naming the circle shows the new name, kept inside the panel.
+        const shown = tips.get(grid);
+        if (shown?.shownFor === custom) shown.show(custom);
         if (hex) paintSpaceColor(custom, spaceLook({ shade: hex }), { surface: '--custom-fill' });
         else {
             custom.classList.remove(SHADE_CLASS);

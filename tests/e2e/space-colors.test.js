@@ -1,7 +1,7 @@
 import { launchBrowserWithExtension, openSidebar } from './helpers/extension-helper.js';
 import { hexToRgb, hsvToHex } from '../../src/sidebar/features/space-colors/color-math.js';
 import { nearestChromeColor, readableSurface } from '../../src/sidebar/features/space-colors/readable-surface.js';
-import { PALETTE } from '../../src/sidebar/features/space-colors/space-palette.js';
+import { PALETTE, wheelStops } from '../../src/sidebar/features/space-colors/space-palette.js';
 
 // The space menu offers 11 colours with one click each, named on hover and ticked when chosen,
 // and any colour through the Custom color circle beside them, kept readable in both modes
@@ -59,6 +59,13 @@ async function closeMenu() {
     await page.evaluate(() => document.activeElement?.blur());
     await page.waitForSelector(MENU, { hidden: true });
 }
+
+// The wheel's colours, and the box it is drawn in: border-box, so it shows no square seam.
+const wheel = () =>
+    page.$eval(CUSTOM, el => ({
+        origin: getComputedStyle(el).backgroundOrigin,
+        image: getComputedStyle(el).backgroundImage
+    }));
 
 async function openCustom() {
     await openMenu();
@@ -197,6 +204,21 @@ test('a custom colour typed as hex is kept readable and shown in the Custom colo
         fill: rgb(readableSurface('#6a4c93', 'light'))
     });
     expect(await page.$$(`${SWATCHES}.selected`)).toHaveLength(0);
+    // Its name, the longest, stays inside the panel although the circle is at the end of its row.
+    await page.hover(CUSTOM);
+    await page.waitForFunction(
+        menu => document.querySelector(`${menu} .color-swatch-tip`)?.textContent === 'Custom color #6A4C93',
+        { polling: 50, timeout: 3000 },
+        MENU
+    );
+    // Inside the spaces list, which clips what overflows it, 8px in from the panel's edges.
+    const tip = await page.$eval(`${MENU} .color-swatch-tip`, el => {
+        const r = el.getBoundingClientRect();
+        const list = document.getElementById('spacesList').getBoundingClientRect();
+        return { left: r.left, right: r.right, listLeft: list.left, listRight: list.right };
+    });
+    expect(tip.left).toBeGreaterThanOrEqual(tip.listLeft);
+    expect(tip.right).toBeLessThanOrEqual(tip.listRight);
     expect(await page.$eval('.space.active .space-color-select', select => select.value)).toBe('#6a4c93');
     await closeMenu();
 
@@ -255,6 +277,12 @@ test('in dark mode the menu shows each colour’s dark version, and the space us
         MENU
     );
 
+    // The wheel takes mid-tones in dark mode, so its colours can be told apart on the dark menu.
+    expect(await wheel()).toEqual({
+        origin: 'border-box',
+        image: `conic-gradient(${wheelStops('dark').map(rgb).join(', ')})`
+    });
+
     // A custom colour gets a deep version of its hue.
     await page.click(CUSTOM);
     await typeHex('#ffd000');
@@ -269,6 +297,10 @@ test('in dark mode the menu shows each colour’s dark version, and the space us
         Object.fromEntries(els.map(el => [el.dataset.color, getComputedStyle(el).backgroundColor]))
     );
     expect(light).toEqual(Object.fromEntries(PALETTE.map(c => [c.name, rgb(c.light)])));
+    expect(await wheel()).toEqual({
+        origin: 'border-box',
+        image: `conic-gradient(${wheelStops('light').map(rgb).join(', ')})`
+    });
     await closeMenu();
 });
 

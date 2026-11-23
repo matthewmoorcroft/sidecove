@@ -104,12 +104,15 @@
     display: none;
 }
 
-/* Custom color: a colour wheel among the swatches, its centre in the menu's colour. Once a
-   custom colour is chosen the centre widens and shows that colour, with the tick. The centre is
-   drawn rather than cut out, so the whole circle takes the pointer. */
+/* Custom color: a wheel of the suggested colours among the swatches, its centre in the menu's
+   colour. Once a custom colour is chosen the centre widens and shows that colour, with the tick.
+   The centre is drawn rather than cut out, so the whole circle takes the pointer. The wheel's
+   colours are set on the element (wheelStops in space-palette.js). */
 .custom-color-swatch {
     --custom-hole: #fff;
-    background: conic-gradient(#f44, #fb3, #ee4, #4d6, #3cd, #48f, #a6f, #f5b, #f44);
+    /* Drawn under the border too; inside it only, the gradient repeats in the border ring and shows
+       a square seam. */
+    background: conic-gradient(var(--wheel-light, #ff9e97, #8bb3f3, #ff9e97)) border-box;
 }
 
 .custom-color-swatch::before {
@@ -302,6 +305,7 @@
 
     .custom-color-swatch {
         --custom-hole: #2a2a2a;
+        background: conic-gradient(var(--wheel-dark, #9b4b47, #456393, #9b4b47)) border-box;
     }
 
     .color-swatch.selected::after {

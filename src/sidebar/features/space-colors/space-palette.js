@@ -5,7 +5,7 @@
 // group sync and older data all use it. The optional `shade` refines it: a palette name beyond
 // Chrome's nine ('mint') or a custom '#rrggbb'. A space without one looks exactly as before.
 import { COLOR_NAMES } from '../../../shared/color-palette.js';
-import { normalizeHex } from './color-math.js';
+import { hexToRgb, normalizeHex, oklchToRgb, rgbToHex, rgbToOklch } from './color-math.js';
 import { nearestChromeColor, readableSurface } from './readable-surface.js';
 
 // Hand-set light and dark surfaces, by hue. Chrome's nine, so every space and imported tab
@@ -35,6 +35,27 @@ export const chromeColorLabel = label;
 
 const byName = new Map(PALETTE.map(entry => [entry.name, entry]));
 export const paletteEntry = name => byName.get(name) ?? null;
+
+// The Custom color wheel's colours: the suggested colours but grey, as their light surfaces in
+// light mode. In dark mode their deep surfaces are hard to tell apart on the dark menu, so the
+// wheel takes mid-tones, 45% of the way from each dark surface to its light one.
+const WHEEL_DARK_TOWARDS_LIGHT = 0.45;
+function towards(fromHex, toHex, amount) {
+    const [L1, C1] = rgbToOklch(hexToRgb(fromHex));
+    const [L2, C2, H2] = rgbToOklch(hexToRgb(toHex));
+    return rgbToHex(oklchToRgb([L1 + (L2 - L1) * amount, C1 + (C2 - C1) * amount, H2]));
+}
+const wheels = {};
+export function wheelStops(mode) {
+    if (!wheels[mode]) {
+        const colours = PALETTE.filter(colour => colour.name !== 'grey');
+        const stops = colours.map(colour =>
+            mode === 'dark' ? towards(colour.dark, colour.light, WHEEL_DARK_TOWARDS_LIGHT) : colour.light
+        );
+        wheels[mode] = Object.freeze([...stops, stops[0]]);
+    }
+    return wheels[mode];
+}
 
 // The original eight are painted through the stylesheet's variables, so Settings → Colors
 // overrides keep applying to them.

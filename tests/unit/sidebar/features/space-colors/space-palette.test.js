@@ -7,7 +7,8 @@ import {
     customChoice,
     paletteChoice,
     spaceColorKey,
-    spaceLook
+    spaceLook,
+    wheelStops
 } from '../../../../../src/sidebar/features/space-colors/space-palette.js';
 import {
     BAND,
@@ -117,4 +118,24 @@ test('a custom choice takes the nearest tab group colour unless one is chosen', 
     assert.equal(customChoice('not a colour'), null);
     assert.deepEqual(choiceForKey('mint'), { color: 'green', shade: 'mint' });
     assert.deepEqual(choiceForKey('#ff8c1a'), { color: 'orange', shade: '#ff8c1a' });
+});
+
+test('the Custom color wheel is the suggested colours but grey, mid-tones in dark mode', () => {
+    const colours = PALETTE.filter(c => c.name !== 'grey');
+    const light = wheelStops('light');
+    assert.deepEqual(light, [...colours.map(c => c.light), colours[0].light]);
+    const dark = wheelStops('dark');
+    assert.equal(dark.length, colours.length + 1);
+    assert.equal(dark.at(-1), dark[0]);
+    // Each dark stop sits between the colour's deep and soft surfaces, and keeps its hue.
+    const lightness = hex => rgbToOklch(hexToRgb(hex))[0];
+    const hue = hex => rgbToOklch(hexToRgb(hex))[2];
+    colours.forEach((colour, i) => {
+        assert.ok(
+            lightness(dark[i]) > lightness(colour.dark) && lightness(dark[i]) < lightness(colour.light),
+            colour.name
+        );
+        const apart = Math.abs(hue(dark[i]) - hue(colour.light));
+        assert.ok(Math.min(apart, 360 - apart) < 3, colour.name);
+    });
 });
