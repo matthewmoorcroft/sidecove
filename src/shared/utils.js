@@ -142,6 +142,7 @@ const Utils = {
             showNavButtons: true, // Default: back, forward and reload buttons at the top of the sidebar
             showTabsFromAllWindows: true, // Default: each window also lists other windows' tabs and favorites
             invertTabOrder: true, // Default: enabled (new temporary tabs on top; favorites keep bookmark order)
+            pinnedTabLinks: 'list', // Default: a link opened from a pinned tab opens in the tab list; 'pin' makes it a new pinned tab
             colorOverrides: null, // Default: no color overrides (these are the light-mode values)
             colorOverridesDark: null, // Default: no dark-mode color overrides
             debugLoggingEnabled: false, // Default: disabled (controls debug logging)

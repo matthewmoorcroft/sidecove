@@ -45,6 +45,7 @@ export async function removeTab(store, id, info) {
     store.provisional.delete(id);
     store.hidden.delete(id);
     store.linkTails.closed(id);
+    store.linkPins.closed(id);
     for (const space of store.spaces) {
         for (const key of sections) space[key] = space[key].filter(t => t !== id);
         if (space.lastTab === id) delete space.lastTab;

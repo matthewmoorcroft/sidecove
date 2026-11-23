@@ -20,6 +20,7 @@ beforeEach(() => {
         provisional: new Set(),
         hidden: new Set(),
         linkTails: { closed: () => {} },
+        linkPins: { closed: () => {} },
         onTabRemoved: async (tabId, info) => calls.push({ tabId, info })
     };
 });
