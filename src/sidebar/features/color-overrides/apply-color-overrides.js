@@ -12,7 +12,7 @@ export async function applyColorOverrides({ getSettings, root, container, active
     try {
         applyColorVariables(root, await getSettings());
         const space = activeSpace();
-        if (container && space) setSpaceColorVars(container, space.color);
+        if (container && space) setSpaceColorVars(container, space);
     } catch (error) {
         logger.error('Error applying color overrides:', error);
     }

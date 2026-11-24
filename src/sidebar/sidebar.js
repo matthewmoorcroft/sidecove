@@ -39,7 +39,10 @@ import { initSidebarTour } from './tour/sidebar-tour.js';
  */
 
 import { ChromeHelper } from './chrome-helper.js';
-import { setSpaceColorVars } from './features/color-overrides/space-color-vars.js';
+import { paintSpaceColor, setSpaceColorVars } from './features/color-overrides/space-color-vars.js';
+import { setupSpaceColorMenu } from './features/space-colors/space-color-menu.js';
+import { applySpaceColor } from './features/space-colors/apply-space-color.js';
+import { PALETTE, paletteChoice, spaceLook } from './features/space-colors/space-palette.js';
 import {
     applyColorOverrides as applyColorOverridesFrom,
     colorOverridesChanged
@@ -610,20 +613,25 @@ async function adoptStoredSpaces(next, { render = true } = {}) {
     }
     const projection = list =>
         JSON.stringify(
-            list.map(({ id, name, color, icon, bookmarkFolderId, spaceBookmarks, temporaryTabs, pinnedTabs }) => ({
-                id,
-                name,
-                color,
-                icon: icon || null,
-                bookmarkFolderId,
-                spaceBookmarks,
-                temporaryTabs,
-                pinnedTabs
-            }))
+            list.map(
+                ({ id, name, color, shade, icon, bookmarkFolderId, spaceBookmarks, temporaryTabs, pinnedTabs }) => ({
+                    id,
+                    name,
+                    color,
+                    shade: shade ?? null,
+                    icon: icon || null,
+                    bookmarkFolderId,
+                    spaceBookmarks,
+                    temporaryTabs,
+                    pinnedTabs
+                })
+            )
         );
     const needsRender = projection(spaces) !== projection(next);
     const old = spaces;
-    const oldMetadata = new Map(old.map(s => [s.id, { name: s.name, color: s.color, icon: s.icon || null }]));
+    const oldMetadata = new Map(
+        old.map(s => [s.id, { name: s.name, color: s.color, shade: s.shade ?? null, icon: s.icon || null }])
+    );
     spaces = next.map(space => {
         const existing = old.find(s => s.id === space.id);
         return existing ? Object.assign(existing, structuredClone(space)) : structuredClone(space);
@@ -653,6 +661,7 @@ async function adoptStoredSpaces(next, { render = true } = {}) {
             !previous ||
             previous.name !== space.name ||
             previous.color !== space.color ||
+            previous.shade !== (space.shade ?? null) ||
             previous.icon !== (space.icon || null)
         ) {
             const element = getSpaceElement(space.id);
@@ -789,45 +798,22 @@ function createSpaceElement(space) {
     spaceContainer.style.display = space.id === activeSpaceId ? 'flex' : 'none';
     spaceContainer.dataset.spaceUuid = space.id;
 
-    setSpaceColorVars(sidebarContainer, space.color);
-
-    // Set up color select
-    const colorSelect = spaceElement.getElementById('spaceColorSelect');
-    colorSelect.value = space.color;
-    colorSelect.addEventListener('change', async () => {
-        const newColor = colorSelect.value;
-        space.color = newColor;
-
-        // Update space background color
-        if (space.id === activeSpaceId) {
-            setSpaceColorVars(sidebarContainer, newColor);
-        }
-
-        saveSpaces();
-        await updateSpaceSwitcher();
-    });
-
-    // Handle color swatch clicks
-    const spaceOptionColorSwatch = spaceElement.getElementById('spaceOptionColorSwatch');
-    spaceOptionColorSwatch.addEventListener('click', e => {
-        if (e.target.classList.contains('color-swatch')) {
-            const colorPicker = e.target.closest('.color-picker-grid');
-            const color = e.target.dataset.color;
-
-            // Update selected swatch
-            colorPicker.querySelectorAll('.color-swatch').forEach(swatch => {
-                swatch.classList.remove('selected');
-            });
-            e.target.classList.add('selected');
-
-            // Update hidden select value
-            colorSelect.value = color;
-
-            // Trigger change event on select
-            const event = new Event('change');
-            colorSelect.dispatchEvent(event);
-        }
-    });
+    setSpaceColorVars(sidebarContainer, space);
+    setupSpaceColorMenu(spaceElement, space, (choice, { save }) =>
+        applySpaceColor(space, choice, {
+            save,
+            active: space.id === activeSpaceId,
+            container: sidebarContainer,
+            persist: async () => {
+                await saveSpaces();
+                await updateSpaceSwitcher();
+                await LocalStorage.updateSpaceRegistryEntry(space.bookmarkFolderId, {
+                    color: space.color,
+                    shade: space.shade ?? null
+                });
+            }
+        })
+    );
 
     // Space icon, as in Arc: shown in the header and on the space's chip.
     const iconButton = spaceElement.querySelector('.space-icon-button');
@@ -1235,10 +1221,7 @@ function showSpaceChipMenu(space, chip, x, y) {
             },
             {
                 label: 'Theme Color',
-                submenu: [...spaceElement().querySelectorAll('.space-color-select option')].map(option => ({
-                    label: option.textContent,
-                    action: () => setColor(option.value)
-                }))
+                submenu: PALETTE.map(colour => ({ label: colour.label, action: () => setColor(colour.name) }))
             },
             'separator',
             { label: 'New Folder', action: () => inSpace(element => element && createNewFolder(element)) },
@@ -3578,7 +3561,7 @@ async function collectSearchEntries() {
             title: overrides[tab.id]?.name || tab.title || tab.url,
             spaceId: space?.id ?? null,
             spaceName: space?.name ?? 'Pinned',
-            color: space?.color,
+            look: space ? spaceLook(space) : null,
             tab
         });
     }
@@ -3601,7 +3584,7 @@ async function collectSearchEntries() {
                     title: child.title || child.url,
                     spaceId: space.id,
                     spaceName: space.name,
-                    color: space.color
+                    look: spaceLook(space)
                 });
             });
         walk(tree);
@@ -3666,7 +3649,7 @@ function renderTabSearch() {
             details.append(title, domain);
             const space = document.createElement('span');
             space.className = 'search-result-space';
-            if (entry.color) space.style.setProperty('--result-space-color', `var(--chrome-${entry.color}-color)`);
+            if (entry.look) paintSpaceColor(space, entry.look, { surface: '--result-space-color' });
             space.textContent = entry.spaceName;
             row.append(favicon, details, space);
             row.addEventListener('mousedown', event => event.preventDefault()); // keep the field focused
@@ -4037,7 +4020,7 @@ async function createNewSpace() {
         const spaceNameInput = document.getElementById('newSpaceName');
         const spaceColorSelect = document.getElementById('spaceColor');
         const spaceName = spaceNameInput.value.trim();
-        const spaceColor = spaceColorSelect.value;
+        const { color: spaceColor, shade } = paletteChoice(spaceColorSelect.value) ?? paletteChoice('grey');
 
         if (!spaceName || spaces.some(space => space.name.toLowerCase() === spaceName.toLowerCase())) {
             const errorPopup = document.createElement('div');
@@ -4057,7 +4040,8 @@ async function createNewSpace() {
         const newSpaceFolder = await LocalStorage.getOrCreateSpaceFolder(spaceName);
         const registryEntry = await LocalStorage.getOrCreateSpaceRegistryEntry(newSpaceFolder.id, {
             name: spaceName,
-            color: spaceColor
+            color: spaceColor,
+            shade
         });
 
         const space = {
@@ -4067,6 +4051,7 @@ async function createNewSpace() {
             uuid: registryEntry?.spaceUuid ?? Utils.generateUUID(),
             name: spaceName,
             color: spaceColor,
+            ...(shade ? { shade } : {}),
             spaceBookmarks: [],
             temporaryTabs: []
         };

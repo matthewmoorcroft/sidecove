@@ -85,6 +85,7 @@ export class SpaceStore {
             bookmarkFolderId: folder.id,
             name,
             color: entry.color || color,
+            ...(entry.shade ? { shade: entry.shade } : {}),
             ...(entry.icon ? { icon: entry.icon } : {}),
             spaceBookmarks: [],
             temporaryTabs: [],

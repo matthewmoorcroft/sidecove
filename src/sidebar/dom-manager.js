@@ -1,4 +1,3 @@
-import { firstUnusedColor } from './space-colors.js';
 /**
  * DOMManager - Sidebar DOM manipulation and UI component management
  *
@@ -17,6 +16,7 @@ import { Utils } from '../shared/utils.js';
 import { RESTORE_ICON } from './icons.js';
 import { Logger } from '../shared/logger.js';
 import { setSpaceColorVars } from './features/color-overrides/space-color-vars.js';
+import { setupNewSpaceColors } from './features/space-colors/new-space-colors.js';
 import { positionSubmenu } from './features/context-menu/position-submenu.js';
 import { moveToSpaceEntries } from './features/context-menu/space-menu-entries.js';
 import { fillSpaceMenuItem } from './features/context-menu/space-menu-item.js';
@@ -67,6 +67,11 @@ export function setupDOMElements(createNewSpace, getSpaces = () => []) {
         { passive: false }
     );
 
+    const newSpaceColors = setupNewSpaceColors(
+        document.getElementById('createSpaceColorSwatch'),
+        document.getElementById('spaceColor')
+    );
+
     // Add event listeners for buttons
     addSpaceBtn.addEventListener('click', () => {
         const inputContainer = document.getElementById('addSpaceInputContainer');
@@ -84,50 +89,13 @@ export function setupDOMElements(createNewSpace, getSpaces = () => []) {
         } else {
             spaceNameInput.value = '';
             document.getElementById('createSpaceBtn').disabled = true;
-            const select = document.getElementById('spaceColor');
-            const palette = [...select.options].map(option => option.value);
-            select.value = firstUnusedColor(getSpaces(), palette);
-            document.querySelectorAll('#createSpaceColorSwatch .color-swatch').forEach(swatch => {
-                swatch.classList.toggle('selected', swatch.dataset.color === select.value);
-            });
+            newSpaceColors.reset(getSpaces());
             spaceSwitcher.style.opacity = '0';
             spaceSwitcher.style.visibility = 'hidden';
         }
     });
 
     document.getElementById('createSpaceBtn').addEventListener('click', createNewSpace);
-
-    const createSpaceColorSwatch = document.getElementById('createSpaceColorSwatch');
-    createSpaceColorSwatch.addEventListener('click', e => {
-        if (e.target.classList.contains('color-swatch')) {
-            const colorPicker = document.getElementById('createSpaceColorSwatch');
-            const select = document.getElementById('spaceColor');
-            const color = e.target.dataset.color;
-
-            // Update selected swatch
-            colorPicker.querySelectorAll('.color-swatch').forEach(swatch => {
-                swatch.classList.remove('selected');
-            });
-            e.target.classList.add('selected');
-
-            // Update hidden select value
-            select.value = color;
-
-            // Trigger change event on select
-            const event = new Event('change');
-            select.dispatchEvent(event);
-        }
-    });
-
-    // Initialize selected swatches
-    document.querySelectorAll('.space-color-select').forEach(select => {
-        const colorPicker = select.nextElementSibling;
-        const currentColor = select.value;
-        const swatch = colorPicker.querySelector(`[data-color="${currentColor}"]`);
-        if (swatch) {
-            swatch.classList.add('selected');
-        }
-    });
 
     // Add input validation for new space name
     document.getElementById('newSpaceName').addEventListener('input', e => {
@@ -191,7 +159,7 @@ export function activateSpaceInDOM(spaceId, spaces, updateSpaceSwitcher) {
     if (space) {
         // Update background color
         const sidebarContainer = document.getElementById('sidebar-container');
-        setSpaceColorVars(sidebarContainer, space.color);
+        setSpaceColorVars(sidebarContainer, space);
     }
 
     // Update space switcher
