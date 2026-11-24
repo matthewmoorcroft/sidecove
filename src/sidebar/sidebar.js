@@ -48,6 +48,7 @@ import {
     colorOverridesChanged
 } from './features/color-overrides/apply-color-overrides.js';
 import { spaceRequest } from '../shared/space-client.js';
+import { createSpacePin } from '../shared/space-pin.js';
 import { SpacePatchQueue } from './space-patch-queue.js';
 import { RefreshCoordinator } from './refresh-coordinator.js';
 import { EditSessionRegistry } from './edit-sessions.js';
@@ -1613,15 +1614,8 @@ async function moveTabToPinned(space, tab) {
     space = spaces.find(s => s.id === space.id);
     if (!space) return;
     const spaceFolder = await getSpaceBookmarkFolder(space);
-    const created = await chrome.bookmarks.create({
-        parentId: spaceFolder.id,
-        title: tab.title,
-        url: tab.url
-    });
-    const bookmarkIdToStore = created.id;
-
-    // Track the original pinned URL for Arc-like "Back to Pinned URL" behavior.
-    await Utils.setPinnedTabState(tab.id, { pinnedUrl: tab.url, bookmarkId: bookmarkIdToStore });
+    // The binding also keeps the pinned URL for Arc-like "Back to Pinned URL".
+    await createSpacePin(chrome, tab, { parentId: spaceFolder.id });
 
     space.temporaryTabs = space.temporaryTabs.filter(id => id !== tab.id);
     if (!space.spaceBookmarks.includes(tab.id)) {

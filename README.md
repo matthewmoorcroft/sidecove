@@ -28,6 +28,7 @@ Sidecove is an independent project, not affiliated with or endorsed by The Brows
 - Back, forward and reload buttons at the top of the sidebar, acting on the tab you are looking at (Shift-click reload skips the cache). Command-[, Command-] and Command-R (Alt+Left, Alt+Right and Ctrl+R on Windows and Linux) do the same while the sidebar has focus. Hide the buttons at **Settings → Show back, forward and reload buttons**.
 - Keyboard and mouse side-button space switching
 - A shortcut for the most recently used tab in the current space, like Arc's Ctrl+Tab (assign a key at `chrome://extensions/shortcuts`; Chrome keeps Ctrl+Tab for itself)
+- A link you open from a pinned tab opens at the top of the space's tab list. To keep it with the tab it came from, choose **Settings → Links opened from a pinned tab → Open as a new pinned tab**: it becomes a pinned tab right under that one (in the same folder), saved as a bookmark like any pinned tab. Links opened from a top-bar favorite always open in the tab list.
 - A new tab you leave empty closes by itself, as in Arc (turn it off at **Settings → Close new tabs you leave empty**)
 - Closing a window while another is open moves its pages into that window as tabs, in the same spaces and places, unloaded until you go to them. Pinned tabs, favorites and private windows are left out. Reopening the closed window with Cmd+Shift+T leaves each page open once.
 - Auto-archive for idle tabs, and "↓ Clear" (on the divider above New Tab) with Undo

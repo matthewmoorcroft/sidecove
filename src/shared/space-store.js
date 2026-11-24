@@ -1,6 +1,8 @@
 import { isPracticeUrl } from './tour-practice.js';
 import { syncSpaceGroups } from './tab-group-sync.js';
 import { LinkTails } from './link-tab-placement.js';
+import { LinkPins, followLinkPins } from './pinned-tab-links.js';
+import { followStoreSettings, readStoreSettings } from './space-store-settings.js';
 import { LocalStorage } from './localstorage.js';
 
 import { sections, ownerOf, updateNativePinSection, spaceForActivation } from './space-membership.js';
@@ -107,7 +109,8 @@ export class SpaceStore {
             'lastActiveSpace',
             'restoredTabRanks',
             'hiddenTabs',
-            'linkTails'
+            'linkTails',
+            'linkPins'
         ]);
         this.spaces = data.spaces || [];
         this.snapshotByTab = new Map((data.spaceTabSnapshot || []).filter(t => t.tabId).map(t => [t.tabId, t]));
@@ -116,17 +119,11 @@ export class SpaceStore {
         this.restoredRanks = new Map(session.restoredTabRanks || []);
         this.active = session.activeSpaces || {};
         this.lastActive = session.lastActiveSpace || null;
-        const settings = await chrome.storage.sync.get([
-            'defaultSpaceName',
-            'perSpacePinnedFavorites',
-            'invertTabOrder'
-        ]);
-        this.defaultSpaceName = settings.defaultSpaceName || 'Home';
-        this.perSpacePinnedFavorites = settings.perSpacePinnedFavorites === true;
-        this.invertTabOrder = settings.invertTabOrder !== false;
+        await readStoreSettings(this);
         const live = await chrome.tabs.query({});
         // Opener tab -> the links opened from it since the user last switched to it.
         this.linkTails = new LinkTails(session.linkTails);
+        this.linkPins = new LinkPins(session.linkPins);
         if (data.spaceModelVersion !== 2) {
             const idMap = new Map();
             const migrated = [];
@@ -315,7 +312,8 @@ export class SpaceStore {
             spaceRestoreQueue: this.restoreQueue,
             restoredTabRanks: [...this.restoredRanks],
             hiddenTabs: [...this.hidden],
-            linkTails: this.linkTails.entries()
+            linkTails: this.linkTails.entries(),
+            linkPins: this.linkPins.entries()
         });
         try {
             await this.onPersisted?.([...tabs.values()]);
@@ -427,10 +425,12 @@ export class SpaceStore {
         chrome.tabs.onUpdated.addListener((id, change, tab) => {
             if (change.url || change.pinned !== undefined) handle(() => this.track(tab));
         });
+        followLinkPins(chrome, this);
         chrome.tabs.onRemoved.addListener((id, info) => handle(() => removeTab(this, id, info)));
         chrome.tabs.onReplaced.addListener((added, removed) =>
             handle(() => {
                 this.linkTails.replaced(added, removed);
+                this.linkPins.replaced(added, removed);
                 for (const space of this.spaces) {
                     for (const key of sections) space[key] = space[key].map(id => (id === removed ? added : id));
                     if (space.lastTab === removed) space.lastTab = added;
@@ -464,18 +464,7 @@ export class SpaceStore {
         chrome.storage.onChanged.addListener((changes, area) => {
             if (area === 'local' && (changes.pinnedTabStatesById || changes.tabNameOverridesById)) handle(() => {});
             if (area === 'sync' && changes.syncTabGroups) handle(() => {});
-            if (area === 'sync' && changes.perSpacePinnedFavorites)
-                handle(() => {
-                    this.perSpacePinnedFavorites = changes.perSpacePinnedFavorites.newValue === true;
-                });
-            if (area === 'sync' && changes.invertTabOrder)
-                handle(() => {
-                    this.invertTabOrder = changes.invertTabOrder.newValue !== false;
-                });
-            if (area === 'sync' && changes.defaultSpaceName)
-                handle(() => {
-                    this.defaultSpaceName = changes.defaultSpaceName.newValue || 'Home';
-                });
+            if (area === 'sync') followStoreSettings(this, changes, handle);
         });
         // Tab-strip changes only request a projection; they never alter the model.
         let syncTimer;

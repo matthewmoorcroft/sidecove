@@ -94,6 +94,16 @@
                     <label for="invertTabOrder" class="toggle-label" aria-hidden="true"></label>
                 </div>
             </div>
+            <div class="options-setting-item options-setting-field">
+                <div class="options-setting-copy">
+                    <label for="pinnedTabLinks" class="options-label">Links opened from a pinned tab</label>
+                    <p id="pinnedTabLinksDescription" class="options-description">Open in the tab list puts the page at the top of the space’s tab list. Open as a new pinned tab adds it to the space’s pinned tabs, right under the tab you opened it from, and saves it as a bookmark like any pinned tab. Links opened from a top-bar favorite always open in the tab list.</p>
+                </div>
+                <select id="pinnedTabLinks" class="options-input" aria-describedby="pinnedTabLinksDescription">
+                    <option value="list">Open in the tab list</option>
+                    <option value="pin">Open as a new pinned tab</option>
+                </select>
+            </div>
             <div class="options-setting-item options-setting-toggle">
                 <div class="options-setting-copy">
                     <label for="closeEmptyNewTabs" class="options-label">Close new tabs you leave empty</label>

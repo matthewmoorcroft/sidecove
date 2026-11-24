@@ -15,6 +15,7 @@
 import { Utils, normalizePinMatchHost } from '../shared/utils.js';
 import { LocalStorage } from '../shared/localstorage.js';
 import { Logger } from '../shared/logger.js';
+import { PINNED_TAB_LINKS, opensLinksAsPinnedTabs } from '../shared/pinned-tab-links.js';
 import {
     COLOR_NAMES,
     LIGHT_DEFAULTS,
@@ -117,6 +118,9 @@ async function saveOptions() {
             false
         ),
         spaceSwitcherStyle: document.getElementById('spaceSwitcherStyle')?.value === 'names' ? 'names' : 'icons',
+        pinnedTabLinks: opensLinksAsPinnedTabs(document.getElementById('pinnedTabLinks')?.value)
+            ? PINNED_TAB_LINKS.PIN
+            : PINNED_TAB_LINKS.LIST,
         pinMatchFullQueryHosts: parseHostList(document.getElementById('pinMatchFullQueryHosts')?.value),
         ...colors,
         debugLoggingEnabled: getCheckboxValue(document.getElementById('debugLoggingEnabled'), false)
@@ -173,6 +177,11 @@ async function restoreOptions() {
     setCheckboxValue(document.getElementById('debugLoggingEnabled'), settings.debugLoggingEnabled, false);
     const spaceSwitcherStyle = document.getElementById('spaceSwitcherStyle');
     if (spaceSwitcherStyle) spaceSwitcherStyle.value = settings.spaceSwitcherStyle === 'names' ? 'names' : 'icons';
+    const pinnedTabLinks = document.getElementById('pinnedTabLinks');
+    if (pinnedTabLinks)
+        pinnedTabLinks.value = opensLinksAsPinnedTabs(settings.pinnedTabLinks)
+            ? PINNED_TAB_LINKS.PIN
+            : PINNED_TAB_LINKS.LIST;
 
     // Restore pinned-tab-matching host list
     const pinMatchFullQueryHostsInput = document.getElementById('pinMatchFullQueryHosts');
@@ -277,6 +286,7 @@ function setupAutoSave() {
     // Auto-save for dropdown
     addListenerIfExists('defaultSpaceName', 'change', saveOptions);
     addListenerIfExists('spaceSwitcherStyle', 'change', saveOptions);
+    addListenerIfExists('pinnedTabLinks', 'change', saveOptions);
     addListenerIfExists('perSpacePinnedFavorites', 'change', saveOptions);
     addListenerIfExists('showTabsFromAllWindows', 'change', saveOptions);
     addListenerIfExists('showNavButtons', 'change', saveOptions);
