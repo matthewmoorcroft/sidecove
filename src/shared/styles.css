@@ -2435,6 +2435,23 @@ h3 {
     background: white;
 }
 
+/* While a row is dragged, the pinned list reaches a little below its last row, over the gap to
+   the open tabs. Without it nothing sits below a last pinned folder, so a drop meant for "after
+   the folder" lands on the folder and goes inside. */
+.space:has(.tab.dragging, .folder.dragging) .tabs-container[data-tab-type='pinned'] {
+    position: relative;
+}
+
+.space:has(.tab.dragging, .folder.dragging) .tabs-container[data-tab-type='pinned']::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    height: 20px;
+    z-index: 2;
+}
+
 /* The folder a drop would go into. */
 .folder.drop-target-folder {
     background: var(--space-bg-color-dark, rgba(0, 0, 0, 0.08));
