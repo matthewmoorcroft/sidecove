@@ -21,15 +21,20 @@ export function describeImport({ totals, skipped }) {
         notes.push(`${count(totals.splitViews, 'split view')} became separate pinned tabs, side by side in the list.`);
     if (totals.flattenedFolders)
         notes.push(
-            `${count(totals.flattenedFolders, 'folder')} more than four levels deep went into the folder above, with everything in them.`
+            `${count(totals.flattenedFolders, 'folder')} more than ${count(totals.maxDepth, 'level')} deep went into the folder above, with everything in them` +
+                (totals.maxDepth === 1 ? ', as Sync spaces to Chrome tab groups is on.' : '.')
         );
     const leftOut = [];
     if (skipped.todayTabs)
         leftOut.push(`${count(skipped.todayTabs, 'today tab')}, which Arc keeps open rather than saved`);
     if (skipped.arcPages)
-        leftOut.push(`${count(skipped.arcPages, 'page')} only Arc can open, such as its own arc:// pages`);
+        leftOut.push(
+            `${count(skipped.arcPages, 'address', 'addresses')} Sidecove cannot save, such as Arc’s own arc:// pages`
+        );
     if (skipped.other)
         leftOut.push(`${count(skipped.other, 'item')} Sidecove has no place for, such as notes and easels`);
+    if (skipped.unreadable)
+        leftOut.push(`${count(skipped.unreadable, 'entry', 'entries')} the file names but does not contain`);
     if (totals.iconsLeftOut)
         leftOut.push(
             `${count(totals.iconsLeftOut, 'space icon')} with no match in Sidecove; you can choose one with Change Icon`

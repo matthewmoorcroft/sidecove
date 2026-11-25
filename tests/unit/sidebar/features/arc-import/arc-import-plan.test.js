@@ -64,11 +64,12 @@ test('counts what is imported and what is left out for the chosen spaces only', 
         favorites: 2,
         splitViews: 1,
         flattenedFolders: 1,
-        iconsLeftOut: 1
+        iconsLeftOut: 1,
+        maxDepth: MAX_FOLDER_DEPTH
     });
-    assert.deepEqual(all.skipped, { todayTabs: 2, arcPages: 1, other: 1 });
+    assert.deepEqual(all.skipped, { todayTabs: 2, arcPages: 1, other: 1, unreadable: 0 });
     const personal = planArcImport(arc(), [1]);
-    assert.deepEqual(personal.skipped, { todayTabs: 0, arcPages: 0, other: 0 });
+    assert.deepEqual(personal.skipped, { todayTabs: 0, arcPages: 0, other: 0, unreadable: 0 });
     assert.equal(personal.totals.tabs, 1);
 });
 
@@ -76,4 +77,16 @@ test('choosing no spaces plans nothing', () => {
     const { plan, totals } = planArcImport(arc(), []);
     assert.deepEqual(plan.spaces, []);
     assert.equal(totals.favorites, 0);
+});
+
+test('with one folder level kept, as with tab group sync on, nested folders join their top folder', () => {
+    const { plan, totals } = planArcImport(arc(), [0], { maxDepth: 1 });
+    const work = plan.spaces[0].items;
+    assert.equal(depthOf(work), 1);
+    assert.equal(totals.flattenedFolders, 4);
+    const projects = work.find(item => item.title === 'Projects');
+    assert.deepEqual(
+        projects.children.map(c => c.title),
+        ['My project', 'Deep page']
+    );
 });

@@ -38,7 +38,7 @@ test('a split view becomes its tabs; Arc pages, unknown items and today tabs are
         work.pinned.slice(2).map(n => n.url),
         ['https://example.com/left', 'https://example.com/right']
     );
-    assert.deepEqual(work.counts, { tabs: 5, folders: 5, splitViews: 1, arcPages: 1, other: 1 });
+    assert.deepEqual(work.counts, { tabs: 5, folders: 5, splitViews: 1, arcPages: 1, other: 1, unreadable: 0 });
     assert.equal(work.todayTabs, 2);
 });
 
@@ -76,13 +76,15 @@ test('falls back to the sync copy when the sidebar copy is missing', () => {
     );
 });
 
-test('a missing child or a loop is skipped rather than followed', () => {
+test('a missing child is counted as unreadable, and a loop is not followed', () => {
     const file = fixture();
     const { items } = file.sidebar.containers[1];
     const projects = items.find(i => i?.title === 'Projects');
     projects.childrenIds.push('no-such-item', projects.id);
     const [work] = readArcSidebar(JSON.stringify(file)).spaces;
-    assert.equal(work.counts.other, 3);
+    assert.equal(work.counts.unreadable, 1);
+    assert.equal(work.counts.other, 1);
+    assert.equal(work.counts.folders, 5);
 });
 
 test('anything that is not Arc sidebar file is refused before reading any of it', () => {
@@ -97,9 +99,12 @@ test('scripts and other non-web addresses are never kept', () => {
     const file = fixture();
     const docs = file.sidebar.containers[1].items.find(i => i?.data?.tab?.savedURL === 'https://example.com/docs');
     docs.data.tab.savedURL = 'javascript:alert(1)';
+    const project = file.sidebar.containers[1].items.find(i => i?.title === 'My project');
+    project.data.tab.savedURL = 'https://[not-an-address';
     const [work] = readArcSidebar(JSON.stringify(file)).spaces;
     assert.equal(work.pinned[0].title, 'Projects');
-    assert.equal(work.counts.arcPages, 2);
+    assert.equal(work.pinned[0].children[0].title, 'Level 2');
+    assert.equal(work.counts.arcPages, 3);
 });
 
 test('tabs Arc hangs under a tab follow it', () => {

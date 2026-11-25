@@ -115,6 +115,7 @@ test('addresses that are not web pages or files are not saved', async () => {
     const items = [
         { title: 'Script', url: 'javascript:alert(1)' },
         { title: 'Arc page', url: 'arc://easel' },
+        { title: 'Broken', url: 'https://[not-an-address' },
         { title: 'File', url: 'file:///Users/me/notes.html' }
     ];
     await importSpaces(store, { source: 'Arc', spaces: [{ name: 'S', color: 'grey', items }] }, { chrome, storage });

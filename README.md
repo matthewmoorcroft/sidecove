@@ -155,6 +155,8 @@ never changed or merged; a name you already use gets "(Arc)" after it. What carr
   it is an emoji, and their colour as a custom colour.
 - Pinned tabs and folders, in order, with the names you gave them. Folders more than four
   levels deep, deeper than Sidecove allows, go into the folder above with everything in them.
+  With **Sync spaces to Chrome tab groups** on, which allows no folder inside a folder, each
+  space keeps only its top folders, holding everything that was inside them.
   A split view becomes its two pinned tabs, next to each other.
 - Arc's favorites go in a folder, **Favorites from Arc**, at the top of the first space you
   import. Sidecove's favorites bar holds open pinned tabs, so the import saves them there
@@ -162,7 +164,7 @@ never changed or merged; a name you already use gets "(Arc)" after it. What carr
 
 Left out: today tabs (Arc keeps them open rather than saved), Arc's archive (it is in another
 file), notes, easels and other things Sidecove has no place for, and Arc's own `arc://`
-pages. The import ends with a summary of what it brought in and what it left out. A file that
+pages, and any address that is not a web page or a file. The import ends with a summary of what it brought in and what it left out. A file that
 is not Arc's is refused before anything is created, and if creating the spaces fails part way,
 Sidecove removes what it made. Arc does not document this file, so a later version of Arc may
 store things Sidecove does not yet recognise; those are left out and counted.

@@ -144,3 +144,25 @@ test('importing the same file again adds new spaces rather than merging', async 
     expect(names.slice(-3)).toEqual(['Work', 'Personal (Arc)', 'Personal (Arc 2)']);
     await page.$$eval('.arc-import-actions button', buttons => buttons.at(-1).click());
 });
+
+test('with tab group sync on, folders inside folders join their top folder', async () => {
+    await page.evaluate(() => chrome.storage.sync.set({ syncTabGroups: true }));
+    try {
+        await openImport();
+        const input = await page.$('.arc-import input[type="file"]');
+        await input.uploadFile(ARC_FILE);
+        await page.waitForSelector('.arc-import .arc-import-space');
+        await page.$$eval('.arc-import .arc-import-space input', boxes => [boxes[1], boxes[2]].forEach(b => b.click()));
+        await page.$eval('.arc-import .arc-import-primary', el => el.click());
+        await page.waitForSelector('.arc-import .arc-import-done', { timeout: 15000 });
+        expect(await page.$eval('.arc-import', el => el.textContent)).toContain(
+            'as Sync spaces to Chrome tab groups is on.'
+        );
+        const work = (await sidecoveTree()).at(-1);
+        expect(work[0]).toBe('Work (Arc)');
+        expect(work[1].find(node => node[0] === 'Projects')).toEqual(['Projects', ['My project', 'Deep page']]);
+        await page.$$eval('.arc-import-actions button', buttons => buttons.at(-1).click());
+    } finally {
+        await page.evaluate(() => chrome.storage.sync.set({ syncTabGroups: false }));
+    }
+});

@@ -5,6 +5,7 @@
  * anything it does not recognise, so an unfamiliar record never stops the rest from importing.
  * Nothing here touches chrome.* or the DOM.
  */
+import { isSavableUrl } from '../../../shared/import-spaces.js';
 
 export class NotArcFileError extends Error {
     constructor() {
@@ -12,9 +13,6 @@ export class NotArcFileError extends Error {
         this.name = 'NotArcFileError';
     }
 }
-
-// Pages Sidecove can save as a pinned tab. Arc's own pages (arc://) and scripts are left out.
-const SAVABLE_URL = /^(https?|file):/i;
 
 const isObject = value => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 const text = value => (typeof value === 'string' ? value.trim() : '');
@@ -84,23 +82,24 @@ function spaceColor(space) {
 }
 
 function newCounts() {
-    return { tabs: 0, folders: 0, splitViews: 0, arcPages: 0, other: 0 };
+    return { tabs: 0, folders: 0, splitViews: 0, arcPages: 0, other: 0, unreadable: 0 };
 }
 
 // The pinned tabs and folders under a container, in Arc's order. Split views become their tabs.
 function readChildren(items, ids, counts, seen) {
     const nodes = [];
     for (const id of Array.isArray(ids) ? ids : []) {
+        if (seen.has(id)) continue;
         const item = items.byId.get(id);
-        if (!item || seen.has(id) || !isObject(item.data)) {
-            counts.other++;
+        if (!item || !isObject(item.data)) {
+            counts.unreadable++;
             continue;
         }
         seen.add(id);
         const { tab, list, splitView } = item.data;
         if (isObject(tab)) {
             const url = text(tab.savedURL);
-            if (SAVABLE_URL.test(url)) {
+            if (isSavableUrl(url)) {
                 nodes.push({ type: 'tab', title: text(item.title) || text(tab.savedTitle) || url, url });
                 counts.tabs++;
             } else counts.arcPages++;

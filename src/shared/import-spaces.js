@@ -3,8 +3,9 @@
 // It never adds to a space that already exists, and if anything fails it removes what it made,
 // so an import is all or nothing. Runs in the service worker, the only writer of spaces.
 
-// Pages a pinned tab may hold; anything else in the plan is left out.
-const SAVABLE_URL = /^(https?|file):/i;
+// Whether a pinned tab may hold this address: a web page or a file that Chrome can parse.
+// Anything else in a plan is left out, so one bad address never stops an import.
+export const isSavableUrl = url => /^(https?|file):/i.test(url) && URL.canParse(url);
 const text = value => (typeof value === 'string' ? value.trim() : '');
 
 // A name no space has yet, compared without case as the sidebar does: "Work", then
@@ -23,7 +24,7 @@ async function addItems(chrome, parentId, items) {
         if (Array.isArray(item?.children)) {
             const folder = await chrome.bookmarks.create({ parentId, title: text(item.title) });
             await addItems(chrome, folder.id, item.children);
-        } else if (SAVABLE_URL.test(text(item?.url))) {
+        } else if (isSavableUrl(text(item?.url))) {
             await chrome.bookmarks.create({ parentId, title: text(item.title), url: text(item.url) });
         }
     }

@@ -140,18 +140,16 @@ export function openArcImport({ container, adoptSpaces, showSpace, whenSaved = a
         const chosen = boxes
             .filter(box => box.querySelector('input').checked)
             .map(box => Number(box.querySelector('input').value));
-        const result = planArcImport(arc, chosen);
         for (const control of panel.querySelectorAll('button, input')) control.disabled = true;
         const start = panel.querySelector('.arc-import-primary');
         start.textContent = 'Importing…';
+        let result, spaces;
         try {
+            // The sidebar allows no folder inside a folder while tab group sync is on.
+            const { syncTabGroups = false } = await chrome.storage.sync.get('syncTabGroups');
+            result = planArcImport(arc, chosen, syncTabGroups ? { maxDepth: 1 } : {});
             await whenSaved();
-            const before = new Set((await spaceRequest('get')).map(space => space.id));
-            const spaces = await spaceRequest('importSpaces', { plan: result.plan });
-            await adoptSpaces(spaces);
-            const added = spaces.find(space => !before.has(space.id));
-            if (added) await showSpace(added.id);
-            done(describeImport(result));
+            spaces = await spaceRequest('importSpaces', { plan: result.plan });
         } catch (error) {
             Logger.error('Arc import failed:', error);
             for (const control of panel.querySelectorAll('button, input')) control.disabled = false;
@@ -160,7 +158,19 @@ export function openArcImport({ container, adoptSpaces, showSpace, whenSaved = a
             panel
                 .querySelector('.arc-import-actions')
                 .before(alertLine(`The import did not finish, and nothing was added. ${error.message}`));
+            return;
         }
+        // The spaces are saved now; showing them is all that is left, and the sidebar catches up
+        // by itself if this fails.
+        try {
+            await adoptSpaces(spaces);
+            // The store adds imported spaces after all the others.
+            const first = result.plan.spaces.length ? spaces.at(-result.plan.spaces.length) : null;
+            if (first) await showSpace(first.id);
+        } catch (error) {
+            Logger.warn('Imported spaces could not be shown yet:', error);
+        }
+        done(describeImport(result));
     }
 
     function done({ imported, notes, leftOut }) {
