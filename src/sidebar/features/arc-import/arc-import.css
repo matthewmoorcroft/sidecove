@@ -1,0 +1,132 @@
+/* Import from Arc: a card at the top of the sidebar, over the space's own colour. */
+.arc-import {
+    flex: none;
+    margin: 0 0 8px;
+    padding: 12px;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    border-radius: 10px;
+    background-color: rgba(255, 255, 255, 0.55);
+    font-size: 13px;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+}
+
+.arc-import h2 {
+    margin: 0 0 8px;
+    font-size: 15px;
+}
+
+.arc-import h2:focus {
+    outline: none;
+}
+
+.arc-import p {
+    margin: 0 0 8px;
+}
+
+.arc-import .arc-import-small {
+    font-size: 12px;
+    opacity: 0.85;
+}
+
+.arc-import-path {
+    display: block;
+    margin: 0 0 6px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    background-color: rgba(0, 0, 0, 0.06);
+    font-size: 12px;
+    user-select: all;
+}
+
+.arc-import-spaces {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 40vh;
+    margin: 0 0 8px;
+    padding: 0;
+    border: none;
+    overflow-y: auto;
+}
+
+.arc-import-spaces legend {
+    margin-bottom: 4px;
+    padding: 0;
+    font-weight: 600;
+}
+
+.arc-import-space {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    column-gap: 6px;
+    align-items: baseline;
+    cursor: pointer;
+}
+
+.arc-import-space .arc-import-small {
+    grid-column: 2;
+}
+
+.arc-import-left-out {
+    margin: 0 0 8px;
+    padding-left: 18px;
+}
+
+.arc-import-error {
+    font-weight: 600;
+}
+
+.arc-import-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.arc-import-actions button {
+    padding: 6px 12px;
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+    background-color: rgba(255, 255, 255, 0.7);
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+}
+
+.arc-import-actions .arc-import-primary {
+    border-color: transparent;
+    background-color: #333;
+    color: #fff;
+}
+
+.arc-import-actions button:disabled {
+    cursor: default;
+    opacity: 0.6;
+}
+
+@media (prefers-color-scheme: dark) {
+    .arc-import {
+        border-color: rgba(255, 255, 255, 0.16);
+        background-color: rgba(0, 0, 0, 0.28);
+        color: var(--dark-text, #eceff1);
+    }
+
+    .arc-import .arc-import-small {
+        opacity: 1;
+        color: var(--dark-text-muted, rgba(236, 239, 241, 0.8));
+    }
+
+    .arc-import-path {
+        background-color: rgba(255, 255, 255, 0.08);
+    }
+
+    .arc-import-actions button {
+        border-color: rgba(255, 255, 255, 0.22);
+        background-color: rgba(255, 255, 255, 0.08);
+    }
+
+    .arc-import-actions .arc-import-primary {
+        background-color: #eceff1;
+        color: #1f2427;
+    }
+}
