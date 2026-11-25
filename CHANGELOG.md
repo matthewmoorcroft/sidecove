@@ -2,8 +2,18 @@
 
 ## Unreleased
 
-- **You can pin a tab after a folder that is your last favorite.** Dropping a tab (or a folder) just below the last favorite when that favorite is a folder, open or closed, put it inside the folder, because there was nothing below the folder to drop on. While you drag, the list now reaches a little further down, so dropping just below the folder pins the tab after it, with the drop line at the folder's own level. Dropping on the folder itself still puts the tab inside it. No new permissions. ([#93](https://github.com/matthewmoorcroft/sidecove/issues/93))
+## 1.4.1
+
+Sidecove now offers 11 space colours and a colour picker for any other colour, and a setting that lets links from a pinned tab open as new pinned tabs. You can also pin a tab after a folder that is your last favorite.
+
+### Features
+
 - **More space colours, and any colour you like.** The space menu (the ⋯ next to the space name) now offers 11 colours instead of 8: grey, red, orange, yellow, green, mint, cyan, blue, indigo, purple and pink. They were chosen so that no two look alike, in dark mode as well as light. Hover over a colour, or reach it with the keyboard, to see its name; the colour you chose has a tick as well as a ring, so you can tell without relying on colour. In dark mode the menu shows each colour's dark version, as your space will look. The last circle, a wheel of the suggested colours, is **Custom color**: it opens a picker for any colour, with a colour square, a hue slider and a hex field, and a preview of the space in light and dark mode. Once you choose a custom colour, the circle shows it. Sidecove keeps the text readable on whatever you pick by making the colour only as much lighter or deeper as it needs to. With **Sync spaces to Chrome tab groups** on, the tab group takes the nearest of Chrome's nine colours, or the one you choose in the picker. The New Space form and **Theme Color** on a space's right-click menu offer the 11 colours too. Spaces you already have look exactly as before, and the eight colours you could already choose keep their **Settings → Colors** overrides. A space imported from an orange Chrome tab group is now orange; before, it had no colour. A space's colour is now also kept in its saved record, so a space rebuilt from its bookmark folder keeps its colour. No new permissions. ([#67](https://github.com/matthewmoorcroft/sidecove/issues/67))
+- **Choose what happens to a link you open from a pinned tab.** A new setting, **Links opened from a pinned tab** (in **Settings**, under Tabs & spaces), has two choices. **Open in the tab list**, the default, is how Sidecove has always worked: the page goes to the top of the space's tab list. **Open as a new pinned tab** puts the page in the space's pinned tabs, right under the tab you opened it from and inside the same folder, saved as a bookmark like any pinned tab. Several links stack in the order you opened them, and they are pinned even while the side panel is closed. Links from a favorite in the top bar always open in the tab list, and so do links that open in another window and tabs that Chrome restores. The setting is off until you turn it on, so nothing changes for you after the update. No new permissions.
+
+### Fixes
+
+- **You can pin a tab after a folder that is your last favorite.** Dropping a tab (or a folder) just below the last favorite when that favorite is a folder, open or closed, put it inside the folder, because there was nothing below the folder to drop on. While you drag, the list now reaches a little further down, so dropping just below the folder pins the tab after it, with the drop line at the folder's own level. Dropping on the folder itself still puts the tab inside it. No new permissions. ([#93](https://github.com/matthewmoorcroft/sidecove/issues/93))
 
 ## 1.4.0
 
