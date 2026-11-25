@@ -103,6 +103,14 @@ const indicator = () =>
         highlighted: [...document.querySelectorAll('.folder.drop-target-folder')].map(f => f.dataset.bookmarkId)
     }));
 
+// Whether the pinned list itself is what a pointer at this height would hit.
+const pinnedListAt = y =>
+    page.evaluate(y => {
+        const list = document.querySelector('.space.active [data-tab-type="pinned"]');
+        const x = list.getBoundingClientRect().left + 40;
+        return document.elementFromPoint(x, y) === list;
+    }, y);
+
 const titles = parentId =>
     page.evaluate(async id => (await chrome.bookmarks.getChildren(id)).map(child => child.title), parentId);
 const waitForTitles = (parentId, expected) =>
@@ -154,8 +162,16 @@ describe('dropping just below the last pinned folder', () => {
         expect(lines[0].y).toBeGreaterThanOrEqual(last.bottom - 1);
         expect(highlighted).toEqual([]);
 
+        // The reach stops at the gap: just below it is the open tabs section, not the pinned list.
+        expect(await pinnedListAt(last.bottom + 14)).toBe(false);
+        expect(await pinnedListAt(last.bottom + 6)).toBe(true);
+
         await drop();
         await waitForTitles(space.bookmarkFolderId, ['Top one', 'Last folder', 'after-closed page']);
+        // Once the drag is over, nothing extends the list.
+        await page.waitForSelector('.space.active [data-tab-type="pinned"] > .tab');
+        const list = await box('.space.active [data-tab-type="pinned"]');
+        expect(await pinnedListAt(list.bottom + 6)).toBe(false);
         expect(await titles(ids['Last folder'])).toEqual(['Inner one', 'Inner two']);
     });
 
