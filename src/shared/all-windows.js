@@ -112,12 +112,14 @@ export function pickAction(tab, windowId) {
 }
 
 // The tabs a close removes: the entry stands for its page in every window, so every open tab of
-// that page in the space's list closes and the entry leaves the list.
+// that page in the space's list closes and the entry leaves the list. Another tab of the page in
+// this window has its own row, so then only this tab closes and the page stays listed.
 export function pageTabIds(space, tabs, win, tab) {
     const page = pageOf(tab);
     const listed = new Set(space?.temporaryTabs || []);
     const copies = visibleWindowTabs(tabs, win, true).filter(
         other => other.id !== tab.id && !other.pinned && listed.has(other.id) && page && pageOf(other) === page
     );
+    if (copies.some(other => !isOtherWindow(other, win.id))) return [tab.id];
     return [tab.id, ...copies.map(other => other.id)];
 }
