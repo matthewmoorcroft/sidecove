@@ -1,3 +1,4 @@
+import { isSidePanelPage } from './extension-pages.js';
 import { syncSpaceGroups } from './tab-group-sync.js';
 import { LinkTails } from './link-tab-placement.js';
 import { LinkPins, followLinkPins } from './pinned-tab-links.js';
@@ -10,11 +11,6 @@ import { removeTab } from './space-tab-removal.js';
 import { Logger } from './logger.js';
 export { tabIds, ownerOf } from './space-membership.js';
 const clone = value => structuredClone(value);
-
-function isSidePanelPage(url) {
-    const page = globalThis.chrome?.runtime?.getURL?.('sidebar.html');
-    return Boolean(page && url && (url === page || url.startsWith(`${page}?`) || url.startsWith(`${page}#`)));
-}
 
 // The service worker is the only writer. UI patches express changes relative to the
 // panel's previous view, so a stale panel cannot erase tabs created in another window.

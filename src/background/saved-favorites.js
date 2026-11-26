@@ -20,6 +20,7 @@ import {
     tabsOfFavorite,
     unbindTab
 } from '../shared/saved-favorites.js';
+import { isOwnPageUrl } from '../shared/extension-pages.js';
 import { ownerOf } from '../shared/space-membership.js';
 import { Logger } from '../shared/logger.js';
 
@@ -61,8 +62,12 @@ export function registerSavedFavorites({
     };
 
     const stored = keys => chrome.storage.local.get(keys);
-    // Sidecove's own pages are never saved, as they are never in a space.
-    const savable = tab => !tab.incognito && !pageOf(tab).startsWith(chrome.runtime.getURL(''));
+    // Other Sidecove pages (the panel, the clipboard page) are never saved. The settings page and the
+    // setup guide are tabs like any other, so a pin of one is saved and comes back after a restart.
+    const savable = tab => {
+        const page = pageOf(tab);
+        return !tab.incognito && (!page.startsWith(chrome.runtime.getURL('')) || isOwnPageUrl(page, chrome.runtime));
+    };
     const keys = () => ({
         [SAVED_FAVORITES_KEY]: state.favorites,
         [FAVORITE_TABS_KEY]: state.tabs,

@@ -433,12 +433,15 @@ for (const page of ['options.html', 'installation-onboarding.html']) {
     test(`a tab that navigates to Sidecove's own ${page} keeps its space`, async () => {
         const store = new SpaceStore();
         await store.dispatch({ action: 'get' });
+        // A blank helper tab is provisional until it has an address: the state the old filter acted on.
+        store.provisional.add(1);
         tabs[0].url = `chrome-extension://sidecove/${page}`;
         await store.run(async () => {
             store.track(tabs[0]);
             await store.persist();
         });
         assert.equal(ownerOf(local.spaces, 1)?.id, 'a');
+        assert.equal(store.provisional.has(1), false, 'the tab was handled as a navigated provisional tab');
     });
 }
 test('the side panel page opened in a tab stays out of every space', async () => {

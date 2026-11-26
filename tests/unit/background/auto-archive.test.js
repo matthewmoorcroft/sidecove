@@ -95,6 +95,15 @@ test('a tab idle past the threshold in the same session is archived', async () =
     assert.deepEqual(removed, [1]);
     assert.equal(local.archivedTabs[0].url, 'https://one.test/');
 });
+for (const page of ['options.html', 'installation-onboarding.html']) {
+    test(`an idle Sidecove ${page} tab is left open, not archived`, async () => {
+        tabs[0].url = `chrome-extension://sidecove/${page}`;
+        local.tabLastActivity = { 1: Date.now() - threshold - 1000 };
+        await startBackground()();
+        assert.deepEqual(removed, []);
+        assert.equal(local.archivedTabs, undefined);
+    });
+}
 test('a previous-session record for a reused tab id does not archive it at the first check after restart', async () => {
     session.spaceSession = false;
     local.spaceTabSnapshot = [{ spaceId: 'a', section: 'temporaryTabs', order: 0, url: 'https://restored.test/' }];

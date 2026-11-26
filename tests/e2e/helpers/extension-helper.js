@@ -115,13 +115,16 @@ export async function launchBrowserWithExtension(options = {}) {
  * @param {string} extensionId - Extension ID
  * @param {number} waitMs - How long to wait for the guide to open
  */
-export async function closeSetupGuide(browser, extensionId, waitMs = 2000) {
+export async function closeSetupGuide(browser, extensionId, waitMs = 3000) {
     const guide = `chrome-extension://${extensionId}/installation-onboarding.html`;
     const deadline = Date.now() + waitMs;
+    let closedAt = 0;
     for (;;) {
         const open = (await browser.pages()).filter(page => page.url().startsWith(guide));
         for (const page of open) await page.close();
-        if (open.length || Date.now() >= deadline) return;
+        if (open.length) closedAt = Date.now();
+        // Once a guide has closed, a short quiet spell shows no second one is on its way.
+        if (closedAt ? Date.now() - closedAt >= 500 : Date.now() >= deadline) return;
         await new Promise(resolve => setTimeout(resolve, 100));
     }
 }

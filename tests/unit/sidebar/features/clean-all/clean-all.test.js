@@ -215,6 +215,21 @@ test('Clear leaves untouched New Tabs out, whatever they are still loading', () 
     );
 });
 
+test('Clear and Clean All leave Sidecove’s own settings and setup-guide tabs open', () => {
+    globalThis.chrome = { runtime: { getURL: path => `chrome-extension://sidecove/${path}` } };
+    try {
+        const own = [
+            { id: 1, url: 'chrome-extension://sidecove/options.html' },
+            { id: 2, url: 'chrome-extension://sidecove/installation-onboarding.html' }
+        ];
+        const page = { id: 3, url: 'https://page.test/' };
+        const context = { protectedIds: new Set(), bindings: {}, favoriteUrlKeys: new Set() };
+        assert.deepEqual(closableTabs([...own, page], context), [page]);
+    } finally {
+        delete globalThis.chrome;
+    }
+});
+
 test('Clear offers nothing when only favorites and untouched New Tabs are left', () => {
     const newTab = { id: 2, url: 'chrome://newtab/' };
     const favorite = { id: 1, url: 'https://fav.test/' };
