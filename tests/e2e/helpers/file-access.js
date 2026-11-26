@@ -1,3 +1,5 @@
+import { closeSetupGuide } from './extension-helper.js';
+
 /**
  * Turn off "Allow access to file URLs" for the extension, as it is for most users. Chrome gives
  * it to an extension loaded from the command line, so a test about local files has to take it
@@ -23,4 +25,6 @@ export async function turnOffFileAccess(browser, extensionId) {
     } finally {
         await probe.close();
     }
+    // The reload runs the extension's install handler again, which opens the setup guide.
+    await closeSetupGuide(browser, extensionId);
 }

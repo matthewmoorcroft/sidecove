@@ -185,11 +185,19 @@ describe('Clear', () => {
         for (const path of ['clean-one', 'clean-two', 'clean-three']) await openTab(path, work.id);
         // Switching to the empty Work opened a New Tab in it; leaving it empty closes it.
         await page.evaluate(async () => chrome.tabs.update((await chrome.tabs.getCurrent()).id, { active: true }));
+        // Wait for all three pages by address: a New Tab that the space switch opened may still be
+        // closing, so counting rows can see it and miss a page that has not rendered yet.
         await page.waitForFunction(
-            () => document.querySelectorAll('.space.active [data-tab-type="temporary"] .tab[data-tab-id]').length === 3,
-            { polling: 100 }
+            base =>
+                ['clean-one', 'clean-two', 'clean-three'].every(path =>
+                    [...document.querySelectorAll('.space.active [data-tab-type="temporary"] .tab[data-tab-id]')].some(
+                        row => row.dataset.url === `${base}/${path}`
+                    )
+                ),
+            { polling: 100 },
+            base
         );
-        // A New Tab that the space switch opened may still be closing; Clear leaves it alone anyway.
+        // Clear leaves a New Tab that is still closing alone anyway.
         const before = (await tempRows()).filter(url => url !== 'chrome://newtab/');
 
         await page.$eval('.space.active .clean-tabs-btn', button => button.click());

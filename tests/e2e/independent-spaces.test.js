@@ -44,6 +44,13 @@ describe('Independent spaces', () => {
         await page.close();
         const helper = await browser.newPage();
         await helper.goto(`chrome-extension://${extensionId}/options.html`);
+        // The settings tab is listed like any other tab; keep it out of the space under test.
+        await helper.evaluate(async spaceId => {
+            const { spaces } = await chrome.runtime.sendMessage({ type: 'spaceStore', action: 'get' });
+            const other = spaces.find(s => s.id !== spaceId);
+            const { id } = await chrome.tabs.getCurrent();
+            await chrome.runtime.sendMessage({ type: 'spaceStore', action: 'assign', tabId: id, spaceId: other.id });
+        }, setup.spaceId);
         const child = await helper.evaluate(async ({ tabId }) => {
             const tab = await chrome.tabs.create({ openerTabId: tabId, url: 'https://example.org/', active: false });
             await chrome.runtime.sendMessage({ type: 'spaceStore', action: 'get' });

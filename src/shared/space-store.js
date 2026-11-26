@@ -1,4 +1,4 @@
-import { isPracticeUrl } from './tour-practice.js';
+import { isSidePanelPage } from './extension-pages.js';
 import { syncSpaceGroups } from './tab-group-sync.js';
 import { LinkTails } from './link-tab-placement.js';
 import { LinkPins, followLinkPins } from './pinned-tab-links.js';
@@ -212,7 +212,10 @@ export class SpaceStore {
     track(tab) {
         if (this.hidden.has(tab.id)) return;
         const url = tab.url || tab.pendingUrl;
-        if (url?.startsWith(chrome.runtime?.getURL?.('') || 'chrome-extension://invalid/') && !isPracticeUrl(url)) {
+        // The side panel's own page is not a tab the user reads, so it never joins a space (tests
+        // and debugging open it in a tab). Every other Sidecove page, such as settings or the
+        // setup guide shown after an update, is listed like any other tab.
+        if (isSidePanelPage(url)) {
             for (const space of this.spaces)
                 for (const key of sections) space[key] = space[key].filter(id => id !== tab.id);
             return;

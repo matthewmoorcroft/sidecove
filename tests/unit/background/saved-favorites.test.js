@@ -121,6 +121,22 @@ test('with it on (the default), today’s pins become the saved list once each',
     );
 });
 
+test('a pinned settings or setup-guide tab is saved as a favorite; other Sidecove pages are not', async () => {
+    const { settle, local } = setup({
+        tabs: [
+            pin(1, 1, 'chrome-extension://sidecove/options.html'),
+            pin(2, 1, 'chrome-extension://sidecove/installation-onboarding.html#welcome'),
+            pin(3, 1, 'chrome-extension://sidecove/sidebar.html'),
+            pin(4, 1, 'chrome-extension://sidecove/offscreen.html')
+        ]
+    });
+    await settle();
+    assert.deepEqual(
+        local.savedFavorites.map(f => f.url),
+        ['chrome-extension://sidecove/options.html', 'chrome-extension://sidecove/installation-onboarding.html#welcome']
+    );
+});
+
 test('unpinning a favorite removes it everywhere; closing its tab keeps it', async () => {
     const { chrome, live, settle, local } = setup({
         tabs: [pin(1, 1, 'https://a/'), pin(2, 2, 'https://a/'), pin(3, 1, 'https://b/')]
