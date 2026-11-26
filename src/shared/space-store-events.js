@@ -3,6 +3,7 @@ import { followLinkPins } from './pinned-tab-links.js';
 import { followStoreSettings } from './space-store-settings.js';
 import { sections, spaceForActivation } from './space-membership.js';
 import { removeTab } from './space-tab-removal.js';
+import { asFiled } from './duplicate-tab.js';
 
 // Wires the browser's events to a SpaceStore: each tab, window and setting change is run in the
 // store's queue and followed by a save, and tab-strip changes ask for the tab groups to be redrawn.
@@ -14,7 +15,7 @@ export function installSpaceStoreEvents(store) {
                 await store.persist();
             })
             .catch(console.error);
-    chrome.tabs.onCreated.addListener(tab => handle(() => store.track(tab)));
+    chrome.tabs.onCreated.addListener(tab => handle(async () => store.track(await asFiled(chrome, store, tab))));
     chrome.tabs.onUpdated.addListener((id, change, tab) => {
         if (change.url || change.pinned !== undefined) handle(() => store.track(tab));
     });
