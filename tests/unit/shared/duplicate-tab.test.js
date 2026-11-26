@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { asFiled, copiedTab } from '../../../src/shared/duplicate-tab.js';
+import { asFiled, copiedTab, fileCopy, filedAtStart } from '../../../src/shared/duplicate-tab.js';
 
 const tab = (id, index, url, extra = {}) => ({ id, windowId: 1, index, pinned: false, url, ...extra });
 const strip = [tab(1, 0, 'https://a.test/'), tab(2, 1, 'https://b.test/'), tab(3, 2, 'https://c.test/')];
@@ -40,4 +40,45 @@ test('a copy is filed as beneath the tab it copies, and remembered as a copy', a
     const link = tab(10, 2, 'https://link.test/', { openerTabId: 2 });
     assert.equal(await asFiled(chromeApi, store, link), link);
     assert.deepEqual([...store.copies], [9]);
+});
+
+test('the copy’s place is read from its window now, and a tab is never a copy of itself', () => {
+    // Chrome reported the copy at index 3; a tab left of it has closed since.
+    const now = [tab(3, 0, 'https://c.test/'), tab(7, 1, 'https://b.test/'), tab(9, 2, 'https://b.test/')];
+    assert.equal(copiedTab(tab(9, 3, 'https://b.test/'), now)?.id, 7);
+    assert.equal(copiedTab(tab(9, 1, 'https://b.test/'), [tab(9, 0, 'https://b.test/')]), null);
+});
+
+test('a starting worker files a tab in no space as the copy it is, and leaves listed tabs alone', () => {
+    const live = [
+        tab(2, 0, 'https://b.test/'),
+        tab(8, 1, 'https://b.test/', { openerTabId: 3 }),
+        tab(3, 2, 'https://c.test/')
+    ];
+    const store = {
+        spaces: [{ spaceBookmarks: [], temporaryTabs: [2, 3], pinnedTabs: [] }],
+        hidden: new Set(),
+        copies: new Set()
+    };
+    assert.deepEqual(
+        filedAtStart(store, live).map(t => [t.id, t.copyOf]),
+        [
+            [2, undefined],
+            [8, 2],
+            [3, undefined]
+        ]
+    );
+    assert.deepEqual([...store.copies], [8]);
+    store.hidden.add(8);
+    store.copies.clear();
+    assert.equal(filedAtStart(store, live)[1].copyOf, undefined, 'a tab Clean All is hiding');
+    assert.equal(fileCopy(store, live[0], live), live[0]);
+});
+
+test('a tab that cannot be a copy is filed without looking at its window', async () => {
+    let queried = 0;
+    const chromeApi = { tabs: { query: async () => (queried++, strip) } };
+    const store = { copies: new Set() };
+    for (const url of [undefined, 'about:blank', 'chrome://newtab/']) await asFiled(chromeApi, store, tab(9, 1, url));
+    assert.equal(queried, 0);
 });

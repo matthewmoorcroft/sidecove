@@ -17,6 +17,7 @@ describe('Duplicated tab placement', () => {
     let browser;
     let sidebar;
     let ids;
+    let extensionId;
 
     beforeAll(async () => {
         server = createServer((req, res) => {
@@ -40,7 +41,6 @@ describe('Duplicated tab placement', () => {
 
     // Opens a, b, c and d in that order, with the settings as given, and a sidebar to read.
     async function start(settings = {}) {
-        let extensionId;
         ({ browser, extensionId } = await launchBrowserWithExtension());
         ids = {};
         for (const name of NAMES) {
@@ -142,6 +142,27 @@ describe('Duplicated tab placement', () => {
         await start({ invertTabOrder: false, showTabsFromAllWindows: false });
         await eventually(() => shown('temporary'), NAMES);
         await activate('d');
+        await duplicateFromMenu('b');
+        await eventually(() => shown('temporary'), ['a', 'b', 'b', 'c', 'd']);
+    });
+
+    test('a duplicate that wakes a stopped worker is still listed directly below the tab it copies', async () => {
+        await start({ invertTabOrder: false });
+        await eventually(() => shown('temporary'), NAMES);
+        await activate('d');
+        // As after a pause of about 30 seconds: Chrome stops the worker, and the duplicate wakes it.
+        const workerRunning = () =>
+            browser
+                .targets()
+                .some(
+                    t => t.type() === 'service_worker' && t.url() === `chrome-extension://${extensionId}/background.js`
+                );
+        const cdp = await sidebar.createCDPSession();
+        await cdp.send('ServiceWorker.enable');
+        await cdp.send('ServiceWorker.stopAllWorkers');
+        await cdp.detach();
+        for (let i = 0; i < 50 && workerRunning(); i++) await delay(100);
+        expect(workerRunning()).toBe(false);
         await duplicateFromMenu('b');
         await eventually(() => shown('temporary'), ['a', 'b', 'b', 'c', 'd']);
     });

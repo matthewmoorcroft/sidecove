@@ -1,7 +1,7 @@
 import { isSidePanelPage } from './extension-pages.js';
 import { syncSpaceGroups } from './tab-group-sync.js';
 import { LinkTails } from './link-tab-placement.js';
-import { asFiled } from './duplicate-tab.js';
+import { asFiled, filedAtStart } from './duplicate-tab.js';
 import { placeNewTab } from './space-tab-placement.js';
 import { LinkPins, followLinkPins } from './pinned-tab-links.js';
 import { followStoreSettings, readStoreSettings } from './space-store-settings.js';
@@ -180,7 +180,7 @@ export class SpaceStore {
         this.hidden = new Set((session.hiddenTabs || []).filter(id => valid.has(id)));
         for (const space of this.spaces)
             for (const key of sections) space[key] = (space[key] || []).filter(id => valid.has(id));
-        for (const tab of live) this.track(tab);
+        for (const tab of filedAtStart(this, live)) this.track(tab);
         this.initialized = true;
         await this.persist();
     }
