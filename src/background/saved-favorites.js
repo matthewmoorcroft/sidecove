@@ -20,6 +20,7 @@ import {
     tabsOfFavorite,
     unbindTab
 } from '../shared/saved-favorites.js';
+import { copiedTab } from '../shared/duplicate-tab.js';
 import { isOwnPageUrl } from '../shared/extension-pages.js';
 import { ownerOf } from '../shared/space-membership.js';
 import { Logger } from '../shared/logger.js';
@@ -120,6 +121,18 @@ export function registerSavedFavorites({
         state = bindPin(state, tab, bindOptions(ownerOf(spaces, tab.id)?.id ?? null));
     }
 
+    // Chrome pins a duplicate of a pinned tab. A window shows each favorite once, so the copy of a
+    // favorite is not saved as a second one: it is unpinned and is an ordinary tab, as a link from
+    // the favorite would be. Pinning it by hand later still saves it.
+    async function unpinCopy(tab) {
+        // A tab Sidecove opened for a favorite is already bound, and is not a copy.
+        if (!enabled || !savable(tab) || favoriteOfTab(state, tab.id)) return false;
+        const source = copiedTab(tab, await chrome.tabs.query({ windowId: tab.windowId }).catch(() => []));
+        if (!source || !favoriteOfTab(state, source.id)) return false;
+        await chrome.tabs.update(tab.id, { pinned: false }).catch(() => {});
+        return true;
+    }
+
     // Removing a favorite removes it from every window, so its tabs elsewhere are unpinned too;
     // otherwise they would be saved again as new favorites. With the setting off, other windows'
     // pins are left alone, as before.
@@ -185,7 +198,7 @@ export function registerSavedFavorites({
     }
 
     chrome.tabs.onCreated.addListener(tab => {
-        if (tab.pinned) run(() => bind(tab));
+        if (tab.pinned) run(async () => (await unpinCopy(tab)) || bind(tab));
     });
     chrome.tabs.onUpdated.addListener((tabId, change, tab) => {
         if (change.pinned === false)

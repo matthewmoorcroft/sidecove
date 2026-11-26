@@ -4,6 +4,7 @@
 // goes directly beneath it in the list, as in Arc.
 
 import { isNewTabPage } from './new-tab-page.js';
+import { placeLinkTab } from './link-tab-placement.js';
 import { ownerOf } from './space-membership.js';
 
 const addressOf = tab => tab?.url || tab?.pendingUrl;
@@ -38,6 +39,9 @@ export function fileCopy(store, tab, windowTabs) {
     const source = copiedTab(tab, windowTabs);
     if (!source) return tab;
     store.copies.add(tab.id);
+    // A copy of a pinned tab arrives pinned; the saved favorites may unpin it (see
+    // background/saved-favorites.js), and it then goes where a link from the pinned tab would.
+    if (tab.pinned) store.pinnedCopies.set(tab.id, source.id);
     return { ...tab, openerTabId: source.id, copyOf: source.id };
 }
 
@@ -55,4 +59,18 @@ export function filedAtStart(store, live) {
     return live.map(tab =>
         ownerOf(store.spaces, tab.id) || store.hidden.has(tab.id) ? tab : fileCopy(store, tab, live)
     );
+}
+
+/**
+ * A copy of a pinned tab that has just been unpinned goes to the top of the list, as a link from
+ * the pinned tab does, rather than to the bottom as an unpinned favorite would.
+ * @returns {boolean} whether the copy was placed
+ */
+export function unpinnedCopyPlaced(store, space, tab) {
+    const sourceId = store.pinnedCopies.get(tab.id);
+    if (tab.pinned || sourceId === undefined || !space.pinnedTabs.includes(tab.id)) return false;
+    store.pinnedCopies.delete(tab.id);
+    space.pinnedTabs = space.pinnedTabs.filter(id => id !== tab.id);
+    space.temporaryTabs = placeLinkTab(space.temporaryTabs, sourceId, tab.id, undefined, store.invertTabOrder);
+    return true;
 }

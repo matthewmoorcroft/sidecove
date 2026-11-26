@@ -1,7 +1,7 @@
 import { isSidePanelPage } from './extension-pages.js';
 import { syncSpaceGroups } from './tab-group-sync.js';
 import { LinkTails } from './link-tab-placement.js';
-import { asFiled, filedAtStart } from './duplicate-tab.js';
+import { asFiled, filedAtStart, unpinnedCopyPlaced } from './duplicate-tab.js';
 import { placeNewTab } from './space-tab-placement.js';
 import { LinkPins, followLinkPins } from './pinned-tab-links.js';
 import { followStoreSettings, readStoreSettings } from './space-store-settings.js';
@@ -69,6 +69,8 @@ export class SpaceStore {
         this.hidden = new Set();
         // Tabs Chrome has just created as copies of another (see duplicate-tab.js).
         this.copies = new Set();
+        // Copies of a pinned tab that arrived pinned, by the tab each copies.
+        this.pinnedCopies = new Map();
         // Called for each tab that closes (see space-tab-removal.js), and after each save with the
         // open tabs; background/closed-window-reopen.js uses them to know what each window holds.
         this.onTabRemoved = null;
@@ -227,7 +229,7 @@ export class SpaceStore {
         const existing = ownerOf(this.spaces, tab.id);
         // Native pins keep their space, but live in the top favicon bar rather than
         // either list. Unpinning returns them to that same space as ordinary tabs.
-        if (existing) updateNativePinSection(existing, tab);
+        if (existing && !unpinnedCopyPlaced(this, existing, tab)) updateNativePinSection(existing, tab);
         if (existing) {
             if (!this.provisional.has(tab.id) || !url) return;
             this.provisional.delete(tab.id);
