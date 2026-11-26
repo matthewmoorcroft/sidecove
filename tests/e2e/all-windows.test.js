@@ -305,6 +305,24 @@ test('closing an entry closes its page in every window, so it leaves the list', 
     expect(await rowsOfPage(url)).toBe(0);
 });
 
+test('closing a duplicated tab from the list closes only that tab, not its original', async () => {
+    const url = `${base}/duplicated`;
+    const original = await page.evaluate(async url => (await chrome.tabs.create({ url, active: false })).id, url);
+    await page.waitForSelector(rowSelector(original));
+    const copy = await page.evaluate(async id => (await chrome.tabs.duplicate(id)).id, original);
+    await page.waitForSelector(rowSelector(copy));
+    expect(await rowsOfPage(url)).toBe(2);
+
+    await page.$eval(`${rowSelector(copy)} .tab-close`, button => button.click());
+    await page.waitForFunction(sel => !document.querySelector(sel), { polling: 100 }, rowSelector(copy));
+    // Give a wrong close of the original time to happen before checking it did not.
+    await new Promise(resolve => setTimeout(resolve, 500));
+    expect(await windowTabsAt(ids.here, url)).toEqual([original]);
+    expect(await page.$(rowSelector(original))).not.toBeNull();
+    await page.evaluate(id => chrome.tabs.remove(id), original);
+    await page.waitForFunction(sel => !document.querySelector(sel), { polling: 100 }, rowSelector(original));
+});
+
 test('turning the setting off again goes back to this window’s own lists', async () => {
     await setToggle('showTabsFromAllWindows', false);
     await page.waitForFunction(() => !document.querySelector('.other-window'), { polling: 100 });

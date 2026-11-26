@@ -179,6 +179,14 @@ test('closing an entry closes every open tab of its page in the space, in every 
     assert.deepEqual(pageTabIds(space, tabs, here, tabs[2]), [6]);
 });
 
+test('closing one of two tabs of a page in this window closes only that tab', () => {
+    const same = { url: 'https://same.test/' };
+    const space = { spaceBookmarks: [], temporaryTabs: [1, 2, 4] };
+    const tabs = [tab(1, 1, same), tab(2, 1, same), tab(4, 2, same)];
+    assert.deepEqual(pageTabIds(space, tabs, here, tabs[1]), [2]);
+    assert.deepEqual(pageTabIds(space, [tabs[0], tabs[2]], here, tabs[0]), [1, 4]);
+});
+
 test('a page opened here from another window’s tab keeps that tab’s slot in the list', () => {
     const same = (id, windowId) => tab(id, windowId, { url: 'https://same.test/' });
     const space = { spaceBookmarks: [], temporaryTabs: [1, 2, 3, 4, 9] };
