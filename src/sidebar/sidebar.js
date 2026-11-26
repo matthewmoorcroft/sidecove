@@ -119,6 +119,8 @@ import { createSplitView } from './features/split-view/split-view.js';
 import { createSplitDrop } from './features/split-view/split-drop.js';
 import { placeNextTo } from './features/split-view/split-logic.js';
 import { markSplitMember, markSplitRows, rowsOf, splitRowsOf } from './features/split-view/split-rows.js';
+import { openArcImport } from './features/arc-import/arc-import-panel.js';
+import { wireSpaceOptionsMenu } from './features/space-options/space-options-menu.js';
 import { BookmarkUtils } from '../shared/bookmark-utils.js';
 import { Logger } from '../shared/logger.js';
 import { MOUSE_BUTTON, CSS_CLASSES, TIMING } from '../shared/constants.js';
@@ -913,35 +915,18 @@ function createSpaceElement(space) {
     cleanBtn.addEventListener('click', () => cleanTemporaryTabs(space.id));
     wireNewTabRow(spaceElement);
 
-    // Set up options menu
-    const newFolderBtn = spaceElement.querySelector('.new-folder-btn');
-    const deleteSpaceBtn = spaceElement.querySelector('.delete-space-btn');
-    const settingsBtn = spaceElement.querySelector('.settings-btn');
-
-    newFolderBtn.addEventListener('click', () => {
-        createNewFolder(spaceContainer);
-    });
-
-    deleteSpaceBtn.addEventListener('click', async () => {
-        let message;
-        try {
-            const folder = await getSpaceBookmarkFolder(space);
-            const count = countBookmarks((await chrome.bookmarks.getSubTree(folder.id))[0]);
-            message = `Delete "${space.name}"? This deletes its bookmark folder (${count} ${count === 1 ? 'bookmark' : 'bookmarks'}) and closes its tabs.`;
-        } catch (error) {
-            message = `Delete "${space.name}"? Its bookmark folder could not be read. ${error.message}`;
-        }
-        if (confirm(message)) {
-            try {
-                await deleteSpace(space.id);
-            } catch (error) {
-                alert(error.message);
-            }
-        }
-    });
-
-    settingsBtn.addEventListener('click', () => {
-        chrome.runtime.openOptionsPage();
+    wireSpaceOptionsMenu(spaceElement, {
+        space,
+        newFolder: () => createNewFolder(spaceContainer),
+        getSpaceBookmarkFolder,
+        deleteSpace,
+        importFromArc: () =>
+            openArcImport({
+                container: document.getElementById('sidebar-container'),
+                adoptSpaces: next => adoptStoredSpaces(next),
+                showSpace: id => setActiveSpace(id),
+                whenSaved: () => pendingSpaceSaves
+            })
     });
 
     // Load tabs
@@ -4476,11 +4461,6 @@ async function handleTabRemove(tabId) {
 const processingTabMoves = new Set();
 // Chrome-pinned tabs being unpinned straight into a chosen space.
 const tabsMovingToChosenSpace = new Set();
-
-function countBookmarks(node) {
-    if (node.url) return 1;
-    return (node.children || []).reduce((sum, child) => sum + countBookmarks(child), 0);
-}
 
 async function deleteSpace(spaceId) {
     Logger.log('Deleting space:', spaceId);

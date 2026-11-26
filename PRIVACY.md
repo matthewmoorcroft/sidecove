@@ -1,6 +1,6 @@
 # Sidecove privacy policy
 
-Last updated: 20 November 2026
+Last updated: 25 November 2026
 
 Sidecove is a Chrome extension that shows your tabs in a vertical sidebar and organises them into spaces.
 
@@ -9,6 +9,7 @@ Sidecove is a Chrome extension that shows your tabs in a vertical sidebar and or
 - **Tabs:** the title, URL and favicon of your open tabs, so it can show, switch, move, open and close them in the sidebar.
 - **Bookmarks:** the bookmarks inside its own **Sidecove** folder, where your spaces, folders and pinned tabs are stored. It also lists your other bookmarks to show them in the sidebar.
 - **Tab groups:** only when you turn on **Sync spaces to Chrome tab groups**.
+- **Arc's sidebar file:** only the file you choose yourself in **Import from Arc**. Sidecove reads it in your browser to create spaces from it, and does not keep it or send it anywhere.
 
 ## Where your data is kept
 
