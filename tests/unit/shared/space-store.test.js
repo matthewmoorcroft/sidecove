@@ -299,6 +299,26 @@ test('a link opened from a favourite goes to the top of the tab list', async () 
     // Drawn reversed by default: top of the list is the end of the stored list.
     assert.deepEqual([...ownerOf(local.spaces, 4).temporaryTabs].reverse(), [4, 5, 9]);
 });
+test('a duplicate of a tab you are not on goes directly beneath that tab, not the active one', async () => {
+    sync.invertTabOrder = false;
+    tabs = [
+        { id: 2, windowId: 1, index: 0, url: 'https://two.test/', groupId: -1 },
+        { id: 3, windowId: 1, index: 1, url: 'https://three.test/', groupId: -1 },
+        { id: 7, windowId: 1, index: 2, url: 'https://seven.test/', groupId: -1, active: true }
+    ];
+    local.spaces = [space('a', []), space('b', [2, 3, 7])];
+    const store = new SpaceStore();
+    store.install();
+    await store.dispatch({ action: 'get' });
+    // Chrome puts the copy right of tab 2 but names the active tab 7 as its opener.
+    const copy = { id: 8, windowId: 1, index: 1, openerTabId: 7, url: 'https://two.test/', groupId: -1 };
+    tabs.splice(1, 0, copy);
+    tabs.slice(2).forEach(t => t.index++);
+    chrome.tabs.onCreated.emit(copy);
+    await store.run(() => {});
+    assert.deepEqual(local.spaces[1].temporaryTabs, [2, 8, 3, 7]);
+    assert.equal(store.copies.size, 0, 'forgotten once the pinned-link check has seen it');
+});
 test('explicit assignment beats creation fallback', async () => {
     const store = new SpaceStore();
     await store.dispatch({ action: 'get' });

@@ -66,6 +66,8 @@ export class LinkPins {
      */
     /** @returns {boolean} whether the tab now waits */
     noteNewTab(store, tab) {
+        // A duplicate is a copy, not a link, whichever tab Chrome names as its opener.
+        if (store.copies?.delete(tab.id)) return false;
         if (!store.pinsLinks || tab.openerTabId === undefined || store.restoredRanks?.has(tab.id)) return false;
         if (isNewTabPage(tab.url || tab.pendingUrl)) return false;
         const space = store.spaces.find(s => s.temporaryTabs.includes(tab.id));
@@ -106,8 +108,8 @@ async function isInSpaceFolder(chromeApi, node, folderId) {
 async function pinBeneathOpener(chromeApi, store, space, tab, openerId, url) {
     if (!space.spaceBookmarks.includes(openerId)) return null;
     const opener = await chromeApi.tabs.get(openerId).catch(() => null);
-    // A link opened into another window (Shift+click, a popup) is not beneath the pinned tab, and
-    // Duplicate Tab names the tab it copies as the opener.
+    // A link opened into another window (Shift+click, a popup) is not beneath the pinned tab, and a
+    // tab on the pinned tab's own address is a copy of it.
     if (!opener || opener.windowId !== tab.windowId || opener.url === url) return null;
     const { pinnedTabStatesById: bindings = {} } = await chromeApi.storage.local.get('pinnedTabStatesById');
     const openerBookmarkId = bindings[openerId]?.bookmarkId;

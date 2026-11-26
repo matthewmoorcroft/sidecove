@@ -1,6 +1,8 @@
 import { isSidePanelPage } from './extension-pages.js';
 import { syncSpaceGroups } from './tab-group-sync.js';
 import { LinkTails } from './link-tab-placement.js';
+import { asFiled } from './duplicate-tab.js';
+import { placeNewTab } from './space-tab-placement.js';
 import { LinkPins, followLinkPins } from './pinned-tab-links.js';
 import { followStoreSettings, readStoreSettings } from './space-store-settings.js';
 import { LocalStorage } from './localstorage.js';
@@ -65,6 +67,8 @@ export class SpaceStore {
         this.initialized = false;
         // Tabs Clean All is hiding until its Undo toast ends. They are open but belong to no space.
         this.hidden = new Set();
+        // Tabs Chrome has just created as copies of another (see duplicate-tab.js).
+        this.copies = new Set();
         // Called for each tab that closes (see space-tab-removal.js), and after each save with the
         // open tabs; background/closed-window-reopen.js uses them to know what each window holds.
         this.onTabRemoved = null;
@@ -256,20 +260,7 @@ export class SpaceStore {
             this.spaces[0];
         if (!space) return;
         const key = tab.pinned ? 'pinnedTabs' : restored?.section || 'temporaryTabs';
-        if (restored) {
-            this.restoredMetadata.push({ ...restored, tabId: tab.id });
-            // Preserve extension order when Chrome restores tabs in a different order.
-            this.restoredRanks ||= new Map();
-            this.restoredRanks.set(tab.id, restored.order);
-            space[key].push(tab.id);
-            space[key].sort(
-                (a, b) => (this.restoredRanks.get(a) ?? Infinity) - (this.restoredRanks.get(b) ?? Infinity)
-            );
-        } else if (key === 'temporaryTabs' && tab.openerTabId !== undefined && !(url && isNewTabPage)) {
-            // A link opened from a tab goes below it, whichever way the list is drawn. Chrome reports
-            // no address yet for some link tabs, so only a named new-tab page is left out.
-            space[key] = this.linkTails.place(space[key], tab.openerTabId, tab.id, this.invertTabOrder);
-        } else space[key].push(tab.id);
+        placeNewTab(this, space, key, tab, { restored, url, isNewTabPage });
     }
     async persist() {
         const tabs = new Map((await chrome.tabs.query({})).map(t => [t.id, t]));
@@ -428,7 +419,7 @@ export class SpaceStore {
                 await operation();
                 await this.persist();
             }).catch(console.error);
-        chrome.tabs.onCreated.addListener(tab => handle(() => this.track(tab)));
+        chrome.tabs.onCreated.addListener(tab => handle(async () => this.track(await asFiled(chrome, this, tab))));
         chrome.tabs.onUpdated.addListener((id, change, tab) => {
             if (change.url || change.pinned !== undefined) handle(() => this.track(tab));
         });

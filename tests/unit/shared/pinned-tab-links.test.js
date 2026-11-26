@@ -170,6 +170,11 @@ test('only a new link from a pinned tab waits, and only with the setting on', ()
     store.pinsLinks = true;
     store.restoredRanks.set(4, 0);
     assert.equal(note({ openerTabId: 2 }), false, 'restored by Chrome');
+    store.restoredRanks.clear();
+    store.copies = new Set([4]);
+    assert.equal(note({ openerTabId: 2 }), false, 'a copy of another tab, made while the pinned tab was active');
+    assert.equal(store.copies.size, 0);
+    assert.equal(note({ openerTabId: 2 }), true);
 });
 
 test('a link tab without an address yet waits in the tab list, and is pinned once Chrome names it', async () => {
