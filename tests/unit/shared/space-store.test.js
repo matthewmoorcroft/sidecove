@@ -319,6 +319,37 @@ test('a duplicate of a tab you are not on goes directly beneath that tab, not th
     assert.deepEqual(local.spaces[1].temporaryTabs, [2, 8, 3, 7]);
     assert.equal(store.copies.size, 0, 'forgotten once the pinned-link check has seen it');
 });
+test('the same link opened twice from a tab is a second link, not a copy of the first', async () => {
+    sync.invertTabOrder = false;
+    tabs = [
+        { id: 2, windowId: 1, index: 0, url: 'https://two.test/', groupId: -1, active: true },
+        { id: 3, windowId: 1, index: 1, url: 'https://three.test/', groupId: -1 }
+    ];
+    local.spaces = [space('a', []), space('b', [2, 3])];
+    const store = new SpaceStore();
+    store.install();
+    await store.dispatch({ action: 'get' });
+    // Chrome reports a new link tab with only the address it is going to, and puts each link from
+    // tab 2 after its earlier ones.
+    const open = async (id, index, url) => {
+        tabs.slice(index).forEach(t => t.index++);
+        const link = { id, windowId: 1, index, openerTabId: 2, url: '', pendingUrl: url, groupId: -1 };
+        tabs.splice(index, 0, link);
+        chrome.tabs.onCreated.emit({ ...link });
+        await store.run(() => {});
+        // By the next link, this one has loaded.
+        Object.assign(link, { url, pendingUrl: undefined });
+    };
+    await open(10, 1, 'https://same.test/');
+    await open(11, 2, 'https://same.test/');
+    await open(12, 3, 'https://other.test/');
+    assert.deepEqual(
+        tabs.map(t => t.id),
+        [2, 10, 11, 12, 3]
+    );
+    assert.deepEqual(local.spaces[1].temporaryTabs, [2, 10, 11, 12, 3]);
+    assert.equal(store.copies.size, 0);
+});
 test('a duplicate that wakes a stopped worker still goes directly beneath the tab it copies', async () => {
     sync.invertTabOrder = false;
     tabs = [
