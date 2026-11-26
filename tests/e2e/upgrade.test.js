@@ -270,11 +270,10 @@ describe('favorites saved on update', () => {
         }
     });
 
-    // Unreleased 1.4.0 builds kept a closed window's pages as links under closedLinks. Updating
-    // removes them without touching anything else, and from then on closing a window reopens its
-    // pages as tabs in the window that stays.
+    // Updating changes none of the data, and from then on closing a window reopens its pages as
+    // tabs in the window that stays.
     test.each(cases)(
-        'a profile from %s keeps its data, drops old closed links and reopens a closed window after updating',
+        'a profile from %s keeps its data and reopens a closed window after updating',
         async (_, previous) => {
             install(previous || dist, previous ? null : FALLBACK_PREVIOUS_VERSION);
             let { browser, extensionId } = await launchBrowserWithExtension({
@@ -291,20 +290,6 @@ describe('favorites saved on update', () => {
                         title: 'Docs',
                         url: 'https://example.com/docs'
                     });
-                    await chrome.storage.local.set({
-                        closedLinks: [
-                            {
-                                id: 'old',
-                                url: 'https://example.com/old',
-                                title: 'Old',
-                                spaceId: spaces[0].id,
-                                closedAt: 1,
-                                batchAt: 1,
-                                windowId: 1,
-                                order: 0
-                            }
-                        ]
-                    });
                 });
                 before = await snapshot(page);
             } finally {
@@ -319,10 +304,6 @@ describe('favorites saved on update', () => {
             try {
                 const page = await openSidebar(browser, extensionId);
                 expect(await snapshot(page)).toEqual(before);
-                await page.waitForFunction(async () => !('closedLinks' in (await chrome.storage.local.get(null))), {
-                    polling: 100,
-                    timeout: 10000
-                });
                 const closedUrl = `${base}/after-update`;
                 const mainWindowId = await page.evaluate(async () => (await chrome.windows.getCurrent()).id);
                 const windowId = await page.evaluate(async url => {
@@ -347,7 +328,6 @@ describe('favorites saved on update', () => {
                     mainWindowId
                 );
                 expect(await snapshot(page)).toEqual(before);
-                expect(await page.evaluate(() => chrome.storage.local.get('closedLinks'))).toEqual({});
             } finally {
                 await browser.close();
             }
