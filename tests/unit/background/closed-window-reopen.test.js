@@ -430,6 +430,27 @@ test('a copy whose tab gets a new id is still replaced by the original', async (
     assert.deepEqual(store.spaces[0].temporaryTabs, [10, 300, 101]);
 });
 
+// Chrome can report the new tab active before it reports the swap, so the activation names an id
+// that is not yet a copy's and the copy would follow onto a tab you are using.
+test('a copy that is swapped for a tab you are using is not followed onto it', async () => {
+    await startAndNote();
+    await closeWindow();
+    const swapped = tabs.find(t => t.id === 100);
+    swapped.id = 150;
+    swapped.active = true;
+    store.spaces[0].temporaryTabs = [10, 150, 101];
+    await chromeApi.tabs.onActivated.fire({ tabId: 150, windowId: 1 });
+    await chromeApi.tabs.onReplaced.fire(150, 100);
+    windows.push(win(7));
+    const restored = page(300, 7, 'https://a.test/one', { status: 'loading' });
+    tabs.push(restored);
+    store.spaces[0].temporaryTabs.push(300);
+    await chromeApi.tabs.onCreated.fire(restored);
+    await settle();
+    assert.deepEqual(removed, []);
+    assert.deepEqual(store.spaces[0].temporaryTabs, [10, 150, 101, 300]);
+});
+
 test("a private tab with a copy's page does not replace the copy", async () => {
     await startAndNote();
     await closeWindow();

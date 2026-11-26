@@ -216,12 +216,16 @@ export function registerClosedWindowReopen({
             })
             .catch(error => Logger.warn('Could not tidy a reopened window:', error))
     );
-    // A tab that gets a new id (Chrome swapping it for another) is still the same copy.
+    // A tab that gets a new id (Chrome swapping it for another) is still the same copy, unless you
+    // are using it: Chrome can report the new tab active before the swap, so the activation above
+    // did not know it as a copy.
     chromeApi.tabs.onReplaced.addListener((addedId, removedId) =>
-        ready.then(() => {
+        ready.then(async () => {
             const copy = copies.find(other => other.copyId === removedId);
             if (!copy) return;
-            copy.copyId = addedId;
+            const tab = await chromeApi.tabs.get(addedId).catch(() => null);
+            if (tab?.active) copies = copies.filter(other => other !== copy);
+            else copy.copyId = addedId;
             return save();
         })
     );
