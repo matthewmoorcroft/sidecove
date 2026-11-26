@@ -1,63 +1,20 @@
 import { isSidePanelPage } from './extension-pages.js';
 import { syncSpaceGroups } from './tab-group-sync.js';
 import { LinkTails } from './link-tab-placement.js';
-import { LinkPins, followLinkPins } from './pinned-tab-links.js';
-import { followStoreSettings, readStoreSettings } from './space-store-settings.js';
+import { LinkPins } from './pinned-tab-links.js';
+import { readStoreSettings } from './space-store-settings.js';
+import { installSpaceStoreEvents } from './space-store-events.js';
+import { applySpacePatch } from './space-patch.js';
 import { LocalStorage } from './localstorage.js';
 
 import { sections, ownerOf, updateNativePinSection, spaceForActivation } from './space-membership.js';
 import { hideTabs, showTabs } from './hidden-tabs.js';
-import { removeTab } from './space-tab-removal.js';
 import { importSpaces } from './import-spaces.js';
 import { Logger } from './logger.js';
 export { tabIds, ownerOf } from './space-membership.js';
+// Moved to space-patch.js; still exported from here for the panels and tests that import it.
+export { applySpacePatch };
 const clone = value => structuredClone(value);
-
-// The service worker is the only writer. UI patches express changes relative to the
-// panel's previous view, so a stale panel cannot erase tabs created in another window.
-export function applySpacePatch(current, before, after) {
-    const removed = new Set(before.filter(s => !after.some(n => n.id === s.id)).map(s => s.id));
-    let result = clone(current.filter(s => !removed.has(s.id)));
-    for (const next of after) {
-        const prev = before.find(s => s.id === next.id);
-        let target = result.find(s => s.id === next.id);
-        if (!target) {
-            if (prev) continue; // A different panel deleted this space.
-            target = { ...clone(next), spaceBookmarks: [], temporaryTabs: [], pinnedTabs: [] };
-            result.push(target);
-        }
-        for (const [key, value] of Object.entries(next)) {
-            if (!sections.includes(key) && JSON.stringify(value) !== JSON.stringify(prev?.[key]))
-                target[key] = clone(value);
-        }
-        for (const key of sections) {
-            const oldIds = prev?.[key] || [];
-            const newIds = next[key] || [];
-            if (JSON.stringify(oldIds) === JSON.stringify(newIds)) continue;
-            const deleted = oldIds.filter(id => !newIds.includes(id));
-            const added = newIds.filter(id => !oldIds.includes(id));
-            for (const id of added) {
-                for (const space of result)
-                    for (const section of sections) space[section] = (space[section] || []).filter(t => t !== id);
-            }
-            const existing = (target[key] || []).filter(id => !deleted.includes(id));
-            target[key] = [
-                ...newIds.filter(id => existing.includes(id) || added.includes(id)),
-                ...existing.filter(id => !newIds.includes(id))
-            ];
-        }
-    }
-    if (JSON.stringify(before.map(s => s.id)) !== JSON.stringify(after.map(s => s.id))) {
-        result.sort((a, b) => {
-            const rank = s => {
-                const i = after.findIndex(n => n.id === s.id);
-                return i < 0 ? after.length : i;
-            };
-            return rank(a) - rank(b);
-        });
-    }
-    return result;
-}
 
 export class SpaceStore {
     constructor() {
@@ -423,71 +380,6 @@ export class SpaceStore {
         });
     }
     install() {
-        const handle = operation =>
-            this.run(async () => {
-                await operation();
-                await this.persist();
-            }).catch(console.error);
-        chrome.tabs.onCreated.addListener(tab => handle(() => this.track(tab)));
-        chrome.tabs.onUpdated.addListener((id, change, tab) => {
-            if (change.url || change.pinned !== undefined) handle(() => this.track(tab));
-        });
-        followLinkPins(chrome, this);
-        chrome.tabs.onRemoved.addListener((id, info) => handle(() => removeTab(this, id, info)));
-        chrome.tabs.onReplaced.addListener((added, removed) =>
-            handle(() => {
-                this.linkTails.replaced(added, removed);
-                this.linkPins.replaced(added, removed);
-                for (const space of this.spaces) {
-                    for (const key of sections) space[key] = space[key].map(id => (id === removed ? added : id));
-                    if (space.lastTab === removed) space.lastTab = added;
-                }
-            })
-        );
-        chrome.tabs.onActivated.addListener(info =>
-            handle(async () => {
-                // Coming back to a tab starts its links again directly beneath it.
-                this.linkTails.switchedTo(info.tabId);
-                const { perSpacePinnedFavorites = false } = await chrome.storage.sync.get('perSpacePinnedFavorites');
-                const space = spaceForActivation(this.spaces, info.tabId, perSpacePinnedFavorites);
-                if (!space) return;
-                space.lastTab = info.tabId;
-                this.active[info.windowId] = space.id;
-                // A tab changing in a window you are not looking at is not the space in use.
-                if (
-                    await chrome.windows.get(info.windowId).then(
-                        win => win.focused,
-                        () => false
-                    )
-                )
-                    this.lastActive = space.id;
-            })
-        );
-        chrome.windows.onFocusChanged.addListener(windowId =>
-            handle(() => {
-                if (this.spaces.some(s => s.id === this.active[windowId])) this.lastActive = this.active[windowId];
-            })
-        );
-        chrome.storage.onChanged.addListener((changes, area) => {
-            if (area === 'local' && (changes.pinnedTabStatesById || changes.tabNameOverridesById)) handle(() => {});
-            if (area === 'sync' && changes.syncTabGroups) handle(() => {});
-            if (area === 'sync') followStoreSettings(this, changes, handle);
-        });
-        // Tab-strip changes only request a projection; they never alter the model.
-        let syncTimer;
-        const scheduleSync = () => {
-            clearTimeout(syncTimer);
-            syncTimer = setTimeout(
-                () => this.run(() => syncSpaceGroups(this.spaces, this.active)).catch(console.error),
-                200
-            );
-        };
-        chrome.tabs.onMoved.addListener(scheduleSync);
-        chrome.tabs.onUpdated.addListener((id, change) => {
-            if (change.groupId !== undefined) scheduleSync();
-        });
-        chrome.tabGroups.onRemoved.addListener(scheduleSync);
-        chrome.tabGroups.onUpdated.addListener(scheduleSync);
-        this.run(() => {}).catch(console.error);
+        installSpaceStoreEvents(this);
     }
 }
