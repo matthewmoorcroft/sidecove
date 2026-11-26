@@ -1,0 +1,16 @@
+/* While a row is dragged, the pinned list reaches down over the gap below its last row (the
+   folder's 8px margin and the open tabs' 4px). Without it nothing sits below a last pinned
+   folder, so a drop meant for "after the folder" lands on the folder and goes inside. The height
+   is that gap, so the open tabs section stays as it was. */
+.space:has(.tab.dragging, .folder.dragging) .tabs-container[data-tab-type='pinned'] {
+    position: relative;
+}
+
+.space:has(.tab.dragging, .folder.dragging) .tabs-container[data-tab-type='pinned']::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    height: 12px;
+}
