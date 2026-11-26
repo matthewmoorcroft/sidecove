@@ -2,6 +2,7 @@ import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { SpaceStore } from '../../../src/shared/space-store.js';
 import { registerAutoArchive } from '../../../src/background/auto-archive.js';
+import { createArchiveWriter } from '../../../src/background/archive-writer.js';
 
 const threshold = 360 * 60 * 1000;
 
@@ -75,10 +76,10 @@ function startBackground() {
             getSubTree: async () => [{ id: 'root', children: [] }]
         }
     });
-    // As the service worker does: one space store, then auto-archive on top of it.
+    // As the service worker does: one space store and archive writer, then auto-archive on top.
     const spaceStore = new SpaceStore();
     spaceStore.install();
-    registerAutoArchive(spaceStore);
+    registerAutoArchive(spaceStore, createArchiveWriter({ spaceStore }));
     return () => Promise.all(chrome.alarms.onAlarm.listeners.map(fn => fn({ name: 'autoArchiveTabsAlarm' })));
 }
 

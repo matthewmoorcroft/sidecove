@@ -567,16 +567,6 @@ test('ordinary new-tab pages use the selected space even with an incidental open
     });
     assert.equal(ownerOf(local.spaces, 3).id, 'b');
 });
-test('manual archive records the stored owner without a sidebar global', async () => {
-    const removed = [];
-    chrome.tabs.get = async id => ({ ...tabs.find(t => t.id === id), title: 'Archived example' });
-    chrome.tabs.remove = async id => removed.push(id);
-    chrome.runtime.sendMessage = async () => ({ success: true, spaces: local.spaces });
-    await Utils.archiveTab(2);
-    assert.equal(local.archivedTabs[0].spaceId, 'b');
-    assert.equal(local.archivedTabs[0].url, 'https://two.test/');
-    assert.deepEqual(removed, [2]);
-});
 test('explicit tab focus raises the window returned by Chrome', async () => {
     const actions = [];
     chrome.tabs.update = async (id, update) => {

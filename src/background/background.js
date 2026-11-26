@@ -61,6 +61,7 @@ import { ALL_WINDOWS_SETTING } from '../shared/saved-favorites.js';
 import { stepTabInSpace as stepActiveTab } from './tab-step.js';
 import { registerCloseEmptyNewTab } from './close-empty-new-tab.js';
 import { registerPendingClean } from './pending-clean.js';
+import { registerArchive } from './archive-writer.js';
 
 // Helper to handle async message responses with consistent error handling
 function handleAsyncMessage(handler, sendResponse, errorContext, defaultErrorData = {}) {
@@ -79,8 +80,11 @@ function handleAsyncMessage(handler, sendResponse, errorContext, defaultErrorDat
 // Most recently used tab shortcut: keeps the use order and returns the command handler.
 const onRecentTabCommand = registerRecentTab({ spaceStore });
 
+// The worker is the only writer of the archive; the panels ask it for every change.
+const archive = registerArchive({ spaceStore });
+
 // Clean All hides the tabs it clears while Undo is on offer, then closes them.
-registerPendingClean({ spaceStore });
+registerPendingClean({ spaceStore, removeArchivedTab: (url, spaceId) => archive.remove(url, spaceId) });
 
 // A new tab left empty closes when the user switches to another tab (a setting turns this off).
 registerCloseEmptyNewTab({ spaceStore });
@@ -185,7 +189,7 @@ async function switchSpaceFromCommand(request) {
 }
 
 // Auto-archive: the alarm and the tab activity it reads.
-const { removeTabLastActivity, setupAutoArchiveAlarm } = registerAutoArchive(spaceStore);
+const { removeTabLastActivity, setupAutoArchiveAlarm } = registerAutoArchive(spaceStore, archive);
 
 // Clean up timestamp when a tab is closed
 chrome.tabs.onRemoved.addListener(async (tabId, removeInfo) => {

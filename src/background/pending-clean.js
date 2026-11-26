@@ -1,5 +1,4 @@
 import { Logger } from '../shared/logger.js';
-import { Utils } from '../shared/utils.js';
 import { PENDING_CLEAN_MESSAGE, UNDO_WINDOW_MS, CLOSE_GRACE_MS } from '../shared/pending-clean.js';
 
 export const PENDING_CLEAN_KEY = 'pendingCleans'; // storage.session: tab ids end with the browser session.
@@ -12,7 +11,7 @@ export const PENDING_CLEAN_KEY = 'pendingCleans'; // storage.session: tab ids en
 export function registerPendingClean({
     chromeApi = chrome,
     spaceStore,
-    removeArchivedTab = (url, spaceId) => Utils.removeArchivedTab(url, spaceId),
+    removeArchivedTab,
     now = Date.now,
     setTimer = setTimeout,
     clearTimer = clearTimeout

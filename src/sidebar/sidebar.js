@@ -48,6 +48,13 @@ import {
     colorOverridesChanged
 } from './features/color-overrides/apply-color-overrides.js';
 import { spaceRequest } from '../shared/space-client.js';
+import {
+    addArchivedTab,
+    archiveTab,
+    getArchivedTabs,
+    removeArchivedTab,
+    restoreArchivedTab
+} from '../shared/archive-client.js';
 import { createSpacePin } from '../shared/space-pin.js';
 import { SpacePatchQueue } from './space-patch-queue.js';
 import { RefreshCoordinator } from './refresh-coordinator.js';
@@ -3314,7 +3321,7 @@ async function createTabElement(tab, isPinned = false, isBookmarkOnly = false) {
                         return;
                     }
                     // Check if tab is in archive and restore it
-                    const archivedTabs = await Utils.getArchivedTabs();
+                    const archivedTabs = await getArchivedTabs();
                     const archivedTab = !isPinned && archivedTabs.find(t => t.url === tabUrl);
 
                     let targetSpaceId = activeSpaceId;
@@ -3327,7 +3334,7 @@ async function createTabElement(tab, isPinned = false, isBookmarkOnly = false) {
                         bookmarkTitle = archivedTab.name || bookmarkTitle;
 
                         // Restore the archived tab
-                        const restoredTab = await Utils.restoreArchivedTab(archivedTab);
+                        const restoredTab = await restoreArchivedTab(archivedTab);
 
                         if (restoredTab) {
                             // Pin the restored tab if it was originally pinned
@@ -3893,7 +3900,7 @@ async function closeItems(items) {
 async function archiveItems(items) {
     const temporary = items.filter(item => item.kind === 'tab' && item.tabId);
     clearSelection();
-    for (const item of temporary) await Utils.archiveTab(item.tabId);
+    for (const item of temporary) await archiveTab(item.tabId);
 }
 
 async function pinItems(items) {
@@ -4091,8 +4098,8 @@ function cleanTemporaryTabs(spaceId) {
         displayedTabIds,
         pendingSaves: () => pendingSpaceSaves,
         activeTabId: () => activeChromeTabId,
-        addArchivedTab: entry => Utils.addArchivedTab(entry),
-        removeArchivedTab: (url, targetSpaceId) => Utils.removeArchivedTab(url, targetSpaceId),
+        addArchivedTab,
+        removeArchivedTab,
         openTabIds: async () => (await chrome.tabs.query({ windowId: currentWindow.id })).map(tab => tab.id),
         activateTab: tabId => chrome.tabs.update(tabId, { active: true }),
         openNewTab: () => createNewTab(),
@@ -4356,9 +4363,7 @@ const linkDropPosition = createLinkDropPosition({
 });
 
 // Tabs Clear is hiding come back one at a time when picked in Chrome's own tab strip.
-const clearedTabs = createClearedTabs({
-    removeArchivedTab: (url, spaceId) => Utils.removeArchivedTab(url, spaceId)
-});
+const clearedTabs = createClearedTabs({ removeArchivedTab });
 
 const handleTabActivated = createTabActivationHandler({
     isCreatingSpace: () => isCreatingSpace,
