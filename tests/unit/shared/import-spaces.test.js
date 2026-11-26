@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { importSpaces, uniqueSpaceName } from '../../../src/shared/import-spaces.js';
+import { earlierImports, importSpaces, uniqueSpaceName } from '../../../src/shared/import-spaces.js';
 
 // A bookmark tree in memory, with the calls importSpaces makes.
 function fakeChrome({ failAfter = Infinity } = {}) {
@@ -32,8 +32,9 @@ function fakeStorage(root) {
     return {
         registry,
         getOrCreateSidecoveFolder: async () => root,
+        getSpaceRegistry: async () => structuredClone(registry),
         async getOrCreateSpaceRegistryEntry(folderId, attrs) {
-            registry[folderId] ||= { spaceUuid: `uuid-${folderId}`, ...attrs };
+            registry[folderId] ||= { spaceUuid: `uuid-${folderId}`, bookmarkFolderId: folderId, ...attrs };
             return registry[folderId];
         },
         async updateSpaceRegistryEntry(folderId, attrs) {
@@ -141,4 +142,60 @@ test('a failure part way removes everything the import made', async () => {
         store.spaces.map(s => s.name),
         ['Mine']
     );
+});
+
+test('earlier imports count only spaces whose folder is still there', () => {
+    const registry = {
+        f1: { bookmarkFolderId: 'f1', importedFrom: 'arc:A', importedFavorites: true },
+        f2: { bookmarkFolderId: 'f2', importedFrom: 'arc:B' },
+        f3: { bookmarkFolderId: 'f3' }
+    };
+    const both = earlierImports(registry, ['f1', 'f2', 'f3']);
+    assert.deepEqual([...both.sources], ['arc:A', 'arc:B']);
+    assert.equal(both.favorites, true);
+    const gone = earlierImports(registry, ['f2']);
+    assert.deepEqual([...gone.sources], ['arc:B']);
+    assert.equal(gone.favorites, false);
+    assert.deepEqual([...earlierImports(undefined, []).sources], []);
+});
+
+test('importing the same spaces again creates nothing, and favorites are imported once', async () => {
+    const { chrome, root } = fakeChrome();
+    const storage = fakeStorage(root);
+    const store = fakeStore(storage);
+    const favorites = {
+        favorites: true,
+        title: 'Favorites from Arc',
+        children: [{ title: 'Mail', url: 'https://example.net/mail' }]
+    };
+    const space = (name, id, items = []) => ({ name, color: 'grey', importedFrom: `arc:${id}`, items });
+    await importSpaces(store, { source: 'Arc', spaces: [space('Work', 'A', [favorites])] }, { chrome, storage });
+    const entry = Object.values(storage.registry)[0];
+    assert.equal(entry.importedFrom, 'arc:A');
+    assert.equal(entry.importedFavorites, true);
+
+    await importSpaces(
+        store,
+        { source: 'Arc', spaces: [space('Work', 'A', [favorites]), space('Ideas', 'C', [favorites])] },
+        { chrome, storage }
+    );
+    assert.deepEqual(
+        root.children.map(c => c.title),
+        ['Work', 'Ideas']
+    );
+    assert.deepEqual(titles(root.children[1]), [], 'favorites are not imported a second time');
+    assert.deepEqual(
+        store.spaces.map(s => s.name),
+        ['Work', 'Ideas']
+    );
+
+    // Once the imported space is deleted, it can be imported again.
+    await chrome.bookmarks.removeTree(root.children[0].id);
+    store.spaces = store.spaces.filter(s => s.name !== 'Work');
+    await importSpaces(store, { source: 'Arc', spaces: [space('Work', 'A', [favorites])] }, { chrome, storage });
+    assert.deepEqual(
+        root.children.map(c => c.title),
+        ['Ideas', 'Work']
+    );
+    assert.deepEqual(titles(root.children[1]), [['Favorites from Arc', ['Mail']]]);
 });

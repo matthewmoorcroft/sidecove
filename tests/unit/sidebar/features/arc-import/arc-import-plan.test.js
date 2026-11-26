@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { readArcSidebar } from '../../../../../src/sidebar/features/arc-import/arc-sidebar.js';
 import {
     FAVORITES_FOLDER_TITLE,
+    arcSource,
     planArcImport
 } from '../../../../../src/sidebar/features/arc-import/arc-import-plan.js';
 import { MAX_FOLDER_DEPTH } from '../../../../../src/sidebar/folder-policy.js';
@@ -89,4 +90,27 @@ test('with one folder level kept, as with tab group sync on, nested folders join
         projects.children.map(c => c.title),
         ['My project', 'Deep page']
     );
+});
+
+test('each planned space names the Arc space it came from', () => {
+    const data = arc();
+    const { plan } = planArcImport(data);
+    assert.deepEqual(
+        plan.spaces.map(s => s.importedFrom),
+        data.spaces.map(s => `arc:${s.id}`)
+    );
+    assert.equal(plan.spaces[0].items[0].favorites, true);
+});
+
+test('spaces and favorites imported before are left out', () => {
+    const data = arc();
+    const earlier = { sources: new Set([arcSource(data.spaces[0])]), favorites: true };
+    const { plan, totals } = planArcImport(data, undefined, { earlier });
+    assert.deepEqual(
+        plan.spaces.map(s => s.name),
+        ['Personal', 'Ideas']
+    );
+    assert.equal(totals.spaces, 2);
+    assert.equal(totals.favorites, 0);
+    assert.ok(!plan.spaces[0].items.some(item => item.favorites));
 });

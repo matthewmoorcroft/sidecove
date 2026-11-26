@@ -70,7 +70,7 @@ const LocalStorage = {
             }
         });
     },
-    // Update a registry entry's mutable attributes (name/color/shade/order/icon) so the durable record
+    // Update a registry entry's mutable attributes (name/color/shade/order/icon/import source) so the durable record
     // tracks the user's renames/recolors. No-op if the entry doesn't exist yet.
     updateSpaceRegistryEntry: async function (bookmarkFolderId, attrs = {}) {
         if (!bookmarkFolderId) return;
@@ -83,6 +83,9 @@ const LocalStorage = {
             if (attrs.shade !== undefined) entry.shade = attrs.shade;
             if (attrs.order !== undefined) entry.order = attrs.order;
             if (attrs.icon !== undefined) entry.icon = attrs.icon;
+            // Where an imported space came from (see shared/import-spaces.js).
+            if (attrs.importedFrom !== undefined) entry.importedFrom = attrs.importedFrom;
+            if (attrs.importedFavorites !== undefined) entry.importedFavorites = attrs.importedFavorites;
             await this.saveSpaceRegistry(registry);
         });
     },

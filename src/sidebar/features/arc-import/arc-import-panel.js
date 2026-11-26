@@ -8,8 +8,11 @@
  */
 import { Logger } from '../../../shared/logger.js';
 import { spaceRequest } from '../../../shared/space-client.js';
+import { ROOT_FOLDER_TITLE } from '../../../shared/constants.js';
+import { LocalStorage } from '../../../shared/localstorage.js';
+import { earlierImports } from '../../../shared/import-spaces.js';
 import { NotArcFileError, readArcSidebar } from './arc-sidebar.js';
-import { planArcImport } from './arc-import-plan.js';
+import { arcSource, planArcImport } from './arc-import-plan.js';
 import { describeArcSpace, describeImport } from './arc-import-summary.js';
 
 export const MAC_PATH = '~/Library/Application Support/Arc/StorableSidebar.json';
@@ -21,6 +24,25 @@ function el(tag, props = {}, children = []) {
     const node = Object.assign(document.createElement(tag), props);
     node.append(...children);
     return node;
+}
+
+const NOTHING_EARLIER = { sources: new Set(), favorites: false };
+
+// What earlier imports brought in and is still in Sidecove. Read only; the service worker checks
+// again before it creates anything.
+async function readEarlierImports() {
+    try {
+        const root = (await chrome.bookmarks.search({ title: ROOT_FOLDER_TITLE })).find(node => !node.url);
+        if (!root) return NOTHING_EARLIER;
+        const folders = (await chrome.bookmarks.getChildren(root.id)).filter(node => !node.url);
+        return earlierImports(
+            await LocalStorage.getSpaceRegistry(),
+            folders.map(folder => folder.id)
+        );
+    } catch (error) {
+        Logger.warn('Could not read earlier imports:', error);
+        return NOTHING_EARLIER;
+    }
 }
 
 const button = (label, onClick, className = '') =>
@@ -90,28 +112,35 @@ export function openArcImport({ container, adoptSpaces, showSpace, whenSaved = a
         if (!file) return;
         try {
             if (file.size > MAX_FILE_BYTES) throw new NotArcFileError();
-            preview(readArcSidebar(await file.text()));
+            const arc = readArcSidebar(await file.text());
+            preview(arc, await readEarlierImports());
         } catch (error) {
             if (!(error instanceof NotArcFileError)) Logger.warn('Could not read the Arc file:', error);
             intro(error instanceof NotArcFileError ? NOT_ARC : 'Sidecove could not read this file.');
         }
     });
 
-    function preview(arc) {
+    function preview(arc, earlier) {
+        const done = arc.spaces.map(space => earlier.sources.has(arcSource(space)));
         const boxes = arc.spaces.map((space, index) =>
-            el('label', { className: 'arc-import-space' }, [
-                el('input', { type: 'checkbox', checked: true, value: String(index) }),
+            el('label', { className: `arc-import-space${done[index] ? ' arc-import-space-done' : ''}` }, [
+                el('input', { type: 'checkbox', checked: !done[index], disabled: done[index], value: String(index) }),
                 el('span', { className: 'arc-import-space-name', textContent: space.name || 'Arc space' }),
-                el('span', { className: 'arc-import-small', textContent: describeArcSpace(space) })
+                el('span', {
+                    className: 'arc-import-small',
+                    textContent: (done[index] ? 'Already imported. ' : '') + describeArcSpace(space)
+                })
             ])
         );
-        const start = button('Import', () => run(arc, boxes), 'arc-import-primary');
+        const allDone = done.every(Boolean);
+        const start = button('Import', () => run(arc, boxes, earlier), 'arc-import-primary');
+        start.disabled = allDone;
         const list = el('fieldset', { className: 'arc-import-spaces' }, [
             el('legend', { textContent: 'Spaces to import' }),
             ...boxes
         ]);
         list.addEventListener('change', () => {
-            start.disabled = !boxes.some(box => box.querySelector('input').checked);
+            start.disabled = !boxes.some(box => box.querySelector('input:enabled:checked'));
         });
         show(
             el('p', {
@@ -119,11 +148,23 @@ export function openArcImport({ container, adoptSpaces, showSpace, whenSaved = a
                     'Each space you choose becomes a new space after yours, with its pinned tabs and folders. ' +
                     'Your own spaces stay as they are; a name you already use gets “(Arc)” after it.'
             }),
+            ...(done.some(Boolean)
+                ? [
+                      el('p', {
+                          className: 'arc-import-already',
+                          textContent: allDone
+                              ? 'Every space in this file is already in Sidecove from an earlier import. To import one again, delete that space first.'
+                              : 'Spaces you imported before are marked and are not imported again. To import one again, delete that space first.'
+                      })
+                  ]
+                : []),
             list,
             ...(arc.favorites.length
                 ? [
                       el('p', {
-                          textContent: `Your ${arc.favorites.length} Arc favorites go in a folder at the top of the first space you import.`
+                          textContent: earlier.favorites
+                              ? 'Your Arc favorites are already in Sidecove from an earlier import, so they are not imported again.'
+                              : `Your ${arc.favorites.length} Arc favorites go in a folder at the top of the first space you import.`
                       })
                   ]
                 : []),
@@ -136,7 +177,7 @@ export function openArcImport({ container, adoptSpaces, showSpace, whenSaved = a
         );
     }
 
-    async function run(arc, boxes) {
+    async function run(arc, boxes, earlier) {
         const chosen = boxes
             .filter(box => box.querySelector('input').checked)
             .map(box => Number(box.querySelector('input').value));
@@ -147,12 +188,13 @@ export function openArcImport({ container, adoptSpaces, showSpace, whenSaved = a
         try {
             // The sidebar allows no folder inside a folder while tab group sync is on.
             const { syncTabGroups = false } = await chrome.storage.sync.get('syncTabGroups');
-            result = planArcImport(arc, chosen, syncTabGroups ? { maxDepth: 1 } : {});
+            result = planArcImport(arc, chosen, { earlier, ...(syncTabGroups ? { maxDepth: 1 } : {}) });
             await whenSaved();
             spaces = await spaceRequest('importSpaces', { plan: result.plan });
         } catch (error) {
             Logger.error('Arc import failed:', error);
-            for (const control of panel.querySelectorAll('button, input')) control.disabled = false;
+            for (const control of panel.querySelectorAll('button, input'))
+                control.disabled = Boolean(control.closest('.arc-import-space-done'));
             start.textContent = 'Import';
             panel.querySelector('.arc-import-error')?.remove();
             panel

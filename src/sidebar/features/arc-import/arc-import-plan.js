@@ -6,6 +6,9 @@ import { customChoice } from '../space-colors/space-palette.js';
 import { sidecoveSymbolFor } from './arc-symbols.js';
 
 export const FAVORITES_FOLDER_TITLE = 'Favorites from Arc';
+
+// How an imported space records where it came from, so a second import can leave it out.
+export const arcSource = space => `arc:${space?.id}`;
 const UNTITLED_SPACE = 'Arc space';
 const UNTITLED_FOLDER = 'Untitled folder';
 
@@ -44,10 +47,15 @@ function fitDepth(nodes, depth, totals, maxDepth) {
  * `chosen` holds the indexes of the Arc spaces to import. Favorites go in a folder at the top of
  * the first chosen space, as Sidecove's top bar holds open tabs rather than saved pages.
  * `maxDepth` is how many folder levels to keep: one while tab group sync is on, as the sidebar
- * allows no folder inside a folder then.
+ * allows no folder inside a folder then. `earlier` is what earlier imports brought in (see
+ * earlierImports in shared/import-spaces.js): those spaces, and favorites once imported, are left out.
  */
-export function planArcImport(arc, chosen = arc.spaces.map((_, index) => index), { maxDepth = MAX_FOLDER_DEPTH } = {}) {
-    const picked = new Set(chosen);
+export function planArcImport(
+    arc,
+    chosen = arc.spaces.map((_, index) => index),
+    { maxDepth = MAX_FOLDER_DEPTH, earlier = { sources: new Set(), favorites: false } } = {}
+) {
+    const picked = new Set(chosen.filter(index => !earlier.sources.has(arcSource(arc.spaces[index]))));
     const totals = {
         spaces: 0,
         tabs: 0,
@@ -76,12 +84,14 @@ export function planArcImport(arc, chosen = arc.spaces.map((_, index) => index),
             color: choice?.color ?? 'grey',
             ...(choice?.shade ? { shade: choice.shade } : {}),
             ...(icon ? { icon } : {}),
+            importedFrom: arcSource(space),
             items
         });
         totals.spaces++;
     });
-    if (spaces.length && arc.favorites.length) {
+    if (spaces.length && arc.favorites.length && !earlier.favorites) {
         spaces[0].items.unshift({
+            favorites: true,
             title: FAVORITES_FOLDER_TITLE,
             children: arc.favorites.map(({ title, url }) => ({ title, url }))
         });

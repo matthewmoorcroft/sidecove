@@ -1,4 +1,7 @@
 import { fileURLToPath } from 'node:url';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { launchBrowserWithExtension, openSidebar } from './helpers/extension-helper.js';
 
 // Import from Arc, from the space menu to new spaces. The file is a made-up one with the
@@ -132,25 +135,58 @@ test('chosen Arc spaces become new spaces with their pinned tabs, folders, colou
     expect(await page.$('.arc-import')).toBeNull();
 });
 
-test('importing the same file again adds new spaces rather than merging', async () => {
-    await openImport();
-    const input = await page.$('.arc-import input[type="file"]');
-    await input.uploadFile(ARC_FILE);
-    await page.waitForSelector('.arc-import .arc-import-space');
-    await page.$$eval('.arc-import .arc-import-space input', boxes => [boxes[0], boxes[2]].forEach(b => b.click()));
+test('a second import of the same file offers only what is not in Sidecove yet', async () => {
+    const pick = async () => {
+        await openImport();
+        const input = await page.$('.arc-import input[type="file"]');
+        await input.uploadFile(ARC_FILE);
+        await page.waitForSelector('.arc-import .arc-import-space');
+        return page.$$eval('.arc-import .arc-import-space input', boxes =>
+            boxes.map(box => ({ checked: box.checked, disabled: box.disabled }))
+        );
+    };
+    // Work and Personal came in above; Ideas was left out.
+    expect(await pick()).toEqual([
+        { checked: false, disabled: true },
+        { checked: false, disabled: true },
+        { checked: true, disabled: false }
+    ]);
+    const text = await page.$eval('.arc-import', el => el.textContent);
+    expect(text).toContain('Spaces you imported before are marked and are not imported again.');
+    expect(text).toContain('Your Arc favorites are already in Sidecove');
+    const before = await sidecoveTree();
     await page.$eval('.arc-import .arc-import-primary', el => el.click());
     await page.waitForSelector('.arc-import .arc-import-done', { timeout: 15000 });
-    const names = (await sidecoveTree()).map(node => node[0]);
-    expect(names.slice(-3)).toEqual(['Work', 'Personal (Arc)', 'Personal (Arc 2)']);
+    expect(await page.$eval('.arc-import .arc-import-done', el => el.textContent)).toBe(
+        'Imported 1 space with 0 pinned tabs and 1 folder.'
+    );
+    const after = await sidecoveTree();
+    expect(after.slice(0, before.length)).toEqual(before);
+    expect(after.slice(before.length)).toEqual([['Ideas', [['Empty folder', []]]]]);
     await page.$$eval('.arc-import-actions button', buttons => buttons.at(-1).click());
+
+    // Now everything in the file is here, and there is nothing to import.
+    expect((await pick()).every(box => box.disabled && !box.checked)).toBe(true);
+    expect(await page.$eval('.arc-import', el => el.textContent)).toContain(
+        'Every space in this file is already in Sidecove from an earlier import.'
+    );
+    expect(await page.$eval('.arc-import .arc-import-primary', el => el.disabled)).toBe(true);
+    await page.$$eval('.arc-import-actions button', buttons => buttons.at(-1).click());
+    expect(await sidecoveTree()).toEqual(after);
 });
 
 test('with tab group sync on, folders inside folders join their top folder', async () => {
+    // Another Arc file, whose spaces are not imported yet: the same one with other ids.
+    const other = path.join(mkdtempSync(path.join(tmpdir(), 'arc-import-')), 'StorableSidebar.json');
+    writeFileSync(
+        other,
+        readFileSync(ARC_FILE, 'utf8').replaceAll('00000000-0000-4000-8000-', '11111111-0000-4000-8000-')
+    );
     await page.evaluate(() => chrome.storage.sync.set({ syncTabGroups: true }));
     try {
         await openImport();
         const input = await page.$('.arc-import input[type="file"]');
-        await input.uploadFile(ARC_FILE);
+        await input.uploadFile(other);
         await page.waitForSelector('.arc-import .arc-import-space');
         await page.$$eval('.arc-import .arc-import-space input', boxes => [boxes[1], boxes[2]].forEach(b => b.click()));
         await page.$eval('.arc-import .arc-import-primary', el => el.click());

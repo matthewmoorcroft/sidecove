@@ -64,6 +64,10 @@
     cursor: pointer;
 }
 
+.arc-import-space-done {
+    cursor: default;
+}
+
 .arc-import-space .arc-import-small {
     grid-column: 2;
 }

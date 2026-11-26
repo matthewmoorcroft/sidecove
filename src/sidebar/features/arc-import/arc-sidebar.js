@@ -143,7 +143,7 @@ const flattenTabs = nodes => nodes.flatMap(node => (node.type === 'tab' ? [node]
 
 /**
  * Parses the text of StorableSidebar.json. Returns
- *   { spaces: [{ name, icon, color, pinned, counts, todayTabs }], favorites: [{ title, url }],
+ *   { spaces: [{ id, name, icon, color, pinned, counts, todayTabs }], favorites: [{ title, url }],
  *     favoriteCounts }
  * where `pinned` is a tree of { type: 'tab', title, url } and { type: 'folder', title, children },
  * `icon` is { emoji } or { symbol } (Arc's symbol name) or null, and `color` is #rrggbb or null.
@@ -169,6 +169,7 @@ export function readArcSidebar(json) {
         const today = newCounts();
         readChildren(items, items.byId.get(unpinned)?.childrenIds, today, seen);
         return {
+            id,
             name: text(space.title),
             icon: spaceIcon(space),
             color: spaceColor(space),

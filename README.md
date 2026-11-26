@@ -149,7 +149,10 @@ extension cannot open your files by itself, so you pick Arc's sidebar file,
 Sidecove reads the file in the sidebar; nothing leaves your computer, and Sidecove does not
 keep the file. It lists the spaces it found, with their pinned tabs and folders, and you
 choose which to import. Each one becomes a **new** space after yours, so your own spaces are
-never changed or merged; a name you already use gets "(Arc)" after it. What carries over:
+never changed or merged; a name you already use gets "(Arc)" after it. Importing the same file
+again brings in only what is not in Sidecove yet: spaces you imported before are marked and
+cannot be ticked, and Arc's favorites come in once. Delete an imported space to import it again.
+What carries over:
 
 - Spaces, in Arc's order, with their names, their icon when Sidecove has a matching symbol or
   it is an emoji, and their colour as a custom colour.

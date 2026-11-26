@@ -14,6 +14,12 @@ test('reads spaces in Arc order with names, icons and colours', () => {
         ['Work', 'Personal', 'Ideas']
     );
     assert.deepEqual(arc.spaces[0].icon, { symbol: 'briefcase.fill' });
+    // Arc's own space ids, so a later import can tell what it brought in before.
+    const ids = fixture().sidebar.containers[1].spaces.filter(entry => typeof entry === 'string');
+    assert.deepEqual(
+        arc.spaces.map(s => s.id),
+        ids
+    );
     assert.deepEqual(arc.spaces[1].icon, { emoji: '🏠' });
     assert.equal(arc.spaces[0].color, '#5c8ce6');
     assert.equal(arc.spaces[1].color, null);
