@@ -125,8 +125,9 @@ export function registerSavedFavorites({
     // favorite is not saved as a second one: it is unpinned and is an ordinary tab, as a link from
     // the favorite would be. Pinning it by hand later still saves it.
     async function unpinCopy(tab) {
-        // A tab Sidecove opened for a favorite is already bound, and is not a copy.
-        if (!enabled || !savable(tab) || favoriteOfTab(state, tab.id)) return false;
+        // Chrome names the active tab as a duplicate's opener, so a pinned tab with none (one an
+        // extension created, say) is not a copy. A tab Sidecove opened for a favorite is already bound.
+        if (!enabled || tab.openerTabId === undefined || !savable(tab) || favoriteOfTab(state, tab.id)) return false;
         const source = copiedTab(tab, await chrome.tabs.query({ windowId: tab.windowId }).catch(() => []));
         if (!source || !favoriteOfTab(state, source.id)) return false;
         await chrome.tabs.update(tab.id, { pinned: false }).catch(() => {});

@@ -216,7 +216,7 @@ test('with the setting off after a restart, unpinning a saved favorite still rem
 // Chrome pins a duplicate of a pinned tab, directly right of it. A window shows a favorite once, so
 // the copy is not a second favorite: it is unpinned before it is saved and is an ordinary tab.
 const duplicate = (live, chrome, source, id) => {
-    const copy = { ...live.get(source), id, index: live.get(source).index + 1, incognito: false };
+    const copy = { ...live.get(source), id, index: live.get(source).index + 1, openerTabId: 99, incognito: false };
     live.set(id, copy);
     chrome.tabs.onCreated.listeners[0]({ ...copy });
     return copy;
@@ -324,4 +324,13 @@ test('with the setting off, a pinned copy stays pinned and nothing is saved', as
     await settle();
     assert.equal(live.get(2).pinned, true);
     assert.equal('savedFavorites' in local, false);
+});
+
+test('a pinned tab with no opener beside a favorite on the same page is not a duplicate', async () => {
+    const { chrome, live, settle } = setup({ tabs: [pin(1, 1, 'https://a/')] });
+    await settle();
+    live.set(2, { ...pin(2, 1, 'https://a/'), index: 2 });
+    chrome.tabs.onCreated.listeners[0]({ ...live.get(2) });
+    await settle();
+    assert.equal(live.get(2).pinned, true);
 });
