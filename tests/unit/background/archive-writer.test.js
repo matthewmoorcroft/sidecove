@@ -109,6 +109,51 @@ test('the archive keeps the newest 100 entries', async () => {
     assert.deepEqual(list, local.archivedTabs);
 });
 
+test('the same page archived from two spaces gives each space its own entry to restore', async () => {
+    const archive = writer();
+    const home = await archive.add({ url: 'https://same.test/', name: 'Same', spaceId: 'a' });
+    const work = await archive.add({ url: 'https://same.test/', name: 'Same', spaceId: 'b' });
+    assert.deepEqual([home.stored, home.archived, work.stored, work.archived], [true, true, true, true]);
+    assert.deepEqual(urls().sort(), [
+        ['https://same.test/', 'a'],
+        ['https://same.test/', 'b']
+    ]);
+    // Restoring one space's entry leaves the other's.
+    await archive.restore({ url: 'https://same.test/', spaceId: 'b' }, 1);
+    assert.equal(dispatched.at(-1).spaceId, 'b');
+    assert.deepEqual(urls(), [['https://same.test/', 'a']]);
+});
+
+test('a page archived again from the same space keeps one entry, which still counts as archived', async () => {
+    const archive = writer();
+    await archive.add({ url: 'https://same.test/', name: 'Same', spaceId: 'a' });
+    const again = await archive.add({ url: 'https://same.test/', name: 'Same', spaceId: 'a' });
+    assert.deepEqual([again.stored, again.archived], [false, true]);
+    assert.equal(local.archivedTabs.length, 1);
+});
+
+test('Archive Tab keeps a page from a second space and closes its tab', async () => {
+    local.archivedTabs = [{ url: 'https://same.test/', name: 'Same', spaceId: 'a', archivedAt: 1 }];
+    tabs[1].url = 'https://same.test/';
+    await writer().archiveTab(2);
+    assert.deepEqual(urls().sort(), [
+        ['https://same.test/', 'a'],
+        ['https://same.test/', 'b']
+    ]);
+    assert.deepEqual(removed, [2]);
+});
+
+test('Archive Tab keeps an untitled tab under its address, and leaves open a tab Archived cannot keep', async () => {
+    tabs[0].title = '';
+    tabs[1].url = '';
+    const archive = writer();
+    await archive.archiveTab(1);
+    assert.deepEqual(local.archivedTabs[0].name, 'https://one.test/');
+    await archive.archiveTab(2);
+    assert.deepEqual(urls(), [['https://one.test/', 'a']]);
+    assert.deepEqual(removed, [1]);
+});
+
 test('manual archive records the stored owner and closes the tab', async () => {
     await writer().archiveTab(2);
     assert.deepEqual(urls(), [['https://two.test/', 'b']]);

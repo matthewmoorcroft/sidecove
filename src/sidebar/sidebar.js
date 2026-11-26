@@ -51,6 +51,7 @@ import { spaceRequest } from '../shared/space-client.js';
 import {
     addArchivedTab,
     archiveTab,
+    findArchivedEntry,
     getArchivedTabs,
     removeArchivedTab,
     restoreArchivedTab
@@ -3322,7 +3323,7 @@ async function createTabElement(tab, isPinned = false, isBookmarkOnly = false) {
                     }
                     // Check if tab is in archive and restore it
                     const archivedTabs = await getArchivedTabs();
-                    const archivedTab = !isPinned && archivedTabs.find(t => t.url === tabUrl);
+                    const archivedTab = !isPinned && findArchivedEntry(archivedTabs, tabUrl, activeSpaceId);
 
                     let targetSpaceId = activeSpaceId;
                     let bookmarkTitle =

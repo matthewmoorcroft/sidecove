@@ -30,8 +30,8 @@ export function createArchiveWriter({ chromeApi = chrome, spaceStore, now = Date
 
     const add = entry =>
         run(async list => {
-            const { stored, list: tabs } = await store(list, entry);
-            return { stored, tabs };
+            const { stored, archived, list: tabs } = await store(list, entry);
+            return { stored, archived, tabs };
         });
 
     const remove = (url, spaceId) =>
@@ -42,16 +42,21 @@ export function createArchiveWriter({ chromeApi = chrome, spaceStore, now = Date
             return { tabs };
         });
 
-    // Archives an open tab under the space that lists it, then closes it.
+    // Archives an open tab under the space that lists it, then closes it. A tab Archived cannot
+    // give back stays open.
     const archiveTab = tabId =>
         run(async list => {
             const tab = await chromeApi.tabs.get(tabId);
             const spaces = await spaceStore.dispatch({ action: 'get' });
             const space = spaces.find(s => [...s.spaceBookmarks, ...s.temporaryTabs].includes(tabId));
             if (!tab || !space) return { tabs: list };
-            const { list: tabs } = await store(list, { url: tab.url, name: tab.title, spaceId: space.id });
-            await chromeApi.tabs.remove(tabId);
-            return { tabs };
+            const { archived, list: tabs } = await store(list, {
+                url: tab.url,
+                name: tab.title || tab.url,
+                spaceId: space.id
+            });
+            if (archived) await chromeApi.tabs.remove(tabId);
+            return { archived, tabs };
         });
 
     // Reopens an archived page in its space and takes it out of the archive.

@@ -105,6 +105,23 @@ for (const page of ['options.html', 'installation-onboarding.html']) {
         assert.equal(local.archivedTabs, undefined);
     });
 }
+test('a page already archived from another space is archived for this space too before its tab closes', async () => {
+    local.archivedTabs = [{ url: 'https://one.test/', name: 'One', spaceId: 'other', archivedAt: 1 }];
+    local.tabLastActivity = { 1: Date.now() - threshold - 1000 };
+    await startBackground()();
+    assert.deepEqual(removed, [1]);
+    assert.deepEqual(local.archivedTabs.map(t => [t.url, t.spaceId]).sort(), [
+        ['https://one.test/', 'a'],
+        ['https://one.test/', 'other']
+    ]);
+});
+test('an idle tab Archived cannot keep stays open', async () => {
+    tabs[0].url = '';
+    local.tabLastActivity = { 1: Date.now() - threshold - 1000 };
+    await startBackground()();
+    assert.deepEqual(removed, []);
+    assert.equal(local.archivedTabs, undefined);
+});
 test('a previous-session record for a reused tab id does not archive it at the first check after restart', async () => {
     session.spaceSession = false;
     local.spaceTabSnapshot = [{ spaceId: 'a', section: 'temporaryTabs', order: 0, url: 'https://restored.test/' }];

@@ -16,12 +16,20 @@ export async function getArchivedTabs() {
     return (await chrome.storage.local.get(ARCHIVED_TABS_KEY))[ARCHIVED_TABS_KEY] || [];
 }
 
-// Resolves true only when a new entry was stored.
-export const addArchivedTab = async entry => (await request('add', { entry })).stored;
+// `stored`: a new entry was added. `archived`: Archived can give the page back to its space,
+// with a new entry or one already there; a tab is closed only then.
+export async function addArchivedTab(entry) {
+    const { stored, archived } = await request('add', { entry });
+    return { stored, archived };
+}
+
+// The entry a favorite's address opens from: the one archived from this space, else any.
+export const findArchivedEntry = (list, url, spaceId) =>
+    list.find(t => t.url === url && t.spaceId === spaceId) || list.find(t => t.url === url);
 
 export const removeArchivedTab = async (url, spaceId) => (await request('remove', { url, spaceId })).tabs;
 
-// Archives an open tab under the space that owns it and closes it.
+// Archives an open tab under the space that owns it, and closes it once Archived can give it back.
 export async function archiveTab(tabId) {
     try {
         await request('archiveTab', { tabId });

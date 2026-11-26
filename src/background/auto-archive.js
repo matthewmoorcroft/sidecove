@@ -158,9 +158,8 @@ export function registerAutoArchive(spaceStore, archive) {
                     spaceId: ownerOf(await spaceStore.dispatch({ action: 'get' }), tab.id)?.id
                 };
 
-                // Archive only tabs owned by an extension space.
-                if (tabData.spaceId) {
-                    await archive.add(tabData);
+                // Archive only tabs owned by an extension space, and close one only once Archived can give it back.
+                if (tabData.spaceId && (await archive.add(tabData)).archived) {
                     await chrome.tabs.remove(tab.id); // Close the tab after archiving
                     await removeTabLastActivity(tab.id); // Remove activity timestamp after archiving
                 } else {

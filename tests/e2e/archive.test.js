@@ -163,3 +163,36 @@ test('two tabs archived at the same moment both stay in Archived', async () => {
         ])
     );
 });
+
+test('the same page archived from two spaces can be restored to each', async () => {
+    const url = `${base}/both-spaces`;
+    const home = await openTab('both-spaces', homeId);
+    const work = await openTab('both-spaces', workId);
+    await showSpace('Home');
+    await archiveFromMenu(home);
+    await showSpace('Work');
+    await archiveFromMenu(work);
+    expect((await archived()).filter(([entry]) => entry === url).sort()).toEqual(
+        [
+            [url, homeId],
+            [url, workId]
+        ].sort()
+    );
+
+    // Archived lists the newest first: Work's, then Home's.
+    await restoreFromArchived(url);
+    await page.waitForFunction(
+        url => chrome.tabs.query({ url }).then(tabs => tabs.length === 1),
+        { polling: 100 },
+        url
+    );
+    expect(await ownersOf(url)).toEqual(['Work']);
+    await restoreFromArchived(url);
+    await page.waitForFunction(
+        url => chrome.tabs.query({ url }).then(tabs => tabs.length === 2),
+        { polling: 100 },
+        url
+    );
+    expect(await ownersOf(url)).toEqual(['Home', 'Work']);
+    expect((await archived()).filter(([entry]) => entry === url)).toEqual([]);
+});
