@@ -4365,6 +4365,7 @@ const linkDropPosition = createLinkDropPosition({
 
 // Tabs Clear is hiding come back one at a time when picked in Chrome's own tab strip.
 const clearedTabs = createClearedTabs({ removeArchivedTab });
+chrome.tabs.onReplaced.addListener((added, removed) => clearedTabs.replaced(added, removed));
 
 const handleTabActivated = createTabActivationHandler({
     isCreatingSpace: () => isCreatingSpace,

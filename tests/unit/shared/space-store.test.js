@@ -803,6 +803,26 @@ test('a hidden tab that Chrome closes is forgotten, and unhiding into a deleted 
     assert.ok(ownerOf(store.spaces, 4), 'the tab is back in some space');
 });
 
+test('a hidden tab Chrome swaps for a new one stays hidden under the new id', async () => {
+    tabs.push({ id: 3, windowId: 1, url: 'https://three.test/' });
+    local.spaces[0].temporaryTabs = [1, 3];
+    const store = new SpaceStore();
+    await store.dispatch({ action: 'get' });
+    await store.dispatch({ action: 'hide', tabIds: [3] });
+    store.install();
+    tabs = tabs.map(t => (t.id === 3 ? { ...t, id: 13 } : t));
+    chrome.tabs.onReplaced.emit(13, 3);
+    await store.run(() => {});
+    assert.deepEqual(session.hiddenTabs, [13]);
+    // The new tab loading does not file it into a space while it is hidden.
+    chrome.tabs.onUpdated.emit(13, { url: 'https://three.test/' }, tabs[2]);
+    await store.run(() => {});
+    assert.equal(ownerOf(store.spaces, 13), undefined);
+    await store.dispatch({ action: 'unhide', tabIds: [13], spaceId: 'a', order: [1, 13] });
+    assert.deepEqual(local.spaces[0].temporaryTabs, [1, 13]);
+    assert.deepEqual(session.hiddenTabs, []);
+});
+
 test("hiding a tab forgets it as the space's last tab, and unhiding nothing leaves the order alone", async () => {
     tabs.push({ id: 3, windowId: 1, url: 'https://three.test/' }, { id: 5, windowId: 1, url: 'https://five.test/' });
     local.spaces[0].temporaryTabs = [3, 1, 5];

@@ -429,6 +429,8 @@ export class SpaceStore {
             handle(() => {
                 this.linkTails.replaced(added, removed);
                 this.linkPins.replaced(added, removed);
+                // A tab Clean All is hiding stays hidden under its new id.
+                if (this.hidden.delete(removed)) this.hidden.add(added);
                 for (const space of this.spaces) {
                     for (const key of sections) space[key] = space[key].map(id => (id === removed ? added : id));
                     if (space.lastTab === removed) space.lastTab = added;
