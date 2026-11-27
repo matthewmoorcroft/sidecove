@@ -384,8 +384,14 @@ describe('favorites saved on update', () => {
                     }
                     return ids;
                 }, base);
-                // Give Chrome a moment to write the session it restores.
-                await new Promise(resolve => setTimeout(resolve, 1500));
+                // Wait for the worker to save each tab's record, as it does a moment after each change.
+                await page.waitForFunction(
+                    async () =>
+                        ((await chrome.storage.local.get('spaceTabSnapshot')).spaceTabSnapshot || []).filter(record =>
+                            record.url.includes('/up-')
+                        ).length >= 4,
+                    { polling: 100, timeout: 15000 }
+                );
                 const saved = await page.evaluate(
                     async () => (await chrome.storage.local.get('spaceTabSnapshot')).spaceTabSnapshot
                 );
