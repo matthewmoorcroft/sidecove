@@ -9,6 +9,12 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Sidecove's worker is background.js; a test extension loaded beside it has none of that name.
+const isSidecoveWorker = target =>
+    target.type() === 'service_worker' &&
+    target.url().startsWith('chrome-extension://') &&
+    target.url().endsWith('/background.js');
+
 /**
  * Launch Chrome with the extension loaded
  * @param {Object} options - Launch options
@@ -42,21 +48,16 @@ export async function launchBrowserWithExtension(options = {}) {
         devtools: false
     });
 
-    // Wait a bit for the extension to initialize
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    // Sidecove's worker starts within a fraction of a second; wait for it rather than a fixed pause.
+    // If it never appears, the methods below still try to find the extension another way.
+    await browser.waitForTarget(isSidecoveWorker, { timeout: 10000 }).catch(() => {});
 
     // Get extension ID - try multiple methods
     let extensionId = null;
 
     // Method 1: Look for service worker
     let targets = await browser.targets();
-    // Sidecove's worker is background.js; a test extension loaded beside it has none of that name.
-    let extensionTarget = targets.find(
-        target =>
-            target.type() === 'service_worker' &&
-            target.url().startsWith('chrome-extension://') &&
-            target.url().endsWith('/background.js')
-    );
+    let extensionTarget = targets.find(isSidecoveWorker);
 
     if (extensionTarget) {
         const extensionUrl = extensionTarget.url();
@@ -130,17 +131,23 @@ export async function closeSetupGuide(browser, extensionId, waitMs = 3000) {
 }
 
 /**
- * Open the extension sidebar
+ * Open the extension sidebar and wait until it has finished starting: the page sets `data-ready`
+ * on its root element once its spaces are drawn and its controls are wired.
  * @param {Browser} browser - Puppeteer browser instance
  * @param {string} extensionId - Extension ID
+ * @param {Object} options - `legacyBuild` for an earlier release, which has no ready marker
  * @returns {Promise<Page>}
  */
-export async function openSidebar(browser, extensionId) {
+export async function openSidebar(browser, extensionId, options = {}) {
     const sidebarUrl = `chrome-extension://${extensionId}/sidebar.html`;
     const page = await browser.newPage();
     await page.goto(sidebarUrl, { waitUntil: 'domcontentloaded' });
-    // Wait for sidebar JS to initialize (loads spaces from storage, creates DOM)
-    await new Promise(r => setTimeout(r, 2000));
+    if (options.legacyBuild) {
+        // Builds from before the marker can only be waited for with a fixed pause.
+        await new Promise(r => setTimeout(r, 2000));
+    } else {
+        await page.waitForFunction(() => document.documentElement.dataset.ready === 'true', { polling: 50 });
+    }
     return page;
 }
 

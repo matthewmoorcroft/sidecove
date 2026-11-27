@@ -130,7 +130,7 @@ test.each(cases)('a profile from %s keeps its spaces, favorites and settings aft
     });
     let page, before;
     try {
-        page = await openSidebar(browser, extensionId);
+        page = await openSidebar(browser, extensionId, { legacyBuild: Boolean(previous) });
         expect(await page.evaluate(() => chrome.runtime.getManifest().version)).toBe(previousVersion);
         await createWorkSpace(page);
         await page.evaluate(async () => {
@@ -208,7 +208,7 @@ describe('favorites saved on update', () => {
             userDataDir: profileDir
         });
         try {
-            const page = await openSidebar(browser, extensionId);
+            const page = await openSidebar(browser, extensionId, { legacyBuild: Boolean(previous) });
             await page.evaluate(
                 async (base, on) => {
                     if (!on) await chrome.storage.sync.set({ showTabsFromAllWindows: false });
@@ -287,7 +287,7 @@ describe('favorites saved on update', () => {
             });
             let before;
             try {
-                const page = await openSidebar(browser, extensionId);
+                const page = await openSidebar(browser, extensionId, { legacyBuild: Boolean(previous) });
                 await page.evaluate(async () => {
                     const { spaces } = await chrome.runtime.sendMessage({ type: 'spaceStore', action: 'get' });
                     await chrome.bookmarks.create({
@@ -352,7 +352,7 @@ describe('favorites saved on update', () => {
             });
             let ids;
             try {
-                const page = await openSidebar(browser, extensionId);
+                const page = await openSidebar(browser, extensionId, { legacyBuild: Boolean(previous) });
                 await createWorkSpace(page);
                 ids = await page.evaluate(async base => {
                     const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
