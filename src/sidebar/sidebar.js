@@ -88,6 +88,7 @@ import {
 import { removeFolderIcons } from './features/folder-icons/folder-icon-store.js';
 import { audioState } from './tab-audio.js';
 import { Selection, selectionGesture } from './selection.js';
+import { showTabContextMenu } from './features/context-menu/tab-menu.js';
 import { searchEntries } from './tab-search.js';
 import { LocalStorage } from '../shared/localstorage.js';
 import { Utils } from '../shared/utils.js';
@@ -96,7 +97,6 @@ import {
     showSpaceNameInput,
     activateTabInDOM,
     activateSpaceInDOM,
-    showTabContextMenu,
     showArchivedTabsPopup,
     setupQuickPinListener,
     getDragAfterElement,
