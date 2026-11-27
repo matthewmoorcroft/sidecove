@@ -35,15 +35,24 @@ const labels = entries => entries.map(entry => (entry === 'separator' ? '-' : en
 
 test('another window’s tab offers only actions that work the same from this window', () => {
     const { entries } = entriesFor();
-    assert.deepEqual(labels(entries), ['Mute Tab', 'Rename Tab', 'Copy Link', '-', 'Move to Space', 'Close Tab']);
+    assert.deepEqual(labels(entries), [
+        'Copy Link',
+        '-',
+        'Rename Tab',
+        'Mute Tab',
+        '-',
+        'Move to Space',
+        '-',
+        'Close Tab'
+    ]);
     for (const missing of ['Add to Favorites', 'Pin Tab', 'Duplicate Tab'])
         assert.equal(labels(entries).includes(missing), false);
 });
 
 test('mute follows the tab’s state and rename can be left out', () => {
     const { entries, calls } = entriesFor({ muted: true, canRename: false });
-    assert.deepEqual(labels(entries).slice(0, 2), ['Unmute Tab', 'Copy Link']);
-    entries[0].action();
+    assert.deepEqual(labels(entries), ['Copy Link', '-', 'Unmute Tab', '-', 'Move to Space', '-', 'Close Tab']);
+    entries[2].action();
     assert.deepEqual(calls, [['setMuted', false]]);
 });
 
