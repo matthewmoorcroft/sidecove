@@ -15,7 +15,9 @@ export function installSpaceStoreEvents(store) {
                 await store.persist();
             })
             .catch(console.error);
-    chrome.tabs.onCreated.addListener(tab => handle(async () => store.track(await asFiled(chrome, store, tab))));
+    chrome.tabs.onCreated.addListener(tab =>
+        handle(async () => store.track(await asFiled(chrome, store, tab), { created: true }))
+    );
     chrome.tabs.onUpdated.addListener((id, change, tab) => {
         if (change.url || change.pinned !== undefined) handle(() => store.track(tab));
     });
