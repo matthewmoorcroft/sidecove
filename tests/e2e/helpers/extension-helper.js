@@ -145,6 +145,39 @@ export async function openSidebar(browser, extensionId) {
 }
 
 /**
+ * Open a second sidebar, as the active tab of another window, and wait until it has drawn its
+ * spaces. Puppeteer must not attach to a tab while Chrome is still loading an extension page into
+ * it: on a busy machine the page then starts as an ordinary web page, with no chrome.storage or
+ * other extension APIs, until it is reloaded. So this opens a blank tab, attaches once that has
+ * loaded, and navigates it to the sidebar, as openSidebar does.
+ * @param {Browser} browser - Puppeteer browser instance
+ * @param {string} extensionId - Extension ID
+ * @param {Page} opener - An extension page, used to open the tab
+ * @param {number} windowId - The window to open it in
+ * @param {Object} options - `query` to add to the URL, `onPageError` to hear the page's errors
+ * @returns {Promise<Page>}
+ */
+export async function openSidebarInWindow(browser, extensionId, opener, windowId, options = {}) {
+    const placeholder = `about:blank#sidebar-in-window-${windowId}`;
+    await opener.evaluate(
+        (windowId, url) => chrome.tabs.create({ windowId, url, active: true }),
+        windowId,
+        placeholder
+    );
+    const page = await (await browser.waitForTarget(target => target.url() === placeholder)).page();
+    if (options.onPageError) page.on('pageerror', options.onPageError);
+    await page.goto(`chrome-extension://${extensionId}/sidebar.html${options.query || ''}`, {
+        waitUntil: 'domcontentloaded'
+    });
+    // The space list is drawn from storage, so it shows the page has its APIs and has started.
+    await page.waitForSelector('.space.active').catch(async error => {
+        const apis = await page.evaluate(() => Object.keys(chrome).sort().join(', '));
+        throw new Error(`The sidebar in window ${windowId} did not start (chrome has: ${apis}): ${error.message}`);
+    });
+    return page;
+}
+
+/**
  * Open the extension options page
  * @param {Browser} browser - Puppeteer browser instance
  * @param {string} extensionId - Extension ID

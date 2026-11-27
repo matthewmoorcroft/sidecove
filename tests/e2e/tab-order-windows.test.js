@@ -1,5 +1,5 @@
 import { createServer } from 'node:http';
-import { launchBrowserWithExtension, openSidebar } from './helpers/extension-helper.js';
+import { launchBrowserWithExtension, openSidebar, openSidebarInWindow } from './helpers/extension-helper.js';
 
 // With tabs from all windows on, every window's panel lists the pages in the same order, and
 // opening a page here from another window's tab does not move it. So next and previous visit each
@@ -99,13 +99,11 @@ beforeAll(async () => {
         const other = await chrome.windows.create({ url: 'about:blank', focused: false });
         return { one: here.id, two: other.id };
     });
-    const panelUrl = `chrome-extension://${result.extensionId}/sidebar.html?panel=two`;
-    await one.evaluate((windowId, url) => chrome.tabs.create({ windowId, url, active: true }), win.two, panelUrl);
-    two = await (await browser.waitForTarget(target => target.url() === panelUrl)).page();
-    two.on('pageerror', error => console.error('Second panel error:', error.message));
+    two = await openSidebarInWindow(browser, result.extensionId, one, win.two, {
+        query: '?panel=two',
+        onPageError: error => console.error('Second panel error:', error.message)
+    });
     await two.bringToFront();
-    await two.reload({ waitUntil: 'domcontentloaded' });
-    await two.waitForSelector('.space.active');
     await one.bringToFront();
     await one.waitForSelector('.space.active');
 });
