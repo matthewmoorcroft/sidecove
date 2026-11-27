@@ -1,6 +1,7 @@
 // When a window closes and another stays open, its ordinary tabs open again as tabs in the window
 // that is left, in the same spaces and places (see closed-window-reopen.js). Nothing here touches
 // chrome.* or the DOM, so the rules can be tested on their own.
+import { pageOf } from '../shared/saved-favorites.js';
 
 // Only pages a new tab can open and that mean something later. New Tab, chrome://, about:blank,
 // extension pages and local files are not reopened.
@@ -17,17 +18,20 @@ export const canTakeTabs = win => win?.type === 'normal' && !win.alwaysOnTop && 
 //   layouts  each of those spaces' lists, which is the order to put the tabs back in.
 // Every window that has a tab gets an entry, even with nothing to reopen. Pinned tabs and favorites
 // (any section but the space's ordinary tabs) and pages that cannot be reopened are left out.
+// A space's list is copied once, and every window that has tabs in that space shares the copy.
 export function windowContents(spaces, tabs) {
     const byId = new Map(tabs.map(tab => [tab.id, tab]));
     const result = {};
+    const lists = new Map();
     for (const tab of tabs) result[tab.windowId] ||= { tabs: [], layouts: {} };
     for (const space of spaces) {
         for (const id of space.temporaryTabs || []) {
             const tab = byId.get(id);
-            if (!tab || tab.pinned || !isReopenablePage(tab.url || tab.pendingUrl)) continue;
+            if (!tab || tab.pinned || !isReopenablePage(pageOf(tab))) continue;
             const entry = result[tab.windowId];
-            entry.tabs.push({ tabId: id, url: tab.url || tab.pendingUrl, spaceId: space.id });
-            entry.layouts[space.id] ||= [...space.temporaryTabs];
+            entry.tabs.push({ tabId: id, url: pageOf(tab), spaceId: space.id });
+            if (!lists.has(space.id)) lists.set(space.id, [...space.temporaryTabs]);
+            entry.layouts[space.id] ||= lists.get(space.id);
         }
     }
     return result;
@@ -106,7 +110,7 @@ export function hasItsName(change, tab) {
 // is the original coming back, so it replaces the copy; the earliest copy goes first. A private
 // tab, or one in a window that cannot take tabs, is never the original.
 export function copyReplacedBy(copies, tab, win) {
-    const url = tab.url || tab.pendingUrl;
+    const url = pageOf(tab);
     if (!isReopenablePage(url) || tab.incognito || !canTakeTabs(win)) return null;
     return (
         copies.find(copy => copy.url === url && copy.copyId !== tab.id && !copy.windowIds.includes(tab.windowId)) ||
