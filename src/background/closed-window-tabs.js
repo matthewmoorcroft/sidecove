@@ -103,17 +103,53 @@ export function hasItsName(change, tab) {
 }
 
 // Reopening the closed window afterwards (Cmd+Shift+T, or History) brings back its own tabs while
-// Sidecove's copies are still open. `copies` are { copyId, url, windowIds }: the page the copy was
-// opened with, and the windows open then. A copy stands in for the closed tab only until you use it
-// (see closed-window-reopen.js), so it is matched by the page it was opened with even if that page
-// has since redirected. A tab that opens with that page in a window that was not open then, `win`,
-// is the original coming back, so it replaces the copy; the earliest copy goes first. A private
+// Sidecove's copies are still open. `copies` are { copyId, url, windowIds, batch, restoredIn }: the
+// page the copy was opened with, the windows open then, the closed window it stands in for, and the
+// window that has brought that one back, once one has. A copy stands in for the closed tab only
+// until you use it (see closed-window-reopen.js), so it is matched by the page it was opened with
+// even if that page has since redirected. Without the sessions permission a new window could be
+// Chrome's restore or just a new window, so the evidence is: Chrome restores a tab on its page
+// already, with no opener (a new link tab has only the address it is going to), in a window that
+// was not open then, `win`; and with it, in that window (`windowTabs`), the pages of at least two of
+// the batch's copies still waiting, or of its only one. The earliest copy goes first. A private
 // tab, or one in a window that cannot take tabs, is never the original.
-export function copyReplacedBy(copies, tab, win) {
-    const url = pageOf(tab);
-    if (!isReopenablePage(url) || tab.incognito || !canTakeTabs(win)) return null;
-    return (
-        copies.find(copy => copy.url === url && copy.copyId !== tab.id && !copy.windowIds.includes(tab.windowId)) ||
-        null
+export function copyReplacedBy(copies, tab, win, windowTabs = [tab]) {
+    const url = tab.url;
+    if (!isReopenablePage(url) || tab.openerTabId !== undefined || tab.incognito || !canTakeTabs(win)) return null;
+    const waits = copy =>
+        copy.copyId !== tab.id &&
+        !copy.windowIds.includes(tab.windowId) &&
+        (copy.restoredIn === undefined || copy.restoredIn === tab.windowId);
+    const copy = copies.find(other => other.url === url && waits(other));
+    if (!copy) return null;
+    if (copy.restoredIn !== undefined) return copy;
+    const batch =
+        copy.batch === undefined ? [copy] : copies.filter(other => other.batch === copy.batch && waits(other));
+    const back = new Set(broughtBack(tab, windowTabs).map(other => other.url));
+    return batch.filter(other => back.has(other.url)).length >= Math.min(2, batch.length) ? copy : null;
+}
+
+// The tabs in `tab`'s window that may be Chrome's restore: on their page already, with no opener.
+const broughtBack = (tab, windowTabs) =>
+    [tab, ...windowTabs.filter(other => other.id !== tab.id)].filter(
+        other => other.windowId === tab.windowId && other.openerTabId === undefined && isReopenablePage(other.url)
     );
+
+// Once `tab` has shown its window to be the closed one back (copyReplacedBy gave `copy`), each
+// copy of that window whose page is back in it is replaced, each by its own tab: Chrome may report
+// the restored tabs one at a time, so an earlier one could not show it yet.
+export function batchReplacements(copies, copy, tab, windowTabs) {
+    const pairs = [[copy, tab]];
+    if (copy.batch === undefined) return pairs;
+    const used = new Set([tab.id, ...copies.map(other => other.copyId)]);
+    for (const other of copies) {
+        if (other === copy || other.batch !== copy.batch || other.windowIds.includes(tab.windowId)) continue;
+        const match = broughtBack(tab, windowTabs).find(
+            candidate => !used.has(candidate.id) && candidate.url === other.url
+        );
+        if (!match) continue;
+        used.add(match.id);
+        pairs.push([other, match]);
+    }
+    return pairs.sort((a, b) => copies.indexOf(a[0]) - copies.indexOf(b[0]));
 }

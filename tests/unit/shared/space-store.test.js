@@ -319,6 +319,37 @@ test('a duplicate of a tab you are not on goes directly beneath that tab, not th
     assert.deepEqual(local.spaces[1].temporaryTabs, [2, 8, 3, 7]);
     assert.equal(store.copies.size, 0, 'forgotten once the pinned-link check has seen it');
 });
+test('the same link opened twice from a tab is a second link, not a copy of the first', async () => {
+    sync.invertTabOrder = false;
+    tabs = [
+        { id: 2, windowId: 1, index: 0, url: 'https://two.test/', groupId: -1, active: true },
+        { id: 3, windowId: 1, index: 1, url: 'https://three.test/', groupId: -1 }
+    ];
+    local.spaces = [space('a', []), space('b', [2, 3])];
+    const store = new SpaceStore();
+    store.install();
+    await store.dispatch({ action: 'get' });
+    // Chrome reports a new link tab with only the address it is going to, and puts each link from
+    // tab 2 after its earlier ones.
+    const open = async (id, index, url) => {
+        tabs.slice(index).forEach(t => t.index++);
+        const link = { id, windowId: 1, index, openerTabId: 2, url: '', pendingUrl: url, groupId: -1 };
+        tabs.splice(index, 0, link);
+        chrome.tabs.onCreated.emit({ ...link });
+        await store.run(() => {});
+        // By the next link, this one has loaded.
+        Object.assign(link, { url, pendingUrl: undefined });
+    };
+    await open(10, 1, 'https://same.test/');
+    await open(11, 2, 'https://same.test/');
+    await open(12, 3, 'https://other.test/');
+    assert.deepEqual(
+        tabs.map(t => t.id),
+        [2, 10, 11, 12, 3]
+    );
+    assert.deepEqual(local.spaces[1].temporaryTabs, [2, 10, 11, 12, 3]);
+    assert.equal(store.copies.size, 0);
+});
 test('a duplicate that wakes a stopped worker still goes directly beneath the tab it copies', async () => {
     sync.invertTabOrder = false;
     tabs = [
@@ -482,6 +513,194 @@ test('background event handlers track tab replacement and preserve window-close 
     await store.run(() => {});
     assert.equal(local.spaces[0].temporaryTabs.length, 0);
     assert.equal(local.spaceTabSnapshot.find(t => t.url === 'https://one.test/').spaceId, 'a');
+});
+// A window closes: Chrome reports each of its tabs closed with it, then the window.
+async function closeWindowOf(store, windowId) {
+    const closing = tabs.filter(t => t.windowId === windowId);
+    tabs = tabs.filter(t => t.windowId !== windowId);
+    for (const tab of closing) chrome.tabs.onRemoved.emit(tab.id, { windowId, isWindowClosing: true });
+    await store.run(() => {});
+}
+// As Chrome reports them: a new link tab has only the address it is going to, while a tab Chrome
+// restores with a closed window is on its address already and has no opener.
+const linkTab = (id, windowId, openerTabId, url) => ({
+    id,
+    windowId,
+    openerTabId,
+    url: '',
+    pendingUrl: url,
+    groupId: -1
+});
+const restoredTab = (id, windowId, url, extra = {}) => ({ id, windowId, url, groupId: -1, ...extra });
+async function openTab(store, tab) {
+    tabs.push(tab);
+    chrome.tabs.onCreated.emit({ ...tab });
+    await store.run(() => {});
+}
+function twoWindowsOfB() {
+    sync.invertTabOrder = false;
+    // Space a has tab 1 in window 1; space b has the same page open in windows 1 and 2.
+    tabs = [
+        { id: 1, windowId: 1, url: 'https://one.test/', groupId: -1 },
+        { id: 3, windowId: 1, url: 'https://two.test/', groupId: -1 },
+        { id: 2, windowId: 2, url: 'https://two.test/', groupId: -1 }
+    ];
+    local.spaces = [space('a', [1]), space('b', [3, 2])];
+}
+test('a link to a page that closed with another window is filed under the tab it was opened from', async () => {
+    twoWindowsOfB();
+    const store = new SpaceStore();
+    store.install();
+    await store.run(() => {});
+    await closeWindowOf(store, 2);
+    await openTab(store, linkTab(9, 1, 1, 'https://two.test/'));
+    assert.deepEqual(local.spaces[0].temporaryTabs, [1, 9]);
+    assert.deepEqual(local.spaces[1].temporaryTabs, [3]);
+});
+test('a link to the address of a space pinned tab that closed with its window stays an ordinary tab', async () => {
+    sync.invertTabOrder = false;
+    tabs = [
+        { id: 1, windowId: 1, url: 'https://one.test/', groupId: -1 },
+        { id: 2, windowId: 2, url: 'https://pin.test/', groupId: -1 }
+    ];
+    local.spaces = [space('a', [1]), { ...space('b', []), spaceBookmarks: [2] }];
+    local.pinnedTabStatesById = { 2: { bookmarkId: 'bm-pin', pinnedUrl: 'https://pin.test/' } };
+    const store = new SpaceStore();
+    store.install();
+    await store.run(() => {});
+    await closeWindowOf(store, 2);
+    await openTab(store, linkTab(9, 1, 1, 'https://pin.test/'));
+    assert.deepEqual(local.spaces[0].temporaryTabs, [1, 9]);
+    assert.deepEqual(local.spaces[1].spaceBookmarks, []);
+    assert.equal(local.pinnedTabStatesById[9], undefined);
+});
+test('a link opened into a new window does not take the place of a tab that closed with its window', async () => {
+    twoWindowsOfB();
+    const store = new SpaceStore();
+    store.install();
+    await store.run(() => {});
+    await closeWindowOf(store, 2);
+    // Shift+click: a new window, no opener, and only the address it is going to.
+    await store.dispatch({ action: 'activate', spaceId: 'a', windowId: 3 });
+    await openTab(store, linkTab(9, 3, undefined, 'https://two.test/'));
+    assert.deepEqual(local.spaces[0].temporaryTabs, [1, 9]);
+});
+test('reopening a closed window puts its tabs back, a space pinned tab with its bookmark', async () => {
+    sync.invertTabOrder = false;
+    tabs = [
+        { id: 1, windowId: 1, url: 'https://one.test/', groupId: -1 },
+        { id: 2, windowId: 2, url: 'https://pin.test/', groupId: -1 },
+        { id: 3, windowId: 2, url: 'https://three.test/', groupId: -1 }
+    ];
+    local.spaces = [space('a', [1]), { ...space('b', [3]), spaceBookmarks: [2] }];
+    local.pinnedTabStatesById = { 2: { bookmarkId: 'bm-pin', pinnedUrl: 'https://pin.test/' } };
+    const store = new SpaceStore();
+    store.install();
+    await store.run(() => {});
+    await closeWindowOf(store, 2);
+    // Cmd+Shift+T: Chrome brings the window back as window 5.
+    await openTab(store, restoredTab(12, 5, 'https://pin.test/'));
+    await openTab(store, restoredTab(13, 5, 'https://three.test/'));
+    assert.deepEqual(local.spaces[1].spaceBookmarks, [12]);
+    assert.deepEqual(local.spaces[1].temporaryTabs, [13]);
+    assert.equal(local.pinnedTabStatesById[12]?.bookmarkId, 'bm-pin');
+});
+test("once a window has taken a closed window's tabs back, another new window cannot take the rest", async () => {
+    sync.invertTabOrder = false;
+    tabs = [
+        { id: 1, windowId: 1, url: 'https://one.test/', groupId: -1 },
+        { id: 2, windowId: 2, url: 'https://x.test/', groupId: -1 },
+        { id: 3, windowId: 2, url: 'https://y.test/', groupId: -1 }
+    ];
+    local.spaces = [space('a', [1]), space('b', [2, 3])];
+    const store = new SpaceStore();
+    store.install();
+    await store.run(() => {});
+    await closeWindowOf(store, 2);
+    await openTab(store, restoredTab(12, 5, 'https://x.test/'));
+    // Another window brings back a page that window 2 also held, as History can.
+    await store.dispatch({ action: 'activate', spaceId: 'a', windowId: 6 });
+    await openTab(store, restoredTab(13, 6, 'https://y.test/'));
+    assert.deepEqual(local.spaces[1].temporaryTabs, [12]);
+    assert.deepEqual(local.spaces[0].temporaryTabs, [1, 13]);
+});
+test('a tab that closed with the last window still comes back in its space after a restart', async () => {
+    tabs = [{ id: 2, windowId: 2, url: 'https://two.test/', groupId: -1 }];
+    local.spaces = [space('a', []), space('b', [2])];
+    const store = new SpaceStore();
+    store.install();
+    await store.run(() => {});
+    await closeWindowOf(store, 2);
+    assert.ok(local.spaceTabSnapshot.some(t => t.url === 'https://two.test/' && t.spaceId === 'b'));
+    // Chrome quits and starts again, restoring the window with a new tab id.
+    session.spaceSession = false;
+    tabs = [{ id: 40, windowId: 1, url: 'https://two.test/', groupId: -1 }];
+    const after = new SpaceStore();
+    await after.dispatch({ action: 'get' });
+    assert.deepEqual(local.spaces[1].temporaryTabs, [40]);
+});
+// Saved before a restart: the same page in space a in window 5 and in space b in window 6, each
+// after another page of its own space.
+const twoSpacesBeforeRestart = () => [
+    { spaceId: 'a', section: 'temporaryTabs', order: 0, url: 'https://home.test/', windowId: 5, index: 0 },
+    { spaceId: 'a', section: 'temporaryTabs', order: 1, url: 'https://same.test/', windowId: 5, index: 1 },
+    { spaceId: 'b', section: 'temporaryTabs', order: 0, url: 'https://work.test/', windowId: 6, index: 0 },
+    { spaceId: 'b', section: 'temporaryTabs', order: 1, url: 'https://same.test/', windowId: 6, index: 1 }
+];
+const restoredWindows = () => [
+    // Chrome restores window 6 first, as window 1, and window 5 as window 2, with new ids.
+    { id: 20, windowId: 1, index: 0, url: 'https://work.test/', groupId: -1 },
+    { id: 21, windowId: 1, index: 1, url: 'https://same.test/', groupId: -1 },
+    { id: 30, windowId: 2, index: 0, url: 'https://home.test/', groupId: -1 },
+    { id: 31, windowId: 2, index: 1, url: 'https://same.test/', groupId: -1 }
+];
+test('after a restart, the same page open in two spaces goes back to its own space', async () => {
+    sync.invertTabOrder = false;
+    session.spaceSession = false;
+    local.spaceTabSnapshot = twoSpacesBeforeRestart();
+    tabs = restoredWindows();
+    const store = new SpaceStore();
+    await store.dispatch({ action: 'get' });
+    assert.deepEqual(local.spaces[0].temporaryTabs, [30, 31]);
+    assert.deepEqual(local.spaces[1].temporaryTabs, [20, 21]);
+});
+test('after a restart, the same page goes back to its own space when Chrome reports the tabs one by one', async () => {
+    sync.invertTabOrder = false;
+    session.spaceSession = false;
+    local.spaceTabSnapshot = twoSpacesBeforeRestart();
+    tabs = [];
+    const store = new SpaceStore();
+    store.install();
+    await store.run(() => {});
+    for (const tab of restoredWindows()) await openTab(store, tab);
+    assert.deepEqual(local.spaces[0].temporaryTabs, [30, 31]);
+    assert.deepEqual(local.spaces[1].temporaryTabs, [20, 21]);
+});
+test('a snapshot saved by an older version, without windows or places, still restores every tab', async () => {
+    sync.invertTabOrder = false;
+    session.spaceSession = false;
+    local.spaceTabSnapshot = twoSpacesBeforeRestart().map(record => {
+        const old = { ...record };
+        delete old.windowId;
+        delete old.index;
+        return old;
+    });
+    tabs = restoredWindows();
+    const store = new SpaceStore();
+    await store.dispatch({ action: 'get' });
+    // As before: each tab is back in a space in its saved place, the first one on an address taking
+    // the first record of it, as there is nothing to tell the two apart.
+    assert.deepEqual(local.spaces[0].temporaryTabs, [30, 21]);
+    assert.deepEqual(local.spaces[1].temporaryTabs, [20, 31]);
+});
+test("each tab's window and place are saved, for the next restart", async () => {
+    tabs = [{ id: 1, windowId: 4, index: 2, url: 'https://one.test/', groupId: -1 }];
+    local.spaces = [space('a', [1])];
+    const store = new SpaceStore();
+    await store.dispatch({ action: 'get' });
+    const saved = local.spaceTabSnapshot.find(record => record.tabId === 1);
+    assert.equal(saved.windowId, 4);
+    assert.equal(saved.index, 2);
 });
 // Sidecove's own pages (settings, the setup guide shown after an update) are tabs the user
 // opened or is reading, so they belong in a space like any other tab (#103).
