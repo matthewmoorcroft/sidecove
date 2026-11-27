@@ -1,5 +1,10 @@
 import { createServer } from 'node:http';
-import { launchBrowserWithExtension, openSidebar, openOptionsPage } from './helpers/extension-helper.js';
+import {
+    launchBrowserWithExtension,
+    openSidebar,
+    openSidebarInWindow,
+    openOptionsPage
+} from './helpers/extension-helper.js';
 import { dragOnto } from './helpers/drag.js';
 
 // Settings -> Show tabs and favorites from all windows, step 3 (issues 27 and 43): the top-bar
@@ -91,11 +96,10 @@ beforeAll(async () => {
         return { one: here.id, two: other.id };
     });
     // A second panel, in the other window, to see what it shows.
-    const panelUrl = `chrome-extension://${result.extensionId}/sidebar.html?panel=two`;
-    await one.evaluate((windowId, url) => chrome.tabs.create({ windowId, url, active: true }), win.two, panelUrl);
-    two = await (await browser.waitForTarget(target => target.url() === panelUrl)).page();
-    two.on('pageerror', error => console.error('Second panel error:', error.message));
-    await shown(two, '#pinnedFavicons');
+    two = await openSidebarInWindow(browser, result.extensionId, one, win.two, {
+        query: '?panel=two',
+        onPageError: error => console.error('Second panel error:', error.message)
+    });
     await one.bringToFront();
 });
 
