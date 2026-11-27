@@ -710,6 +710,63 @@ describe('restarting Chrome', () => {
         }
     }, 120000);
 
+    // The same page is open in two spaces, each in its own window. Work's window is opened first, so
+    // Chrome restores it first, while Home's record of the page is saved first.
+    test('the same page open in two spaces in two windows goes back to its own space after a restart', async () => {
+        let { browser, page, d } = await launch();
+        const extensionId = new URL(page.url()).host;
+        let ids;
+        try {
+            await (await createSpace(browser, extensionId, 'Restart Work')).close();
+            ids = await page.evaluate(async () => {
+                const { spaces } = await chrome.runtime.sendMessage({ type: 'spaceStore', action: 'get' });
+                return { homeId: spaces[0].id, workId: spaces.find(s => s.name === 'Restart Work').id };
+            });
+            for (const [names, spaceId] of [
+                [['rt-work', 'rt-same'], ids.workId],
+                [['rt-home', 'rt-same'], ids.homeId]
+            ]) {
+                const { tabIds } = await d.openWindow(names);
+                for (const tabId of tabIds) await d.assign(tabId, spaceId);
+            }
+            // Give Chrome and the extension a moment to save what each window holds.
+            await sleep(1500);
+        } finally {
+            await browser.close();
+        }
+
+        ({ browser, page } = await launch());
+        try {
+            const names = ['rt-work', 'rt-home', 'rt-same'];
+            await page.waitForFunction(
+                async urls => (await Promise.all(urls.map(url => chrome.tabs.query({ url })))).every(t => t.length),
+                { polling: 100, timeout: 15000 },
+                names.map(urlOf)
+            );
+            await sleep(2500);
+            const owners = await page.evaluate(async urls => {
+                const { spaces } = await chrome.runtime.sendMessage({ type: 'spaceStore', action: 'get' });
+                const ownerOf = id => spaces.find(s => s.temporaryTabs.includes(id))?.id;
+                const [work, home, same] = await Promise.all(urls.map(url => chrome.tabs.query({ url })));
+                const sameIn = windowId => same.find(tab => tab.windowId === windowId)?.id;
+                return {
+                    work: ownerOf(work[0].id),
+                    home: ownerOf(home[0].id),
+                    sameWithWork: ownerOf(sameIn(work[0].windowId)),
+                    sameWithHome: ownerOf(sameIn(home[0].windowId))
+                };
+            }, names.map(urlOf));
+            expect(owners).toEqual({
+                work: ids.workId,
+                home: ids.homeId,
+                sameWithWork: ids.workId,
+                sameWithHome: ids.homeId
+            });
+        } finally {
+            await browser.close();
+        }
+    }, 120000);
+
     // Both windows hold web pages, so whichever closes first while Chrome quits has pages that
     // could be copied into the other, which is about to close too.
     test('quitting with two windows open reopens nothing: Chrome brings each window back as it was', async () => {

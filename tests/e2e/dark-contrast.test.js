@@ -367,6 +367,11 @@ test(
             await audit('space options', ['.space.active .space-options-dropdown']);
             await page.mouse.move(350, 795);
 
+            await page.$eval('.space.active .import-arc-btn', el => el.click());
+            await page.waitForSelector('.arc-import', { visible: true });
+            await audit('Arc import', ['.arc-import']);
+            await page.$$eval('.arc-import .arc-import-actions button', buttons => buttons.at(-1).click());
+
             await page.$eval('.space.active .space-icon-button', el => el.click());
             await page.waitForSelector('.space-icon-picker', { visible: true });
             await audit('icon picker', ['.space-icon-picker']);

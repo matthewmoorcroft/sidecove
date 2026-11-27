@@ -32,6 +32,7 @@ Sidecove is an independent project, not affiliated with or endorsed by The Brows
 - A new tab you leave empty closes by itself, as in Arc (turn it off at **Settings → Close new tabs you leave empty**)
 - Closing a window while another is open moves its pages into that window as tabs, in the same spaces and places, unloaded until you go to them. Pinned tabs, favorites and private windows are left out. Reopening the closed window with Cmd+Shift+T leaves each page open once.
 - Auto-archive for idle tabs, and "↓ Clear" (on the divider above New Tab) with Undo
+- **Import from Arc**: bring your Arc spaces, pinned tabs and folders across from Arc's own sidebar file, read in your browser and sent nowhere (see [Import from Arc](#import-from-arc))
 
 See [CHANGELOG.md](CHANGELOG.md) for what changed in each version.
 
@@ -132,6 +133,44 @@ space you used last.
 Existing spaces from earlier versions migrate automatically to stable IDs. On a fresh setup with
 native groups, the sidebar offers an optional **Create spaces** import; declining
 leaves those groups alone. Import copies group names, colors, and current members.
+
+### Import from Arc
+
+Open a space's options menu (the ⋯ next to its name) and choose **Import from Arc…**. An
+extension cannot open your files by itself, so you pick Arc's sidebar file,
+`StorableSidebar.json`, with the file picker:
+
+- **On a Mac** it is `~/Library/Application Support/Arc/StorableSidebar.json`. Finder hides the
+  Library folder: in the file window, press Command-Shift-G, paste that path and press Return
+  (Command-Shift-period also shows hidden folders).
+- **On Windows** it is under `%LOCALAPPDATA%\Packages`, in the folder whose name starts with
+  `TheBrowserCompany.Arc`, then `LocalCache\Local\Arc`.
+
+Sidecove reads the file in the sidebar; nothing leaves your computer, and Sidecove does not
+keep the file. It lists the spaces it found, with their pinned tabs and folders, and you
+choose which to import. Each one becomes a **new** space after yours, so your own spaces are
+never changed or merged; a name you already use gets "(Arc)" after it. Importing the same file
+again brings in only what is not in Sidecove yet: spaces you imported before are marked and
+cannot be ticked, and Arc's favorites come in once. Delete an imported space to import it again.
+What carries over:
+
+- Spaces, in Arc's order, with their names, their icon when Sidecove has a matching symbol or
+  it is an emoji, and their colour as a custom colour.
+- Pinned tabs and folders, in order, with the names you gave them. Folders more than four
+  levels deep, deeper than Sidecove allows, go into the folder above with everything in them.
+  With **Sync spaces to Chrome tab groups** on, which allows no folder inside a folder, each
+  space keeps only its top folders, holding everything that was inside them.
+  A split view becomes its two pinned tabs, next to each other.
+- Arc's favorites go in a folder, **Favorites from Arc**, at the top of the first space you
+  import. Sidecove's favorites bar holds open pinned tabs, so the import saves them there
+  instead of opening them.
+
+Left out: today tabs (Arc keeps them open rather than saved), Arc's archive (it is in another
+file), notes, easels and other things Sidecove has no place for, and Arc's own `arc://`
+pages, and any address that is not a web page or a file. The import ends with a summary of what it brought in and what it left out. A file that
+is not Arc's is refused before anything is created, and if creating the spaces fails part way,
+Sidecove removes what it made. Arc does not document this file, so a later version of Arc may
+store things Sidecove does not yet recognise; those are left out and counted.
 
 **Settings → Sync Spaces to Chrome Tab Groups** is off by default. Enabling it
 mirrors extension membership, names, colors, and order into per-window groups.

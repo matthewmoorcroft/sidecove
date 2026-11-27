@@ -1,5 +1,6 @@
 import { ownerOf } from '../shared/space-store.js';
 import { isProtectedFavorite } from '../shared/favorite-safety.js';
+import { stillIdle } from './archive-recheck.js';
 import { Utils } from '../shared/utils.js';
 import { Logger } from '../shared/logger.js';
 import { ROOT_FOLDER_TITLE } from '../shared/constants.js';
@@ -8,8 +9,8 @@ export const AUTO_ARCHIVE_ALARM_NAME = 'autoArchiveTabsAlarm';
 export const TAB_ACTIVITY_STORAGE_KEY = 'tabLastActivity'; // Key to store timestamps
 
 // Archives tabs that stay idle past the user's threshold. The service worker calls this once,
-// with its space store, to register the alarm and the activity tracking it relies on.
-export function registerAutoArchive(spaceStore) {
+// with its space store and archive writer, to register the alarm and the activity tracking it relies on.
+export function registerAutoArchive(spaceStore, archive) {
     // --- Helper: Update Last Activity Timestamp ---
     async function updateTabLastActivity(tabId) {
         if (!tabId) return;
@@ -140,33 +141,32 @@ export function registerAutoArchive(spaceStore) {
                     continue;
                 }
 
-                if (now - lastActivity > idleThresholdMillis) {
-                    // Check if tab still exists before archiving
-                    try {
-                        await chrome.tabs.get(tab.id); // Throws error if tab closed
-                        tabsToArchive.push(tab);
-                    } catch (e) {
-                        await removeTabLastActivity(tab.id); // Clean up record for closed tab
-                    }
-                }
+                if (now - lastActivity > idleThresholdMillis) tabsToArchive.push(tab.id);
             }
 
-            for (const tab of tabsToArchive) {
-                const tabData = {
-                    url: tab.url,
-                    name: tab.title || tab.url, // Use URL if title is empty
-                    spaceId: ownerOf(await spaceStore.dispatch({ action: 'get' }), tab.id)?.id
+            for (const tabId of tabsToArchive) {
+                const spaces = await spaceStore.dispatch({ action: 'get' });
+                const activity = (await chrome.storage.local.get(TAB_ACTIVITY_STORAGE_KEY))[TAB_ACTIVITY_STORAGE_KEY];
+                const fresh = {
+                    memberIds: new Set(spaces.flatMap(space => space.spaceBookmarks)),
+                    bindings: await Utils.getPinnedTabStates(),
+                    urlKeys: protectedUrlKeys,
+                    lastActivity: activity?.[tabId],
+                    now: Date.now(),
+                    idleMillis: idleThresholdMillis
                 };
-
-                // Archive only tabs owned by an extension space.
-                if (tabData.spaceId) {
-                    await Utils.addArchivedTab(tabData);
-                    await chrome.tabs.remove(tab.id); // Close the tab after archiving
-                    await removeTabLastActivity(tab.id); // Remove activity timestamp after archiving
-                } else {
-                    // Decide if you want to update its activity or leave it for next check
-                    // await updateTabLastActivity(tab.id);
+                // Read the tab last, so what it is now decides.
+                const tab = await chrome.tabs.get(tabId).catch(() => null);
+                if (!tab) {
+                    await removeTabLastActivity(tabId);
+                    continue;
                 }
+                const spaceId = ownerOf(spaces, tabId)?.id;
+                // Archive only tabs owned by an extension space, and close one only once Archived can give it back.
+                if (!spaceId || !stillIdle(tab, fresh)) continue;
+                if (!(await archive.add({ url: tab.url, name: tab.title || tab.url, spaceId })).archived) continue;
+                await chrome.tabs.remove(tabId);
+                await removeTabLastActivity(tabId);
             }
         } catch (error) {
             Logger.error('Error during auto-archive check:', error);

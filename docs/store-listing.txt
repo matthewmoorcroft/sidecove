@@ -69,7 +69,7 @@ KEYBOARD SHORTCUTS
 HOW IT DIFFERS FROM ARC
 - Sidecove is an extension, not a browser. You keep Chrome, your profile, your other extensions and your Google account.
 - It lives in Chrome's side panel (Chrome 116 or later; split view needs Chrome 155 or later). Chrome's own tab strip stays where it is.
-- It does not copy everything Arc does, and it cannot import data from Arc. If you already use Chrome tab groups, it can offer to turn them into spaces.
+- It does not copy everything Arc does. It can import your spaces, pinned tabs and folders from Arc's sidebar file, which you choose yourself; the file is read in your browser and sent nowhere. If you already use Chrome tab groups, it can offer to turn them into spaces.
 
 PRIVATE AND OPEN
 - Sidecove sends nothing to any server, ours or anyone else's: no accounts, no analytics, no tracking, no advertising. It reads your tabs' titles, addresses and icons, and your bookmarks, only to show and manage them in the sidebar, and tab groups when you turn on syncing spaces to them.

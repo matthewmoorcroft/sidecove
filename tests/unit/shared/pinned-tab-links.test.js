@@ -1,6 +1,7 @@
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { LinkTails } from '../../../src/shared/link-tab-placement.js';
+import { asFiled } from '../../../src/shared/duplicate-tab.js';
 import {
     LinkPins,
     PINNED_TAB_LINKS,
@@ -170,6 +171,11 @@ test('only a new link from a pinned tab waits, and only with the setting on', ()
     store.pinsLinks = true;
     store.restoredRanks.set(4, 0);
     assert.equal(note({ openerTabId: 2 }), false, 'restored by Chrome');
+    store.restoredRanks.clear();
+    store.copies = new Set([4]);
+    assert.equal(note({ openerTabId: 2 }), false, 'a copy of another tab, made while the pinned tab was active');
+    assert.equal(store.copies.size, 0);
+    assert.equal(note({ openerTabId: 2 }), true);
 });
 
 test('a link tab without an address yet waits in the tab list, and is pinned once Chrome names it', async () => {
@@ -187,6 +193,36 @@ test('a link tab without an address yet waits in the tab list, and is pinned onc
         store.spaces[0].spaceBookmarks = [2, 3];
         liveTabs = liveTabs.filter(t => t.id !== 4);
     }
+});
+
+test('the same link opened twice from a pinned tab makes two pinned tabs, not one and a copy', async () => {
+    store.copies = new Set();
+    liveTabs[0].index = 0;
+    liveTabs[1].index = 1;
+    chrome.tabs.query = async ({ windowId }) => liveTabs.filter(t => t.windowId === windowId);
+    // As the worker does: the store files the tab (seeing whether it is a copy), then it is noted.
+    for (const [id, index] of [
+        [4, 1],
+        [5, 2]
+    ]) {
+        liveTabs.filter(t => t.index >= index).forEach(t => t.index++);
+        const link = { id, windowId: 1, index, openerTabId: 2, url: '', pendingUrl: 'https://same.test/', title: '' };
+        liveTabs.push(link);
+        const filed = await asFiled(chrome, store, { ...link });
+        if (!filed.copyOf) {
+            store.spaces[0].temporaryTabs = store.linkTails.place(store.spaces[0].temporaryTabs, 2, id, true);
+        }
+        store.linkPins.noteNewTab(store, filed);
+        // Chrome then names the address it loaded.
+        Object.assign(link, { url: 'https://same.test/', pendingUrl: undefined });
+        await pinWaitingLink(chrome, store, { ...link });
+    }
+    assert.deepEqual(store.spaces[0].spaceBookmarks, [2, 3, 4, 5]);
+    assert.deepEqual(store.spaces[0].temporaryTabs, [9]);
+    assert.deepEqual(
+        created.map(b => b.url),
+        ['https://same.test/', 'https://same.test/']
+    );
 });
 
 test('a link that cannot be pinned there stays in the tab list, and the next link goes after it', async () => {

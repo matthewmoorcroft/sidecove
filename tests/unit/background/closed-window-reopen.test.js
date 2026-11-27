@@ -26,8 +26,8 @@ beforeEach(() => {
     windows = [win(1, { focused: true }), win(2)];
     // Window 1 has tab 10; window 2 has two pages, listed after it in space s1.
     tabs = [page(10, 1, 'https://mine.test/'), page(20, 2, 'https://a.test/one'), page(21, 2, 'https://a.test/two')];
-    local = { closedLinks: [{ url: 'https://old.test/' }], spaces: [] };
-    session = { closedLinkTabInfo: [[1, {}]] };
+    local = { spaces: [] };
+    session = {};
     created = [];
     discarded = [];
     removed = [];
@@ -82,7 +82,8 @@ beforeEach(() => {
             onCreated: event(),
             onUpdated: event(),
             onActivated: event(),
-            onAttached: event()
+            onAttached: event(),
+            onReplaced: event()
         }
     };
     store = {
@@ -136,13 +137,6 @@ async function closeWindow(windowId = 2, { isWindowClosing = true } = {}) {
     await chromeApi.windows.onRemoved.fire(windowId);
     await settle();
 }
-
-test('the old closed links are removed when the worker starts', async () => {
-    start();
-    await settle();
-    assert.equal('closedLinks' in local, false);
-    assert.equal('closedLinkTabInfo' in session, false);
-});
 
 test('the pages of a closed window open again in the window that stays, unloaded, in the same space and order', async () => {
     await startAndNote();
@@ -210,6 +204,43 @@ test('a worker that Chrome stopped and woke for the close still reopens the page
         ['https://a.test/one', 'https://a.test/two']
     );
     assert.deepEqual(store.spaces[0].temporaryTabs, [10, 100, 101]);
+});
+
+// Chrome removes a closing window's tabs together, but one with an unload handler can still be
+// listed when the first removal is dealt with; a save then must not shrink what the window held.
+test('a save while a window is closing does not drop the pages that closed first', async () => {
+    await startAndNote();
+    tabs = tabs.filter(tab => tab.id !== 20);
+    store.spaces[0].temporaryTabs = [10, 21];
+    await store.onTabRemoved(20, { windowId: 2, isWindowClosing: true });
+    // Tab 21 is still listed, so the save would record window 2 as holding only that.
+    await store.persist();
+    tabs = tabs.filter(tab => tab.windowId !== 2);
+    windows = windows.filter(w => w.id !== 2);
+    store.spaces[0].temporaryTabs = [10];
+    await store.onTabRemoved(21, { windowId: 2, isWindowClosing: true });
+    await chromeApi.windows.onRemoved.fire(2);
+    await settle();
+    assert.deepEqual(
+        created.map(tab => tab.url),
+        ['https://a.test/one', 'https://a.test/two']
+    );
+    assert.deepEqual(store.spaces[0].temporaryTabs, [10, 100, 101]);
+});
+
+test('a save that finds nothing new writes nothing', async () => {
+    await startAndNote();
+    const saved = JSON.stringify(session);
+    let writes = 0;
+    const set = chromeApi.storage.session.set;
+    chromeApi.storage.session.set = async values => {
+        writes++;
+        return set(values);
+    };
+    await store.persist();
+    await store.persist();
+    assert.equal(writes, 0);
+    assert.equal(JSON.stringify(session), saved);
 });
 
 // Closing a tab closes its page everywhere, also a window's only tab (its close button or Cmd+W),
@@ -374,12 +405,101 @@ test('a copy whose page redirected as it loaded is still replaced by the origina
     await chromeApi.tabs.onUpdated.fire(100, { url: copy.url }, copy);
     windows.push(win(7));
     const restored = page(300, 7, 'https://a.test/one', { status: 'loading' });
-    tabs.push(restored);
+    // Chrome brings the whole window back, its other tab too.
+    tabs.push(restored, page(301, 7, 'https://a.test/two'));
     store.spaces[0].temporaryTabs.push(300);
     await chromeApi.tabs.onCreated.fire(restored);
     await settle();
-    assert.deepEqual(removed, [100]);
-    assert.deepEqual(store.spaces[0].temporaryTabs, [10, 300, 101]);
+    // Its other tab is back too, so both copies give way.
+    assert.deepEqual(removed, [100, 101]);
+    assert.deepEqual(store.spaces[0].temporaryTabs, [10, 300, 301]);
+});
+
+test('a copy whose tab gets a new id is still replaced by the original', async () => {
+    await startAndNote();
+    await closeWindow();
+    // Chrome swaps tab 100 for tab 150; the space store remaps the list.
+    tabs.find(t => t.id === 100).id = 150;
+    store.spaces[0].temporaryTabs = [10, 150, 101];
+    await chromeApi.tabs.onReplaced.fire(150, 100);
+    windows.push(win(7));
+    const restored = page(300, 7, 'https://a.test/one', { status: 'loading' });
+    // Chrome brings the whole window back, its other tab too.
+    tabs.push(restored, page(301, 7, 'https://a.test/two'));
+    store.spaces[0].temporaryTabs.push(300);
+    await chromeApi.tabs.onCreated.fire(restored);
+    await settle();
+    assert.deepEqual(removed, [150, 101]);
+    assert.deepEqual(store.spaces[0].temporaryTabs, [10, 300, 301]);
+});
+
+// Chrome can report the new tab active before it reports the swap, so the activation names an id
+// that is not yet a copy's and the copy would follow onto a tab you are using.
+test('a copy that is swapped for a tab you are using is not followed onto it', async () => {
+    await startAndNote();
+    await closeWindow();
+    const swapped = tabs.find(t => t.id === 100);
+    swapped.id = 150;
+    swapped.active = true;
+    store.spaces[0].temporaryTabs = [10, 150, 101];
+    await chromeApi.tabs.onActivated.fire({ tabId: 150, windowId: 1 });
+    await chromeApi.tabs.onReplaced.fire(150, 100);
+    windows.push(win(7));
+    const restored = page(300, 7, 'https://a.test/one', { status: 'loading' });
+    // Chrome brings the whole window back, its other tab too.
+    tabs.push(restored, page(301, 7, 'https://a.test/two'));
+    store.spaces[0].temporaryTabs.push(300);
+    await chromeApi.tabs.onCreated.fire(restored);
+    await settle();
+    assert.deepEqual(removed, []);
+    assert.deepEqual(store.spaces[0].temporaryTabs, [10, 150, 101, 300]);
+});
+
+test("a link opened in a new window on a copy's page leaves the copy open, and the new tab where it is", async () => {
+    await startAndNote();
+    await closeWindow();
+    // Shift+click: a new window whose tab has only the address it is going to.
+    windows.push(win(7));
+    const link = page(300, 7, '', { pendingUrl: 'https://a.test/one', status: 'loading' });
+    tabs.push(link);
+    store.spaces[0].temporaryTabs.push(300);
+    await chromeApi.tabs.onCreated.fire(link);
+    await settle();
+    assert.deepEqual(removed, []);
+    assert.deepEqual(store.spaces[0].temporaryTabs, [10, 100, 101, 300]);
+});
+test("one page of a closed window's two, on its own in a new window, does not replace their copies", async () => {
+    await startAndNote();
+    await closeWindow();
+    // A window that is not the closed one coming back, such as another window restored from History.
+    windows.push(win(7));
+    const other = page(300, 7, 'https://a.test/one', { status: 'loading' });
+    tabs.push(other, page(301, 7, 'https://elsewhere.test/'));
+    store.spaces[0].temporaryTabs.push(300);
+    await chromeApi.tabs.onCreated.fire(other);
+    await settle();
+    assert.deepEqual(removed, []);
+});
+test('once the closed window is back, another window does not replace the rest of its copies', async () => {
+    // Window 2 holds a third page.
+    tabs.push(page(22, 2, 'https://a.test/three'));
+    store.spaces[0].temporaryTabs.push(22);
+    await startAndNote();
+    await closeWindow();
+    assert.deepEqual(store.spaces[0].temporaryTabs, [10, 100, 101, 102]);
+    // Window 7 is window 2 back; its third tab comes back on another address, so its copy stays.
+    windows.push(win(7), win(8));
+    const restored = page(300, 7, 'https://a.test/one', { status: 'loading' });
+    tabs.push(restored, page(301, 7, 'https://a.test/two'), page(302, 7, 'https://a.test/three?moved'));
+    await chromeApi.tabs.onCreated.fire(restored);
+    await settle();
+    assert.deepEqual(removed, [100, 101]);
+    // A later window with the third page and another of window 2's is not window 2.
+    const later = page(400, 8, 'https://a.test/three', { status: 'loading' });
+    tabs.push(later, page(401, 8, 'https://a.test/one'));
+    await chromeApi.tabs.onCreated.fire(later);
+    await settle();
+    assert.deepEqual(removed, [100, 101]);
 });
 
 test("a private tab with a copy's page does not replace the copy", async () => {

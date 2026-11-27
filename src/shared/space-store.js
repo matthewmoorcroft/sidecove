@@ -1,62 +1,23 @@
-import { isPracticeUrl } from './tour-practice.js';
+import { isSidePanelPage } from './extension-pages.js';
 import { syncSpaceGroups } from './tab-group-sync.js';
 import { LinkTails } from './link-tab-placement.js';
-import { LinkPins, followLinkPins } from './pinned-tab-links.js';
-import { followStoreSettings, readStoreSettings } from './space-store-settings.js';
+import { filedAtStart, unpinnedCopyPlaced } from './duplicate-tab.js';
+import { placeNewTab } from './space-tab-placement.js';
+import { LinkPins } from './pinned-tab-links.js';
+import { readStoreSettings } from './space-store-settings.js';
+import { installSpaceStoreEvents } from './space-store-events.js';
+import { applySpacePatch } from './space-patch.js';
 import { LocalStorage } from './localstorage.js';
 
 import { sections, ownerOf, updateNativePinSection, spaceForActivation } from './space-membership.js';
 import { hideTabs, showTabs } from './hidden-tabs.js';
-import { removeTab } from './space-tab-removal.js';
+import { importSpaces } from './import-spaces.js';
+import { forNewSession, forSnapshot, noteReopened, noteRestarted, restoreRecordFor } from './restore-records.js';
 import { Logger } from './logger.js';
 export { tabIds, ownerOf } from './space-membership.js';
+// Moved to space-patch.js; still exported from here for the panels and tests that import it.
+export { applySpacePatch };
 const clone = value => structuredClone(value);
-
-// The service worker is the only writer. UI patches express changes relative to the
-// panel's previous view, so a stale panel cannot erase tabs created in another window.
-export function applySpacePatch(current, before, after) {
-    const removed = new Set(before.filter(s => !after.some(n => n.id === s.id)).map(s => s.id));
-    let result = clone(current.filter(s => !removed.has(s.id)));
-    for (const next of after) {
-        const prev = before.find(s => s.id === next.id);
-        let target = result.find(s => s.id === next.id);
-        if (!target) {
-            if (prev) continue; // A different panel deleted this space.
-            target = { ...clone(next), spaceBookmarks: [], temporaryTabs: [], pinnedTabs: [] };
-            result.push(target);
-        }
-        for (const [key, value] of Object.entries(next)) {
-            if (!sections.includes(key) && JSON.stringify(value) !== JSON.stringify(prev?.[key]))
-                target[key] = clone(value);
-        }
-        for (const key of sections) {
-            const oldIds = prev?.[key] || [];
-            const newIds = next[key] || [];
-            if (JSON.stringify(oldIds) === JSON.stringify(newIds)) continue;
-            const deleted = oldIds.filter(id => !newIds.includes(id));
-            const added = newIds.filter(id => !oldIds.includes(id));
-            for (const id of added) {
-                for (const space of result)
-                    for (const section of sections) space[section] = (space[section] || []).filter(t => t !== id);
-            }
-            const existing = (target[key] || []).filter(id => !deleted.includes(id));
-            target[key] = [
-                ...newIds.filter(id => existing.includes(id) || added.includes(id)),
-                ...existing.filter(id => !newIds.includes(id))
-            ];
-        }
-    }
-    if (JSON.stringify(before.map(s => s.id)) !== JSON.stringify(after.map(s => s.id))) {
-        result.sort((a, b) => {
-            const rank = s => {
-                const i = after.findIndex(n => n.id === s.id);
-                return i < 0 ? after.length : i;
-            };
-            return rank(a) - rank(b);
-        });
-    }
-    return result;
-}
 
 export class SpaceStore {
     constructor() {
@@ -64,6 +25,10 @@ export class SpaceStore {
         this.initialized = false;
         // Tabs Clean All is hiding until its Undo toast ends. They are open but belong to no space.
         this.hidden = new Set();
+        // Tabs Chrome has just created as copies of another (see duplicate-tab.js).
+        this.copies = new Set();
+        // Copies of a pinned tab that arrived pinned, by the tab each copies.
+        this.pinnedCopies = new Map();
         // Called for each tab that closes (see space-tab-removal.js), and after each save with the
         // open tabs; background/closed-window-reopen.js uses them to know what each window holds.
         this.onTabRemoved = null;
@@ -116,6 +81,10 @@ export class SpaceStore {
         this.snapshotByTab = new Map((data.spaceTabSnapshot || []).filter(t => t.tabId).map(t => [t.tabId, t]));
         this.provisional = new Set();
         this.restoredMetadata = [];
+        // Window Chrome reopened -> the closed window it brought back, and window after a restart
+        // -> the window it was before (restore-records.js).
+        this.reopenedWindows = new Map();
+        this.restartedWindows = new Map();
         this.restoredRanks = new Map(session.restoredTabRanks || []);
         this.active = session.activeSpaces || {};
         this.lastActive = session.lastActiveSpace || null;
@@ -152,7 +121,7 @@ export class SpaceStore {
             this.restoreQueue = [];
         } else if (!session.spaceSession) {
             // Chrome tab IDs are session-local. Never accept an old ID after restart.
-            this.restoreQueue = data.spaceTabSnapshot || [];
+            this.restoreQueue = forNewSession(data.spaceTabSnapshot || []);
             this.spaces.forEach(s => {
                 s.spaceBookmarks = [];
                 s.temporaryTabs = [];
@@ -175,7 +144,7 @@ export class SpaceStore {
         this.hidden = new Set((session.hiddenTabs || []).filter(id => valid.has(id)));
         for (const space of this.spaces)
             for (const key of sections) space[key] = (space[key] || []).filter(id => valid.has(id));
-        for (const tab of live) this.track(tab);
+        for (const tab of filedAtStart(this, live)) this.track(tab, { created: true });
         this.initialized = true;
         await this.persist();
     }
@@ -208,10 +177,14 @@ export class SpaceStore {
         );
         return before !== JSON.stringify(this.spaces);
     }
-    track(tab) {
+    // `created`: Chrome has just created or listed the tab, rather than its address changing.
+    track(tab, { created = false } = {}) {
         if (this.hidden.has(tab.id)) return;
         const url = tab.url || tab.pendingUrl;
-        if (url?.startsWith(chrome.runtime?.getURL?.('') || 'chrome-extension://invalid/') && !isPracticeUrl(url)) {
+        // The side panel's own page is not a tab the user reads, so it never joins a space (tests
+        // and debugging open it in a tab). Every other Sidecove page, such as settings or the
+        // setup guide shown after an update, is listed like any other tab.
+        if (isSidePanelPage(url)) {
             for (const space of this.spaces)
                 for (const key of sections) space[key] = space[key].filter(id => id !== tab.id);
             return;
@@ -219,21 +192,18 @@ export class SpaceStore {
         const existing = ownerOf(this.spaces, tab.id);
         // Native pins keep their space, but live in the top favicon bar rather than
         // either list. Unpinning returns them to that same space as ordinary tabs.
-        if (existing) updateNativePinSection(existing, tab);
+        if (existing && !unpinnedCopyPlaced(this, existing, tab)) updateNativePinSection(existing, tab);
         if (existing) {
             if (!this.provisional.has(tab.id) || !url) return;
             this.provisional.delete(tab.id);
-            if (!this.restoreQueue.some(t => t.url === url)) return;
+            if (this.restoreRecordIndex(tab, url, created) < 0) return;
             for (const key of sections) existing[key] = existing[key].filter(id => id !== tab.id);
         }
         if (!url) this.provisional.add(tab.id);
-        const restoredIndex = this.restoreQueue.findIndex(
-            t =>
-                (t.section === 'pinnedTabs') === Boolean(tab.pinned) &&
-                t.url === url &&
-                this.spaces.some(s => s.id === t.spaceId)
-        );
+        const restoredIndex = this.restoreRecordIndex(tab, url, created);
         const restored = restoredIndex >= 0 ? this.restoreQueue.splice(restoredIndex, 1)[0] : null;
+        noteReopened(this.reopenedWindows, tab, restored);
+        noteRestarted(this.restartedWindows, tab, restored);
         // Chrome can attach the current tab as opener even for Cmd/Ctrl+T.
         // A blank new-tab page belongs to the selected space, not that incidental opener.
         const isNewTabPage = !url || /^(chrome:\/\/(newtab|new-tab-page)\/?|about:blank)$/.test(url);
@@ -252,20 +222,17 @@ export class SpaceStore {
             this.spaces[0];
         if (!space) return;
         const key = tab.pinned ? 'pinnedTabs' : restored?.section || 'temporaryTabs';
-        if (restored) {
-            this.restoredMetadata.push({ ...restored, tabId: tab.id });
-            // Preserve extension order when Chrome restores tabs in a different order.
-            this.restoredRanks ||= new Map();
-            this.restoredRanks.set(tab.id, restored.order);
-            space[key].push(tab.id);
-            space[key].sort(
-                (a, b) => (this.restoredRanks.get(a) ?? Infinity) - (this.restoredRanks.get(b) ?? Infinity)
-            );
-        } else if (key === 'temporaryTabs' && tab.openerTabId !== undefined && !(url && isNewTabPage)) {
-            // A link opened from a tab goes below it, whichever way the list is drawn. Chrome reports
-            // no address yet for some link tabs, so only a named new-tab page is left out.
-            space[key] = this.linkTails.place(space[key], tab.openerTabId, tab.id, this.invertTabOrder);
-        } else space[key].push(tab.id);
+        placeNewTab(this, space, key, tab, { restored, url, isNewTabPage });
+    }
+    restoreRecordIndex(tab, url, created) {
+        const spaceIds = new Set(this.spaces.map(s => s.id));
+        return restoreRecordFor(this.restoreQueue, tab, {
+            url,
+            created,
+            spaceIds,
+            reopened: this.reopenedWindows,
+            restarted: this.restartedWindows
+        });
     }
     async persist() {
         const tabs = new Map((await chrome.tabs.query({})).map(t => [t.id, t]));
@@ -293,6 +260,8 @@ export class SpaceStore {
                         section,
                         order: this.restoredRanks.get(id) ?? order,
                         url: tab.url || tab.pendingUrl || '',
+                        windowId: tab.windowId,
+                        index: tab.index,
                         ...(pinnedStates[id] ? { pinnedState: pinnedStates[id] } : {}),
                         ...(overrides[id] ? { nameOverride: overrides[id] } : {})
                     };
@@ -303,7 +272,7 @@ export class SpaceStore {
         await chrome.storage.local.set({
             spaces: clone(this.spaces),
             spaceModelVersion: 2,
-            spaceTabSnapshot: [...snapshot, ...this.restoreQueue]
+            spaceTabSnapshot: [...snapshot, ...forSnapshot(this.restoreQueue)]
         });
         await chrome.storage.session.set({
             spaceSession: true,
@@ -408,6 +377,9 @@ export class SpaceStore {
                     await chrome.storage.local.set({ tabGroupImportDismissed: true });
                     break;
                 }
+                case 'importSpaces':
+                    await importSpaces(this, message.plan, { chrome, storage: LocalStorage });
+                    break;
                 default:
                     throw new Error('Unknown space action');
             }
@@ -416,71 +388,6 @@ export class SpaceStore {
         });
     }
     install() {
-        const handle = operation =>
-            this.run(async () => {
-                await operation();
-                await this.persist();
-            }).catch(console.error);
-        chrome.tabs.onCreated.addListener(tab => handle(() => this.track(tab)));
-        chrome.tabs.onUpdated.addListener((id, change, tab) => {
-            if (change.url || change.pinned !== undefined) handle(() => this.track(tab));
-        });
-        followLinkPins(chrome, this);
-        chrome.tabs.onRemoved.addListener((id, info) => handle(() => removeTab(this, id, info)));
-        chrome.tabs.onReplaced.addListener((added, removed) =>
-            handle(() => {
-                this.linkTails.replaced(added, removed);
-                this.linkPins.replaced(added, removed);
-                for (const space of this.spaces) {
-                    for (const key of sections) space[key] = space[key].map(id => (id === removed ? added : id));
-                    if (space.lastTab === removed) space.lastTab = added;
-                }
-            })
-        );
-        chrome.tabs.onActivated.addListener(info =>
-            handle(async () => {
-                // Coming back to a tab starts its links again directly beneath it.
-                this.linkTails.switchedTo(info.tabId);
-                const { perSpacePinnedFavorites = false } = await chrome.storage.sync.get('perSpacePinnedFavorites');
-                const space = spaceForActivation(this.spaces, info.tabId, perSpacePinnedFavorites);
-                if (!space) return;
-                space.lastTab = info.tabId;
-                this.active[info.windowId] = space.id;
-                // A tab changing in a window you are not looking at is not the space in use.
-                if (
-                    await chrome.windows.get(info.windowId).then(
-                        win => win.focused,
-                        () => false
-                    )
-                )
-                    this.lastActive = space.id;
-            })
-        );
-        chrome.windows.onFocusChanged.addListener(windowId =>
-            handle(() => {
-                if (this.spaces.some(s => s.id === this.active[windowId])) this.lastActive = this.active[windowId];
-            })
-        );
-        chrome.storage.onChanged.addListener((changes, area) => {
-            if (area === 'local' && (changes.pinnedTabStatesById || changes.tabNameOverridesById)) handle(() => {});
-            if (area === 'sync' && changes.syncTabGroups) handle(() => {});
-            if (area === 'sync') followStoreSettings(this, changes, handle);
-        });
-        // Tab-strip changes only request a projection; they never alter the model.
-        let syncTimer;
-        const scheduleSync = () => {
-            clearTimeout(syncTimer);
-            syncTimer = setTimeout(
-                () => this.run(() => syncSpaceGroups(this.spaces, this.active)).catch(console.error),
-                200
-            );
-        };
-        chrome.tabs.onMoved.addListener(scheduleSync);
-        chrome.tabs.onUpdated.addListener((id, change) => {
-            if (change.groupId !== undefined) scheduleSync();
-        });
-        chrome.tabGroups.onRemoved.addListener(scheduleSync);
-        chrome.tabGroups.onUpdated.addListener(scheduleSync);
-        this.run(() => {}).catch(console.error);
+        installSpaceStoreEvents(this);
     }
 }

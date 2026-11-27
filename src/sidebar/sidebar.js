@@ -48,6 +48,14 @@ import {
     colorOverridesChanged
 } from './features/color-overrides/apply-color-overrides.js';
 import { spaceRequest } from '../shared/space-client.js';
+import {
+    addArchivedTab,
+    archiveTab,
+    findArchivedEntry,
+    getArchivedTabs,
+    removeArchivedTab,
+    restoreArchivedTab
+} from '../shared/archive-client.js';
 import { createSpacePin } from '../shared/space-pin.js';
 import { SpacePatchQueue } from './space-patch-queue.js';
 import { RefreshCoordinator } from './refresh-coordinator.js';
@@ -119,6 +127,8 @@ import { createSplitView } from './features/split-view/split-view.js';
 import { createSplitDrop } from './features/split-view/split-drop.js';
 import { placeNextTo } from './features/split-view/split-logic.js';
 import { markSplitMember, markSplitRows, rowsOf, splitRowsOf } from './features/split-view/split-rows.js';
+import { openArcImport } from './features/arc-import/arc-import-panel.js';
+import { wireSpaceOptionsMenu } from './features/space-options/space-options-menu.js';
 import { BookmarkUtils } from '../shared/bookmark-utils.js';
 import { Logger } from '../shared/logger.js';
 import { MOUSE_BUTTON, CSS_CLASSES, TIMING } from '../shared/constants.js';
@@ -913,35 +923,18 @@ function createSpaceElement(space) {
     cleanBtn.addEventListener('click', () => cleanTemporaryTabs(space.id));
     wireNewTabRow(spaceElement);
 
-    // Set up options menu
-    const newFolderBtn = spaceElement.querySelector('.new-folder-btn');
-    const deleteSpaceBtn = spaceElement.querySelector('.delete-space-btn');
-    const settingsBtn = spaceElement.querySelector('.settings-btn');
-
-    newFolderBtn.addEventListener('click', () => {
-        createNewFolder(spaceContainer);
-    });
-
-    deleteSpaceBtn.addEventListener('click', async () => {
-        let message;
-        try {
-            const folder = await getSpaceBookmarkFolder(space);
-            const count = countBookmarks((await chrome.bookmarks.getSubTree(folder.id))[0]);
-            message = `Delete "${space.name}"? This deletes its bookmark folder (${count} ${count === 1 ? 'bookmark' : 'bookmarks'}) and closes its tabs.`;
-        } catch (error) {
-            message = `Delete "${space.name}"? Its bookmark folder could not be read. ${error.message}`;
-        }
-        if (confirm(message)) {
-            try {
-                await deleteSpace(space.id);
-            } catch (error) {
-                alert(error.message);
-            }
-        }
-    });
-
-    settingsBtn.addEventListener('click', () => {
-        chrome.runtime.openOptionsPage();
+    wireSpaceOptionsMenu(spaceElement, {
+        space,
+        newFolder: () => createNewFolder(spaceContainer),
+        getSpaceBookmarkFolder,
+        deleteSpace,
+        importFromArc: () =>
+            openArcImport({
+                container: document.getElementById('sidebar-container'),
+                adoptSpaces: next => adoptStoredSpaces(next),
+                showSpace: id => setActiveSpace(id),
+                whenSaved: () => pendingSpaceSaves
+            })
     });
 
     // Load tabs
@@ -3329,8 +3322,8 @@ async function createTabElement(tab, isPinned = false, isBookmarkOnly = false) {
                         return;
                     }
                     // Check if tab is in archive and restore it
-                    const archivedTabs = await Utils.getArchivedTabs();
-                    const archivedTab = !isPinned && archivedTabs.find(t => t.url === tabUrl);
+                    const archivedTabs = await getArchivedTabs();
+                    const archivedTab = !isPinned && findArchivedEntry(archivedTabs, tabUrl, activeSpaceId);
 
                     let targetSpaceId = activeSpaceId;
                     let bookmarkTitle =
@@ -3342,7 +3335,7 @@ async function createTabElement(tab, isPinned = false, isBookmarkOnly = false) {
                         bookmarkTitle = archivedTab.name || bookmarkTitle;
 
                         // Restore the archived tab
-                        const restoredTab = await Utils.restoreArchivedTab(archivedTab);
+                        const restoredTab = await restoreArchivedTab(archivedTab);
 
                         if (restoredTab) {
                             // Pin the restored tab if it was originally pinned
@@ -3908,7 +3901,7 @@ async function closeItems(items) {
 async function archiveItems(items) {
     const temporary = items.filter(item => item.kind === 'tab' && item.tabId);
     clearSelection();
-    for (const item of temporary) await Utils.archiveTab(item.tabId);
+    for (const item of temporary) await archiveTab(item.tabId);
 }
 
 async function pinItems(items) {
@@ -4106,8 +4099,8 @@ function cleanTemporaryTabs(spaceId) {
         displayedTabIds,
         pendingSaves: () => pendingSpaceSaves,
         activeTabId: () => activeChromeTabId,
-        addArchivedTab: entry => Utils.addArchivedTab(entry),
-        removeArchivedTab: (url, targetSpaceId) => Utils.removeArchivedTab(url, targetSpaceId),
+        addArchivedTab,
+        removeArchivedTab,
         openTabIds: async () => (await chrome.tabs.query({ windowId: currentWindow.id })).map(tab => tab.id),
         activateTab: tabId => chrome.tabs.update(tabId, { active: true }),
         openNewTab: () => createNewTab(),
@@ -4371,9 +4364,8 @@ const linkDropPosition = createLinkDropPosition({
 });
 
 // Tabs Clear is hiding come back one at a time when picked in Chrome's own tab strip.
-const clearedTabs = createClearedTabs({
-    removeArchivedTab: (url, spaceId) => Utils.removeArchivedTab(url, spaceId)
-});
+const clearedTabs = createClearedTabs({ removeArchivedTab });
+chrome.tabs.onReplaced.addListener((added, removed) => clearedTabs.replaced(added, removed));
 
 const handleTabActivated = createTabActivationHandler({
     isCreatingSpace: () => isCreatingSpace,
@@ -4476,11 +4468,6 @@ async function handleTabRemove(tabId) {
 const processingTabMoves = new Set();
 // Chrome-pinned tabs being unpinned straight into a chosen space.
 const tabsMovingToChosenSpace = new Set();
-
-function countBookmarks(node) {
-    if (node.url) return 1;
-    return (node.children || []).reduce((sum, child) => sum + countBookmarks(child), 0);
-}
 
 async function deleteSpace(spaceId) {
     Logger.log('Deleting space:', spaceId);

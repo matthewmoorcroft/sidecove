@@ -99,7 +99,34 @@ export async function launchBrowserWithExtension(options = {}) {
         throw new Error('Extension not loaded properly. Make sure the extension is built in dist/ directory.');
     }
 
+    // Installing (or updating) opens the setup guide in a tab, and Sidecove lists its own pages
+    // like any other tab. Close it so each test starts from the tabs it opens itself, unless the
+    // test is about that guide.
+    if (!options.keepSetupGuide) await closeSetupGuide(browser, extensionId);
+
     return { browser, extensionId };
+}
+
+/**
+ * Close the setup guide tab that installing, updating or reloading Sidecove opens. Sidecove lists
+ * its own pages like any other tab, so a stray guide would show in the space under test. The guide
+ * opens a moment after the worker starts, so wait briefly for it.
+ * @param {Browser} browser - Puppeteer browser instance
+ * @param {string} extensionId - Extension ID
+ * @param {number} waitMs - How long to wait for the guide to open
+ */
+export async function closeSetupGuide(browser, extensionId, waitMs = 3000) {
+    const guide = `chrome-extension://${extensionId}/installation-onboarding.html`;
+    const deadline = Date.now() + waitMs;
+    let closedAt = 0;
+    for (;;) {
+        const open = (await browser.pages()).filter(page => page.url().startsWith(guide));
+        for (const page of open) await page.close();
+        if (open.length) closedAt = Date.now();
+        // Once a guide has closed, a short quiet spell shows no second one is on its way.
+        if (closedAt ? Date.now() - closedAt >= 500 : Date.now() >= deadline) return;
+        await new Promise(resolve => setTimeout(resolve, 100));
+    }
 }
 
 /**
@@ -114,6 +141,39 @@ export async function openSidebar(browser, extensionId) {
     await page.goto(sidebarUrl, { waitUntil: 'domcontentloaded' });
     // Wait for sidebar JS to initialize (loads spaces from storage, creates DOM)
     await new Promise(r => setTimeout(r, 2000));
+    return page;
+}
+
+/**
+ * Open a second sidebar, as the active tab of another window, and wait until it has drawn its
+ * spaces. Puppeteer must not attach to a tab while Chrome is still loading an extension page into
+ * it: on a busy machine the page then starts as an ordinary web page, with no chrome.storage or
+ * other extension APIs, until it is reloaded. So this opens a blank tab, attaches once that has
+ * loaded, and navigates it to the sidebar, as openSidebar does.
+ * @param {Browser} browser - Puppeteer browser instance
+ * @param {string} extensionId - Extension ID
+ * @param {Page} opener - An extension page, used to open the tab
+ * @param {number} windowId - The window to open it in
+ * @param {Object} options - `query` to add to the URL, `onPageError` to hear the page's errors
+ * @returns {Promise<Page>}
+ */
+export async function openSidebarInWindow(browser, extensionId, opener, windowId, options = {}) {
+    const placeholder = `about:blank#sidebar-in-window-${windowId}`;
+    await opener.evaluate(
+        (windowId, url) => chrome.tabs.create({ windowId, url, active: true }),
+        windowId,
+        placeholder
+    );
+    const page = await (await browser.waitForTarget(target => target.url() === placeholder)).page();
+    if (options.onPageError) page.on('pageerror', options.onPageError);
+    await page.goto(`chrome-extension://${extensionId}/sidebar.html${options.query || ''}`, {
+        waitUntil: 'domcontentloaded'
+    });
+    // The space list is drawn from storage, so it shows the page has its APIs and has started.
+    await page.waitForSelector('.space.active').catch(async error => {
+        const apis = await page.evaluate(() => Object.keys(chrome).sort().join(', '));
+        throw new Error(`The sidebar in window ${windowId} did not start (chrome has: ${apis}): ${error.message}`);
+    });
     return page;
 }
 

@@ -2,12 +2,13 @@ import { sections } from './space-membership.js';
 import { orderAfterWindowClose } from './window-close-order.js';
 import { ALL_WINDOWS_SETTING } from './saved-favorites.js';
 import { Logger } from './logger.js';
+import { windowCloseRecord } from './restore-records.js';
 
 // With every window's tabs shown, a page open in two windows is one entry at the earliest tab's
 // place. When that tab closes with its window, the page's tab in the window that is left takes the
 // place, so the page does not move. With the setting off a window lists its own tabs, which do not
 // move.
-async function keepPageInPlace(store, id, info, record) {
+async function keepPageInPlace(store, id, info, record, tabs) {
     const space = store.spaces.find(s => s.id === record.spaceId);
     if (!space || info.windowId === undefined) return;
     const settings = await chrome.storage.sync.get({ [ALL_WINDOWS_SETTING]: true });
@@ -18,7 +19,7 @@ async function keepPageInPlace(store, id, info, record) {
         page: record.url,
         windowId: info.windowId,
         slot: record.order,
-        tabs: await chrome.tabs.query({})
+        tabs
     });
     if (order) space.temporaryTabs = order;
 }
@@ -33,9 +34,11 @@ export async function removeTab(store, id, info) {
         info?.isWindowClosing && record && !store.hidden.has(id) && store.spaces.some(s => s.id === record.spaceId)
     );
     if (closedWithWindow) {
-        store.restoreQueue.push(record);
+        const tabs = await chrome.tabs.query({}).catch(() => []);
+        const openWindows = [...new Set(tabs.map(tab => tab.windowId))];
+        store.restoreQueue.push(windowCloseRecord(record, info.windowId, openWindows));
         try {
-            await keepPageInPlace(store, id, info, record);
+            await keepPageInPlace(store, id, info, record, tabs);
         } catch (error) {
             // The page may move in the list; the tab must still be forgotten.
             Logger.warn('Could not keep a page in place:', error);

@@ -1,8 +1,7 @@
+import { isExtensionPage } from './extension-pages.js';
+
 export const PRACTICE_LESSONS = new Set(['pins', 'folders', 'favorites', 'archive']);
-export function isPracticeUrl(url) {
-    const base = globalThis.chrome?.runtime?.getURL?.('tutorial-practice.html');
-    return Boolean(base && (url === base || url?.startsWith(`${base}#`)));
-}
+export const isPracticeUrl = url => isExtensionPage(url, 'tutorial-practice.html');
 export function practiceUrl(runId, lesson) {
     return `${chrome.runtime.getURL('tutorial-practice.html')}#${new URLSearchParams({ run: runId, lesson })}`;
 }
