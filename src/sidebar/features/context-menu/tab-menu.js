@@ -6,13 +6,15 @@ import { moveToSpaceEntries } from './space-menu-entries.js';
 import { tabMenuEntries } from './tab-menu-entries.js';
 
 // A failing action is logged, as every menu item has always done; it never reaches the page.
-const guarded = (label, action) => async () => {
-    try {
-        await action();
-    } catch (error) {
-        Logger.warn(`[ContextMenu] ${label} failed:`, error);
-    }
-};
+const guarded =
+    (label, action) =>
+    async (...args) => {
+        try {
+            await action(...args);
+        } catch (error) {
+            Logger.warn(`[ContextMenu] ${label} failed:`, error);
+        }
+    };
 
 // The right-click menu of a row in a space: an ordinary tab, a pinned tab, or a favorite with no
 // open tab. Which items each offers is decided in tab-menu-entries.js.
