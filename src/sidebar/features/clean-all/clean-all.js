@@ -21,11 +21,19 @@ export const clearableTabs = tabs => tabs.filter(tab => !isUntouchedPage(tab));
 export const closableTabs = (tabs, { protectedIds, bindings, favoriteUrlKeys }) =>
     clearableTabs(tabs.filter(tab => !isProtectedFavorite(tab, protectedIds, bindings, favoriteUrlKeys)));
 
+// `addedToArchive`: Clean All made the entry, so Undo takes it back. `archived`: Archived can
+// give the tab back, so it may close.
 export async function archiveTabs(tabs, spaceId, { addArchivedTab }) {
     const records = [];
     for (const tab of tabs) {
-        const addedToArchive = await addArchivedTab({ url: tab.url, name: tab.title || tab.url, spaceId });
-        records.push({ tabId: tab.id, url: tab.url, spaceId, addedToArchive: addedToArchive === true });
+        const { stored, archived } = await addArchivedTab({ url: tab.url, name: tab.title || tab.url, spaceId });
+        records.push({
+            tabId: tab.id,
+            url: tab.url,
+            spaceId,
+            addedToArchive: stored === true,
+            archived: archived === true
+        });
     }
     return records;
 }
@@ -46,8 +54,10 @@ export async function stepOffClearedTabs(
 
 export async function clearTabs(tabs, spaceId, spaceOrder, api) {
     if (!tabs.length) return null;
-    const records = await archiveTabs(tabs, spaceId, api);
-    const clearedIds = new Set(tabs.map(tab => tab.id));
+    // A tab Archived could not keep stays open and listed.
+    const records = (await archiveTabs(tabs, spaceId, api)).filter(record => record.archived);
+    if (!records.length) return null;
+    const clearedIds = new Set(records.map(record => record.tabId));
     await stepOffClearedTabs(clearedIds, api);
     try {
         const { batchId, closeAt, spaces } = await api.startPendingClean({

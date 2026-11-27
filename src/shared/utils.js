@@ -1,10 +1,10 @@
 import { isPracticeUrl } from './tour-practice.js';
-import { getSpaceTabs, spaceRequest } from './space-client.js';
+import { getSpaceTabs } from './space-client.js';
 /**
  * Utils - Shared utility functions and storage management
  *
  * Purpose: Provides common utilities and centralized settings/storage management across the extension
- * Key Functions: Settings CRUD, archived tabs management, space data operations, default configurations
+ * Key Functions: Settings CRUD, space data operations, default configurations
  * Architecture: Static utility class with async storage operations
  *
  * Critical Notes:
@@ -16,9 +16,6 @@ import { getSpaceTabs, spaceRequest } from './space-client.js';
 
 import { BookmarkUtils } from './bookmark-utils.js';
 import { Logger } from './logger.js';
-
-const MAX_ARCHIVED_TABS = 100;
-const ARCHIVED_TABS_KEY = 'archivedTabs';
 
 // Hosts whose pinned-tab URL key keeps the query string. Some apps use the query
 // string as the page's identity (e.g. localhost:6969/?focused=<chat id>, one
@@ -282,102 +279,6 @@ const Utils = {
     isArchivingEnabled: async function () {
         const settings = await this.getSettings();
         return settings.autoArchiveEnabled;
-    },
-
-    // Get all archived tabs
-    getArchivedTabs: async function () {
-        const result = await chrome.storage.local.get(ARCHIVED_TABS_KEY);
-        return result[ARCHIVED_TABS_KEY] || [];
-    },
-
-    // Save all archived tabs
-    saveArchivedTabs: async function (tabs) {
-        await chrome.storage.local.set({ [ARCHIVED_TABS_KEY]: tabs });
-    },
-
-    // Add a tab to the archive. Resolves true only when a new entry was stored.
-    addArchivedTab: async function (tabData) {
-        // tabData = { url, name, spaceId, archivedAt }
-        if (!tabData || !tabData.url || !tabData.name || !tabData.spaceId) return false;
-
-        const archivedTabs = await this.getArchivedTabs();
-
-        // Check if URL already exists in archive (regardless of space)
-        const existingTab = archivedTabs.find(t => t.url === tabData.url);
-        if (existingTab) {
-            Logger.log(`Tab with URL already archived: ${tabData.name} (${tabData.url})`);
-            return false; // Don't add duplicates based on URL
-        }
-
-        // Add new tab with timestamp
-        const newArchiveEntry = { ...tabData, archivedAt: Date.now() };
-        archivedTabs.push(newArchiveEntry);
-
-        // Sort by timestamp (newest first for potential slicing, though FIFO means oldest removed)
-        archivedTabs.sort((a, b) => b.archivedAt - a.archivedAt);
-
-        // Enforce limit (remove oldest if over limit - FIFO)
-        if (archivedTabs.length > MAX_ARCHIVED_TABS) {
-            archivedTabs.splice(MAX_ARCHIVED_TABS); // Remove items from the end (oldest)
-        }
-
-        await this.saveArchivedTabs(archivedTabs);
-        Logger.log(`Archived tab: ${tabData.name} from space ${tabData.spaceId}`);
-        return true;
-    },
-
-    // Function to archive a tab (likely called from context menu)
-    archiveTab: async function (tabId) {
-        try {
-            const tab = await chrome.tabs.get(tabId);
-            const spaces = await spaceRequest('get');
-            const space = spaces.find(s => [...s.spaceBookmarks, ...s.temporaryTabs].includes(tabId));
-            if (!tab || !space) return;
-
-            const tabData = {
-                url: tab.url,
-                name: tab.title,
-                spaceId: space.id
-            };
-
-            await this.addArchivedTab(tabData);
-            await chrome.tabs.remove(tabId); // Close the original tab
-            // Optionally: Refresh sidebar view if needed, though handleTabRemove should cover it
-        } catch (error) {
-            Logger.error(`Error archiving tab ${tabId}:`, error);
-        }
-    },
-
-    // Remove a tab from the archive (e.g., after restoration)
-    removeArchivedTab: async function (url, spaceId) {
-        if (!url || !spaceId) return;
-
-        let archivedTabs = await this.getArchivedTabs();
-        archivedTabs = archivedTabs.filter(tab => !(tab.url === url && tab.spaceId === spaceId));
-        await this.saveArchivedTabs(archivedTabs);
-        Logger.log(`Removed archived tab: ${url} from space ${spaceId}`);
-    },
-
-    restoreArchivedTab: async function (archivedTabData) {
-        try {
-            // Reopen the archived URL and restore its extension-owned membership.
-            const newTab = await chrome.tabs.create({
-                url: archivedTabData.url,
-                active: true // Make it active
-                // windowId: currentWindow.id // Ensure it's in the current window
-            });
-
-            await spaceRequest('assign', { tabId: newTab.id, spaceId: archivedTabData.spaceId });
-
-            // Remove from archive storage
-            await this.removeArchivedTab(archivedTabData.url, archivedTabData.spaceId);
-
-            // Return the created tab so caller can pin it if needed
-            return newTab;
-        } catch (error) {
-            Logger.error(`Error restoring archived tab ${archivedTabData.url}:`, error);
-            throw error;
-        }
     },
 
     setArchivingEnabled: async function (enabled) {

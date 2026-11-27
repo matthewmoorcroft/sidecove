@@ -31,6 +31,7 @@ export async function cleanSpace(spaceId, d) {
         openNewTab: d.openNewTab,
         startPendingClean: d.startPendingClean
     });
+    if (!cleared) return;
     // The tabs stay open but leave the list at once.
     d.clearedTabs.remember(cleared);
     await d.adoptStoredSpaces(cleared.spaces);

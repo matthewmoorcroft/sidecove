@@ -19,7 +19,7 @@ const deps = (over = {}) => ({
     displayedTabIds: () => [8, 7],
     pendingSaves: async () => {},
     activeTabId: () => 1,
-    addArchivedTab: async entry => archived.push(entry.url) && true,
+    addArchivedTab: async entry => archived.push(entry.url) && { stored: true, archived: true },
     removeArchivedTab: async () => {},
     openTabIds: async () => [1, 7, 8],
     activateTab: async () => {},
