@@ -12,7 +12,7 @@ import { LocalStorage } from './localstorage.js';
 import { sections, ownerOf, updateNativePinSection, spaceForActivation } from './space-membership.js';
 import { hideTabs, showTabs } from './hidden-tabs.js';
 import { importSpaces } from './import-spaces.js';
-import { forNewSession, noteReopened, restoreRecordFor } from './restore-records.js';
+import { forNewSession, forSnapshot, noteReopened, noteRestarted, restoreRecordFor } from './restore-records.js';
 import { Logger } from './logger.js';
 export { tabIds, ownerOf } from './space-membership.js';
 // Moved to space-patch.js; still exported from here for the panels and tests that import it.
@@ -79,8 +79,10 @@ export class SpaceStore {
         this.snapshotByTab = new Map((data.spaceTabSnapshot || []).filter(t => t.tabId).map(t => [t.tabId, t]));
         this.provisional = new Set();
         this.restoredMetadata = [];
-        // Window Chrome reopened -> the closed window it brought back (restore-records.js).
+        // Window Chrome reopened -> the closed window it brought back, and window after a restart
+        // -> the window it was before (restore-records.js).
         this.reopenedWindows = new Map();
+        this.restartedWindows = new Map();
         this.restoredRanks = new Map(session.restoredTabRanks || []);
         this.active = session.activeSpaces || {};
         this.lastActive = session.lastActiveSpace || null;
@@ -199,6 +201,7 @@ export class SpaceStore {
         const restoredIndex = this.restoreRecordIndex(tab, url, created);
         const restored = restoredIndex >= 0 ? this.restoreQueue.splice(restoredIndex, 1)[0] : null;
         noteReopened(this.reopenedWindows, tab, restored);
+        noteRestarted(this.restartedWindows, tab, restored);
         // Chrome can attach the current tab as opener even for Cmd/Ctrl+T.
         // A blank new-tab page belongs to the selected space, not that incidental opener.
         const isNewTabPage = !url || /^(chrome:\/\/(newtab|new-tab-page)\/?|about:blank)$/.test(url);
@@ -221,7 +224,13 @@ export class SpaceStore {
     }
     restoreRecordIndex(tab, url, created) {
         const spaceIds = new Set(this.spaces.map(s => s.id));
-        return restoreRecordFor(this.restoreQueue, tab, { url, created, spaceIds, reopened: this.reopenedWindows });
+        return restoreRecordFor(this.restoreQueue, tab, {
+            url,
+            created,
+            spaceIds,
+            reopened: this.reopenedWindows,
+            restarted: this.restartedWindows
+        });
     }
     async persist() {
         const tabs = new Map((await chrome.tabs.query({})).map(t => [t.id, t]));
@@ -249,6 +258,8 @@ export class SpaceStore {
                         section,
                         order: this.restoredRanks.get(id) ?? order,
                         url: tab.url || tab.pendingUrl || '',
+                        windowId: tab.windowId,
+                        index: tab.index,
                         ...(pinnedStates[id] ? { pinnedState: pinnedStates[id] } : {}),
                         ...(overrides[id] ? { nameOverride: overrides[id] } : {})
                     };
@@ -259,7 +270,7 @@ export class SpaceStore {
         await chrome.storage.local.set({
             spaces: clone(this.spaces),
             spaceModelVersion: 2,
-            spaceTabSnapshot: [...snapshot, ...this.restoreQueue]
+            spaceTabSnapshot: [...snapshot, ...forSnapshot(this.restoreQueue)]
         });
         await chrome.storage.session.set({
             spaceSession: true,

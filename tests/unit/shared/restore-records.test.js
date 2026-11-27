@@ -2,7 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
     forNewSession,
+    forSnapshot,
     noteReopened,
+    noteRestarted,
     restoreRecordFor,
     windowCloseRecord
 } from '../../../src/shared/restore-records.js';
@@ -59,4 +61,41 @@ test('a new browser session turns window-close records into ordinary ones', () =
     assert.deepEqual(queue, [record('https://x.test/', { windowId: 2 }), record('https://y.test/')]);
     const link = { id: 9, windowId: 1, url: '', pendingUrl: 'https://x.test/', openerTabId: 4 };
     assert.equal(restoreRecordFor(queue, link, context('https://x.test/')), 0);
+});
+
+test('after a restart a tab takes the record of the window it was in, then of its own place', () => {
+    const queue = [
+        record('https://same.test/', { spaceId: 'a', windowId: 5, index: 1 }),
+        record('https://same.test/', { spaceId: 'b', windowId: 6, index: 1 })
+    ];
+    const tab = { id: 21, windowId: 1, index: 1, url: 'https://same.test/' };
+    // Nothing tells them apart yet: the first saved one.
+    assert.equal(restoreRecordFor(queue, tab, context(tab.url)), 0);
+    // Window 1 has taken a record of window 6, so it is window 6 now.
+    const restarted = new Map([[1, 6]]);
+    assert.equal(restoreRecordFor(queue, tab, context(tab.url, { restarted })), 1);
+    // Window 2 is not window 6, which another window is now.
+    assert.equal(restoreRecordFor(queue, { ...tab, windowId: 2 }, context(tab.url, { restarted })), 0);
+    // With no window known, its place in the window decides.
+    const places = [{ ...queue[0], index: 0 }, queue[1]];
+    assert.equal(restoreRecordFor(places, tab, context(tab.url)), 1);
+});
+
+test("the first record a window's tab takes after a restart names the window it was", () => {
+    const restarted = new Map();
+    noteRestarted(restarted, { windowId: 1 }, record('https://x.test/'));
+    assert.equal(restarted.size, 0, 'a record from an older version names no window');
+    noteRestarted(restarted, { windowId: 1 }, closed('https://x.test/', 4));
+    assert.equal(restarted.size, 0, 'a window-close record is matched another way');
+    noteRestarted(restarted, { windowId: 1 }, record('https://x.test/', { windowId: 6 }));
+    noteRestarted(restarted, { windowId: 1 }, record('https://x.test/', { windowId: 7 }));
+    assert.deepEqual([...restarted], [[1, 6]]);
+});
+
+test("a record still waiting from an earlier session is saved without that session's window", () => {
+    const old = record('https://x.test/', { windowId: 6, index: 2 });
+    assert.deepEqual(forSnapshot([old, closed('https://y.test/')]), [
+        record('https://x.test/'),
+        closed('https://y.test/')
+    ]);
 });

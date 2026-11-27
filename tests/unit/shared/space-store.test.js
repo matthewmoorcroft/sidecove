@@ -639,6 +639,69 @@ test('a tab that closed with the last window still comes back in its space after
     await after.dispatch({ action: 'get' });
     assert.deepEqual(local.spaces[1].temporaryTabs, [40]);
 });
+// Saved before a restart: the same page in space a in window 5 and in space b in window 6, each
+// after another page of its own space.
+const twoSpacesBeforeRestart = () => [
+    { spaceId: 'a', section: 'temporaryTabs', order: 0, url: 'https://home.test/', windowId: 5, index: 0 },
+    { spaceId: 'a', section: 'temporaryTabs', order: 1, url: 'https://same.test/', windowId: 5, index: 1 },
+    { spaceId: 'b', section: 'temporaryTabs', order: 0, url: 'https://work.test/', windowId: 6, index: 0 },
+    { spaceId: 'b', section: 'temporaryTabs', order: 1, url: 'https://same.test/', windowId: 6, index: 1 }
+];
+const restoredWindows = () => [
+    // Chrome restores window 6 first, as window 1, and window 5 as window 2, with new ids.
+    { id: 20, windowId: 1, index: 0, url: 'https://work.test/', groupId: -1 },
+    { id: 21, windowId: 1, index: 1, url: 'https://same.test/', groupId: -1 },
+    { id: 30, windowId: 2, index: 0, url: 'https://home.test/', groupId: -1 },
+    { id: 31, windowId: 2, index: 1, url: 'https://same.test/', groupId: -1 }
+];
+test('after a restart, the same page open in two spaces goes back to its own space', async () => {
+    sync.invertTabOrder = false;
+    session.spaceSession = false;
+    local.spaceTabSnapshot = twoSpacesBeforeRestart();
+    tabs = restoredWindows();
+    const store = new SpaceStore();
+    await store.dispatch({ action: 'get' });
+    assert.deepEqual(local.spaces[0].temporaryTabs, [30, 31]);
+    assert.deepEqual(local.spaces[1].temporaryTabs, [20, 21]);
+});
+test('after a restart, the same page goes back to its own space when Chrome reports the tabs one by one', async () => {
+    sync.invertTabOrder = false;
+    session.spaceSession = false;
+    local.spaceTabSnapshot = twoSpacesBeforeRestart();
+    tabs = [];
+    const store = new SpaceStore();
+    store.install();
+    await store.run(() => {});
+    for (const tab of restoredWindows()) await openTab(store, tab);
+    assert.deepEqual(local.spaces[0].temporaryTabs, [30, 31]);
+    assert.deepEqual(local.spaces[1].temporaryTabs, [20, 21]);
+});
+test('a snapshot saved by an older version, without windows or places, still restores every tab', async () => {
+    sync.invertTabOrder = false;
+    session.spaceSession = false;
+    local.spaceTabSnapshot = twoSpacesBeforeRestart().map(record => {
+        const old = { ...record };
+        delete old.windowId;
+        delete old.index;
+        return old;
+    });
+    tabs = restoredWindows();
+    const store = new SpaceStore();
+    await store.dispatch({ action: 'get' });
+    // As before: each tab is back in a space in its saved place, the first one on an address taking
+    // the first record of it, as there is nothing to tell the two apart.
+    assert.deepEqual(local.spaces[0].temporaryTabs, [30, 21]);
+    assert.deepEqual(local.spaces[1].temporaryTabs, [20, 31]);
+});
+test("each tab's window and place are saved, for the next restart", async () => {
+    tabs = [{ id: 1, windowId: 4, index: 2, url: 'https://one.test/', groupId: -1 }];
+    local.spaces = [space('a', [1])];
+    const store = new SpaceStore();
+    await store.dispatch({ action: 'get' });
+    const saved = local.spaceTabSnapshot.find(record => record.tabId === 1);
+    assert.equal(saved.windowId, 4);
+    assert.equal(saved.index, 2);
+});
 // Sidecove's own pages (settings, the setup guide shown after an update) are tabs the user
 // opened or is reading, so they belong in a space like any other tab (#103).
 for (const page of ['options.html', 'installation-onboarding.html']) {
