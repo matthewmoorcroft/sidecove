@@ -7,12 +7,13 @@ const strip = [tab(1, 0, 'https://a.test/'), tab(2, 1, 'https://b.test/'), tab(3
 
 test('a new tab right of a tab on the same address is its copy', () => {
     assert.equal(copiedTab(tab(9, 2, 'https://b.test/'), strip)?.id, 2);
-    assert.equal(copiedTab(tab(9, 2, undefined, { pendingUrl: 'https://b.test/' }), strip)?.id, 2);
     const pins = [tab(1, 0, 'https://p.test/', { pinned: true })];
     assert.equal(copiedTab(tab(9, 1, 'https://p.test/', { pinned: true }), pins)?.id, 1);
 });
 
 test('a link, or a new tab on another address, is not a copy', () => {
+    // A new link tab has only the address it is going to; a copy is already on its address.
+    assert.equal(copiedTab(tab(9, 2, undefined, { pendingUrl: 'https://b.test/', openerTabId: 1 }), strip), null);
     assert.equal(copiedTab(tab(9, 2, 'https://link.test/', { openerTabId: 2 }), strip), null);
     assert.equal(copiedTab(tab(9, 3, 'https://b.test/'), strip), null, 'not directly right of it');
     const pins = [tab(1, 0, 'https://p.test/', { pinned: true })];

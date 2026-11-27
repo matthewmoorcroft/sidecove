@@ -8,11 +8,10 @@ import { placeLinkTab } from './link-tab-placement.js';
 import { ownerOf } from './space-membership.js';
 
 const addressOf = tab => tab?.url || tab?.pendingUrl;
+// A copy brings the original's history, so Chrome reports it on its address already. A new link
+// tab has only the address it is going to (pendingUrl), even when it is the same link again.
 // Two blank tabs side by side share an address without one copying the other.
-const mayBeCopy = tab => {
-    const url = addressOf(tab);
-    return Boolean(url) && url !== 'about:blank' && !isNewTabPage(url);
-};
+const mayBeCopy = tab => Boolean(tab?.url) && tab.url !== 'about:blank' && !isNewTabPage(tab.url);
 
 /**
  * @param {chrome.tabs.Tab} tab a tab Chrome has just created
@@ -27,7 +26,7 @@ export function copiedTab(tab, windowTabs) {
     const left = windowTabs.find(
         other => other.id !== tab.id && other.windowId === tab.windowId && other.index === index - 1
     );
-    return left && Boolean(left.pinned) === Boolean(tab.pinned) && addressOf(left) === addressOf(tab) ? left : null;
+    return left && Boolean(left.pinned) === Boolean(tab.pinned) && addressOf(left) === tab.url ? left : null;
 }
 
 /**

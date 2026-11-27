@@ -90,6 +90,23 @@ const snapshot = page =>
         };
     });
 
+// Makes a space called Work in the panel, in a way every release's panel supports.
+async function createWorkSpace(page) {
+    await page.$eval('#addSpaceBtn', button => button.click());
+    await page.$eval('#newSpaceName', input => {
+        input.value = 'Work';
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await page.$eval('#spaceColor', select => {
+        select.value = 'blue';
+    });
+    await page.$eval('#createSpaceBtn', button => button.click());
+    await page.waitForFunction(
+        () => document.querySelector('#spaceSwitcher button.active')?.textContent.includes('Work'),
+        { polling: 100 }
+    );
+}
+
 beforeEach(() => {
     root = fs.mkdtempSync(path.join(os.tmpdir(), 'sidecove-upgrade-'));
     extensionDir = path.join(root, 'extension');
@@ -115,19 +132,7 @@ test.each(cases)('a profile from %s keeps its spaces, favorites and settings aft
     try {
         page = await openSidebar(browser, extensionId);
         expect(await page.evaluate(() => chrome.runtime.getManifest().version)).toBe(previousVersion);
-        await page.$eval('#addSpaceBtn', button => button.click());
-        await page.$eval('#newSpaceName', input => {
-            input.value = 'Work';
-            input.dispatchEvent(new Event('input', { bubbles: true }));
-        });
-        await page.$eval('#spaceColor', select => {
-            select.value = 'blue';
-        });
-        await page.$eval('#createSpaceBtn', button => button.click());
-        await page.waitForFunction(
-            () => document.querySelector('#spaceSwitcher button.active')?.textContent.includes('Work'),
-            { polling: 100 }
-        );
+        await createWorkSpace(page);
         await page.evaluate(async () => {
             const { spaces } = await chrome.runtime.sendMessage({ type: 'spaceStore', action: 'get' });
             const work = spaces.find(space => space.name === 'Work');
@@ -332,5 +337,107 @@ describe('favorites saved on update', () => {
                 await browser.close();
             }
         }
+    );
+
+    // The tabs' saved records change shape in this version (each also notes its window and place).
+    // A profile saved by the release before has the old records; after updating and restarting, each
+    // tab is back in its space, and the next save writes the new shape.
+    test.each(cases)(
+        'a profile from %s brings each tab back to its space after updating and restarting',
+        async (_, previous) => {
+            install(previous || dist, previous ? null : FALLBACK_PREVIOUS_VERSION);
+            let { browser, extensionId } = await launchBrowserWithExtension({
+                extensionPath: extensionDir,
+                userDataDir: profileDir
+            });
+            let ids;
+            try {
+                const page = await openSidebar(browser, extensionId);
+                await createWorkSpace(page);
+                ids = await page.evaluate(async base => {
+                    const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+                    const { spaces } = await chrome.runtime.sendMessage({ type: 'spaceStore', action: 'get' });
+                    const ids = {
+                        homeId: spaces.find(s => s.name !== 'Work').id,
+                        workId: spaces.find(s => s.name === 'Work').id
+                    };
+                    for (const [paths, spaceId] of [
+                        [['up-work', 'up-same'], ids.workId],
+                        [['up-home', 'up-same'], ids.homeId]
+                    ]) {
+                        const win = await chrome.windows.create({
+                            url: paths.map(path => `${base}/${path}`),
+                            focused: false
+                        });
+                        for (let i = 0; i < 100; i++) {
+                            const tabs = await chrome.tabs.query({ windowId: win.id });
+                            if (tabs.length === paths.length && tabs.every(tab => tab.status === 'complete')) break;
+                            await sleep(100);
+                        }
+                        for (const tab of await chrome.tabs.query({ windowId: win.id }))
+                            await chrome.runtime.sendMessage({
+                                type: 'spaceStore',
+                                action: 'assign',
+                                tabId: tab.id,
+                                spaceId
+                            });
+                    }
+                    return ids;
+                }, base);
+                // Give Chrome a moment to write the session it restores.
+                await new Promise(resolve => setTimeout(resolve, 1500));
+                const saved = await page.evaluate(
+                    async () => (await chrome.storage.local.get('spaceTabSnapshot')).spaceTabSnapshot
+                );
+                expect(saved.filter(record => record.url.includes('/up-'))).toHaveLength(4);
+                // A real earlier release saves the records without a window or place.
+                if (previous) expect(saved.some(record => 'windowId' in record)).toBe(false);
+            } finally {
+                await browser.close();
+            }
+
+            installUpdate(updateVersion(manifestVersion(extensionDir)));
+            ({ browser, extensionId } = await launchBrowserWithExtension({
+                extensionPath: extensionDir,
+                userDataDir: profileDir,
+                args: ['--restore-last-session']
+            }));
+            try {
+                const page = await openSidebar(browser, extensionId);
+                const urls = ['up-work', 'up-home', 'up-same'].map(path => `${base}/${path}`);
+                await page.waitForFunction(
+                    async urls => (await Promise.all(urls.map(url => chrome.tabs.query({ url })))).every(t => t.length),
+                    { polling: 100, timeout: 15000 },
+                    urls
+                );
+                await new Promise(resolve => setTimeout(resolve, 2500));
+                const owners = await page.evaluate(async urls => {
+                    const { spaces } = await chrome.runtime.sendMessage({ type: 'spaceStore', action: 'get' });
+                    const ownerOf = id => spaces.find(s => s.temporaryTabs.includes(id))?.id;
+                    const [work, home, same] = await Promise.all(urls.map(url => chrome.tabs.query({ url })));
+                    return {
+                        work: work.map(tab => ownerOf(tab.id)),
+                        home: home.map(tab => ownerOf(tab.id)),
+                        same: same.map(tab => ownerOf(tab.id)).sort()
+                    };
+                }, urls);
+                expect(owners).toEqual({
+                    work: [ids.workId],
+                    home: [ids.homeId],
+                    same: [ids.homeId, ids.workId].sort()
+                });
+                const saved = await page.evaluate(
+                    async () => (await chrome.storage.local.get('spaceTabSnapshot')).spaceTabSnapshot
+                );
+                expect(
+                    saved
+                        .filter(record => record.url.includes('/up-'))
+                        .every(record => Number.isInteger(record.windowId))
+                ).toBe(true);
+            } finally {
+                await browser.close();
+            }
+        },
+        120000
     );
 });
