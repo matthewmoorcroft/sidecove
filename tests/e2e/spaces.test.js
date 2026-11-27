@@ -4,7 +4,7 @@
  */
 import { launchBrowserWithExtension, openSidebar, getSidebarSpaces, createSpace } from './helpers/extension-helper.js';
 import { createServer } from 'node:http';
-import { delay, takeScreenshotOnFailure, logTestStep } from './helpers/test-utils.js';
+import { takeScreenshotOnFailure, logTestStep, waitForQuiet } from './helpers/test-utils.js';
 
 /**
  * Helper: force-show the options dropdown on the visible (active) space.
@@ -20,7 +20,10 @@ async function showSpaceOptionsDropdown(page) {
             }
         }
     });
-    await delay(300);
+    await page.waitForFunction(
+        () => [...document.querySelectorAll('.space-options-dropdown')].some(el => el.offsetParent !== null),
+        { polling: 25 }
+    );
 }
 
 async function dragSpaceChip(page, sourceIndex, targetIndex) {
@@ -190,8 +193,7 @@ describe('Space Management', () => {
 
                 await sidebarPage.keyboard.type('Renamed Space');
                 await sidebarPage.keyboard.press('Enter');
-                await delay(1500);
-
+                await waitForQuiet(sidebarPage);
                 const spaces = await getSidebarSpaces(sidebarPage);
                 logTestStep(`Spaces after rename: ${spaces.map(s => s.name).join(', ')}`);
 
@@ -228,8 +230,7 @@ describe('Space Management', () => {
                         }
                     }
                 });
-                await delay(1000);
-
+                await waitForQuiet(sidebarPage);
                 // Add known bookmark contents so the warning proves the full folder tree is counted.
                 await sidebarPage.evaluate(async () => {
                     const { spaces = [] } = await chrome.storage.local.get('spaces');
@@ -274,7 +275,16 @@ describe('Space Management', () => {
                     }
                 });
 
-                await delay(3000);
+                // The deletion may reload the panel, so the wait is allowed to fail and the check below reconnects.
+                await sidebarPage
+                    .waitForFunction(
+                        async () =>
+                            !((await chrome.storage.local.get('spaces')).spaces || []).some(
+                                space => space.name === 'Space to Delete'
+                            ),
+                        { polling: 50, timeout: 10000 }
+                    )
+                    .catch(() => {});
 
                 // Reconnect if page was affected by the deletion
                 try {
@@ -317,8 +327,7 @@ describe('Space Management', () => {
                         }
                     }
                 });
-                await delay(1000);
-
+                await waitForQuiet(sidebarPage);
                 ({ folderId, originalParentId } = await sidebarPage.evaluate(async () => {
                     const { spaces = [] } = await chrome.storage.local.get('spaces');
                     const space = spaces.find(item => item.name === 'Unreadable Space');
@@ -337,8 +346,7 @@ describe('Space Management', () => {
                 });
 
                 await sidebarPage.$eval('.space.active .delete-space-btn', btn => btn.click());
-                await delay(1500);
-
+                await waitForQuiet(sidebarPage);
                 expect(dialogs).toEqual([
                     {
                         type: 'confirm',
@@ -390,8 +398,7 @@ describe('Space Management', () => {
                         }
                     }
                 });
-                await delay(1500);
-
+                await waitForQuiet(sidebarPage);
                 // Verify color was applied
                 const colorApplied = await sidebarPage.evaluate(() => {
                     const switcherBtns = document.querySelectorAll('.space-switcher button');
@@ -437,8 +444,7 @@ describe('Space Management', () => {
                     );
                     button?.click();
                 }, firstSpaceName);
-                await delay(1500);
-
+                await waitForQuiet(sidebarPage);
                 const backDefaultPrevented = await sidebarPage.evaluate(() => {
                     const activeButton = document.querySelector('.space-switcher button.active');
                     const event = new MouseEvent('mouseup', {
@@ -449,8 +455,7 @@ describe('Space Management', () => {
                     activeButton.dispatchEvent(event);
                     return event.defaultPrevented;
                 });
-                await delay(1500);
-
+                await waitForQuiet(sidebarPage);
                 const afterBackName = await sidebarPage.evaluate(() =>
                     document.querySelector('.space-switcher button.active')?.textContent.trim()
                 );
@@ -467,8 +472,7 @@ describe('Space Management', () => {
                     activeButton.dispatchEvent(event);
                     return event.defaultPrevented;
                 });
-                await delay(1500);
-
+                await waitForQuiet(sidebarPage);
                 const afterForwardName = await sidebarPage.evaluate(() =>
                     document.querySelector('.space-switcher button.active')?.textContent.trim()
                 );
@@ -508,8 +512,7 @@ describe('Space Management', () => {
                         }
                     }
                 }, firstSpaceName);
-                await delay(1500);
-
+                await waitForQuiet(sidebarPage);
                 // Verify the active space changed: the visible space should match the target
                 const visibleSpaceName = await sidebarPage.evaluate(() => {
                     const spaces = document.querySelectorAll('.space');
@@ -535,8 +538,7 @@ describe('Space Management', () => {
                         }
                     }
                 });
-                await delay(1500);
-
+                await waitForQuiet(sidebarPage);
                 const switchedBackName = await sidebarPage.evaluate(() => {
                     const spaces = document.querySelectorAll('.space');
                     for (const space of spaces) {
@@ -578,8 +580,7 @@ describe('Space Management', () => {
                         }
                     }
                 }, firstSpaceName);
-                await delay(1500);
-
+                await waitForQuiet(sidebarPage);
                 // Count how many spaces are visible (display !== 'none')
                 const visibleCount = await sidebarPage.evaluate(() => {
                     const spaces = document.querySelectorAll('.space');
@@ -700,8 +701,7 @@ describe('Space Management', () => {
                 // Clear the input and press Enter
                 await sidebarPage.keyboard.press('Backspace');
                 await sidebarPage.keyboard.press('Enter');
-                await delay(1500);
-
+                await waitForQuiet(sidebarPage);
                 // Verify the space name is not empty (should keep original or use default)
                 const nameAfterClear = await sidebarPage.evaluate(() => {
                     const spaces = document.querySelectorAll('.space');
@@ -758,8 +758,7 @@ describe('Space Management', () => {
 
                 await sidebarPage.keyboard.type(longName);
                 await sidebarPage.keyboard.press('Enter');
-                await delay(1500);
-
+                await waitForQuiet(sidebarPage);
                 // Verify the name was applied (may be truncated by the UI)
                 const appliedName = await sidebarPage.evaluate(() => {
                     const spaces = document.querySelectorAll('.space');
@@ -816,8 +815,7 @@ describe('Space Management', () => {
 
                 await sidebarPage.keyboard.type(specialName);
                 await sidebarPage.keyboard.press('Enter');
-                await delay(1500);
-
+                await waitForQuiet(sidebarPage);
                 // Verify the name was applied correctly
                 const appliedName = await sidebarPage.evaluate(() => {
                     const spaces = document.querySelectorAll('.space');
@@ -879,8 +877,7 @@ describe('Space Management', () => {
                         return false;
                     }, color);
                     expect(swatchClicked).toBe(true);
-                    await delay(500);
-
+                    await waitForQuiet(sidebarPage);
                     logTestStep(`Applied color: ${color}`);
                 }
 
@@ -915,8 +912,7 @@ describe('Space Management', () => {
                         }
                     }
                 });
-                await delay(1500);
-
+                await waitForQuiet(sidebarPage);
                 // Check the active switcher button has a non-transparent background
                 const buttonStyled = await sidebarPage.evaluate(() => {
                     const switcherBtns = document.querySelectorAll('.space-switcher button');
@@ -950,8 +946,7 @@ describe('Space Management', () => {
                         }
                     }
                 });
-                await delay(1500);
-
+                await waitForQuiet(sidebarPage);
                 // Get background color after changing to green
                 const greenBgColor = await sidebarPage.evaluate(() => {
                     const switcherBtns = document.querySelectorAll('.space-switcher button');
@@ -1052,7 +1047,7 @@ describe('Space Management', () => {
 
                 logTestStep('Dropping the last chip on itself...');
                 await dragChip(sidebarPage, -1, -1, 'right');
-                await delay(1000);
+                await waitForQuiet(sidebarPage);
                 expect(await folderOrder(sidebarPage)).toEqual(expected);
                 expect(await chipOrder(sidebarPage)).toEqual(expected);
                 logTestStep('✓ Self-drop left chips and bookmark folders in place');
@@ -1102,7 +1097,7 @@ describe('Space Management', () => {
 
                 logTestStep('Dragging the relocated space chip to the front...');
                 await dragChip(sidebarPage, -1, 0, 'left');
-                await delay(1000);
+                await waitForQuiet(sidebarPage);
                 const [folder] = await sidebarPage.evaluate(id => chrome.bookmarks.get(id), folderId);
                 expect(folder.parentId).toBe('1');
                 expect(await folderOrder(sidebarPage)).toEqual(before);
@@ -1162,7 +1157,6 @@ describe('Space Management', () => {
 
                 // Close the sidebar
                 await sidebarPage.close();
-                await delay(1000);
 
                 // Reopen the sidebar
                 sidebarPage = await openSidebar(browser, extensionId);
@@ -1194,7 +1188,6 @@ describe('Space Management', () => {
                 // Close and reopen sidebar multiple times
                 for (let i = 0; i < 3; i++) {
                     await sidebarPage.close();
-                    await delay(500);
                     sidebarPage = await openSidebar(browser, extensionId);
 
                     const currentSpaces = await getSidebarSpaces(sidebarPage);

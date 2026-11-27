@@ -4,7 +4,13 @@
  */
 import { createServer } from 'node:http';
 import { launchBrowserWithExtension, openSidebar, getSidebarTabs, createSpace } from './helpers/extension-helper.js';
-import { delay, takeScreenshotOnFailure, logTestStep } from './helpers/test-utils.js';
+import {
+    takeScreenshotOnFailure,
+    logTestStep,
+    waitForNewestTabInSpace,
+    waitForStoreMatchesChrome,
+    waitForTabTitle
+} from './helpers/test-utils.js';
 
 describe('Tab Management', () => {
     let browser;
@@ -63,7 +69,7 @@ describe('Tab Management', () => {
                     const page = await browser.newPage();
                     await page.goto(`https://www.example.com?page=${i}`, { waitUntil: 'domcontentloaded' });
                     testPages.push(page);
-                    await delay(500);
+                    await waitForNewestTabInSpace(sidebarPage);
                 }
 
                 // Close and reopen sidebar to pick up new tabs
@@ -88,7 +94,7 @@ describe('Tab Management', () => {
                 // Open a tab with known title
                 const newPage = await browser.newPage();
                 await newPage.goto('https://www.example.com', { waitUntil: 'domcontentloaded' });
-                await delay(1000);
+                await waitForNewestTabInSpace(sidebarPage);
 
                 // Close and reopen sidebar to pick up new tab
                 await sidebarPage.close();
@@ -127,7 +133,7 @@ describe('Tab Management', () => {
                 // Open a test page
                 const testPage = await browser.newPage();
                 await testPage.goto('https://www.example.com', { waitUntil: 'domcontentloaded' });
-                await delay(1000);
+                await waitForNewestTabInSpace(sidebarPage);
 
                 // Close and reopen sidebar to pick up new tab
                 await sidebarPage.close();
@@ -167,7 +173,7 @@ describe('Tab Management', () => {
                 // Open a test page
                 const testPage = await browser.newPage();
                 await testPage.goto('https://www.example.com', { waitUntil: 'domcontentloaded' });
-                await delay(1000);
+                await waitForNewestTabInSpace(sidebarPage);
 
                 // Close and reopen sidebar to pick up new tab
                 await sidebarPage.close();
@@ -204,7 +210,7 @@ describe('Tab Management', () => {
                 // Open a test page
                 const testPage = await browser.newPage();
                 await testPage.goto('https://www.example.com', { waitUntil: 'domcontentloaded' });
-                await delay(1000);
+                await waitForNewestTabInSpace(sidebarPage);
 
                 // Close sidebar and reopen to pick up new tab
                 await sidebarPage.close();
@@ -228,7 +234,7 @@ describe('Tab Management', () => {
                 });
 
                 if (closedTabId) {
-                    await delay(1500);
+                    await waitForStoreMatchesChrome(sidebarPage);
 
                     // Close and reopen sidebar to see updated state
                     await sidebarPage.close();
@@ -255,7 +261,7 @@ describe('Tab Management', () => {
                 // Open a test page
                 const testPage = await browser.newPage();
                 await testPage.goto('https://www.example.com', { waitUntil: 'domcontentloaded' });
-                await delay(1000);
+                await waitForNewestTabInSpace(sidebarPage);
 
                 // Close and reopen sidebar
                 await sidebarPage.close();
@@ -319,7 +325,7 @@ describe('Tab Management', () => {
                 // Open a test page
                 const testPage = await browser.newPage();
                 await testPage.goto('https://www.example.com', { waitUntil: 'domcontentloaded' });
-                await delay(1000);
+                await waitForNewestTabInSpace(sidebarPage);
 
                 // Close and reopen sidebar
                 await sidebarPage.close();
@@ -370,7 +376,7 @@ describe('Tab Management', () => {
                     const page = await browser.newPage();
                     await page.goto(`https://www.example.com?bulk=${i}`, { waitUntil: 'domcontentloaded' });
                     testPages.push(page);
-                    await delay(500);
+                    await waitForNewestTabInSpace(sidebarPage);
                 }
 
                 // Close and reopen sidebar to pick up new tabs
@@ -399,7 +405,7 @@ describe('Tab Management', () => {
                     const page = await browser.newPage();
                     await page.goto(`https://www.example.com?seq=${i}`, { waitUntil: 'domcontentloaded' });
                     testPages.push(page);
-                    await delay(500);
+                    await waitForNewestTabInSpace(sidebarPage);
                 }
 
                 // Close and reopen sidebar to pick up new tabs
@@ -429,7 +435,7 @@ describe('Tab Management', () => {
                 });
 
                 logTestStep(`Closed ${closedCount} tabs via Chrome API`);
-                await delay(1500);
+                await waitForStoreMatchesChrome(sidebarPage);
 
                 // Close and reopen sidebar to see updated state
                 await sidebarPage.close();
@@ -456,7 +462,7 @@ describe('Tab Management', () => {
                 // Open a page with a known title
                 const testPage = await browser.newPage();
                 await testPage.goto('https://www.example.com', { waitUntil: 'domcontentloaded' });
-                await delay(1000);
+                await waitForNewestTabInSpace(sidebarPage);
 
                 // Close and reopen sidebar to pick up the tab
                 await sidebarPage.close();
@@ -473,7 +479,7 @@ describe('Tab Management', () => {
                 await testPage.evaluate(() => {
                     document.title = 'Navigated Page Title';
                 });
-                await delay(1000);
+                await waitForTabTitle(sidebarPage, 'Navigated Page Title');
 
                 // Close and reopen sidebar to pick up updated title
                 await sidebarPage.close();
@@ -509,7 +515,7 @@ describe('Tab Management', () => {
                 await testPage.evaluate(title => {
                     document.title = title;
                 }, longTitle);
-                await delay(1000);
+                await waitForTabTitle(sidebarPage, longTitle);
 
                 // Close and reopen sidebar to pick up the tab
                 await sidebarPage.close();
@@ -573,7 +579,7 @@ describe('Tab Management', () => {
                 // Open a test page and make it active
                 const testPage = await browser.newPage();
                 await testPage.goto('https://www.example.com', { waitUntil: 'domcontentloaded' });
-                await delay(1000);
+                await waitForNewestTabInSpace(sidebarPage);
 
                 // Close and reopen sidebar to pick up the tab
                 await sidebarPage.close();
@@ -632,7 +638,7 @@ describe('Tab Management', () => {
                 // Open a new tab
                 const newPage = await browser.newPage();
                 await newPage.goto('https://www.example.com?new=1', { waitUntil: 'domcontentloaded' });
-                await delay(1000);
+                await waitForNewestTabInSpace(sidebarPage);
 
                 // Close and reopen sidebar to pick up new tab
                 await sidebarPage.close();
@@ -659,7 +665,7 @@ describe('Tab Management', () => {
                 // Open a test page to ensure at least one tab exists
                 const testPage = await browser.newPage();
                 await testPage.goto('https://www.example.com', { waitUntil: 'domcontentloaded' });
-                await delay(1000);
+                await waitForNewestTabInSpace(sidebarPage);
 
                 // Close and reopen sidebar
                 await sidebarPage.close();
@@ -701,7 +707,7 @@ describe('Tab Management', () => {
                     const page = await browser.newPage();
                     await page.goto(`https://www.example.com?unique=${i}`, { waitUntil: 'domcontentloaded' });
                     testPages.push(page);
-                    await delay(500);
+                    await waitForNewestTabInSpace(sidebarPage);
                 }
 
                 // Close and reopen sidebar
@@ -733,7 +739,7 @@ describe('Tab Management', () => {
                 // Open a test page
                 const testPage = await browser.newPage();
                 await testPage.goto('https://www.example.com', { waitUntil: 'domcontentloaded' });
-                await delay(1000);
+                await waitForNewestTabInSpace(sidebarPage);
 
                 // Close and reopen sidebar
                 await sidebarPage.close();
@@ -815,7 +821,7 @@ describe('Tab Management', () => {
 
                 // Open an about:blank page via new tab (newPage opens about:blank by default)
                 const blankPage = await browser.newPage();
-                await delay(1000);
+                await waitForNewestTabInSpace(sidebarPage);
 
                 // Close and reopen sidebar
                 await sidebarPage.close();

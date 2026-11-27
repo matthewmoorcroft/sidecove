@@ -12,6 +12,116 @@ export async function delay(ms) {
 }
 
 /**
+ * Wait until the newest open tab (the page a test has just opened) belongs to a space in Sidecove's
+ * store, which is what a reopened side panel draws from. Gives up quietly after the timeout, as the
+ * old fixed pause did, so the test's own checks report what is missing.
+ * @param {import('puppeteer-core').Page} page - A Sidecove extension page
+ * @param {number} timeout - Milliseconds to wait at most
+ */
+export async function waitForNewestTabInSpace(page, timeout = 10000) {
+    await page
+        .waitForFunction(
+            async () => {
+                const tabs = await chrome.tabs.query({});
+                const newest = tabs.reduce((a, b) => (b.id > a.id ? b : a));
+                const { spaces = [] } = await chrome.runtime.sendMessage({ type: 'spaceStore', action: 'get' });
+                return spaces.some(space => [...space.temporaryTabs, ...space.pinnedTabs].includes(newest.id));
+            },
+            { polling: 50, timeout }
+        )
+        .catch(() => {});
+}
+
+/**
+ * Wait until every tab Sidecove lists in a space is still open in Chrome: the end of the store catching
+ * up with tabs that were just closed. Gives up quietly after the timeout so the test's own checks report.
+ * @param {import('puppeteer-core').Page} page - A Sidecove extension page
+ * @param {number} timeout - Milliseconds to wait at most
+ */
+export async function waitForStoreMatchesChrome(page, timeout = 10000) {
+    await page
+        .waitForFunction(
+            async () => {
+                const open = new Set((await chrome.tabs.query({})).map(tab => tab.id));
+                const { spaces = [] } = await chrome.runtime.sendMessage({ type: 'spaceStore', action: 'get' });
+                return spaces.every(space => [...space.temporaryTabs, ...space.pinnedTabs].every(id => open.has(id)));
+            },
+            { polling: 50, timeout }
+        )
+        .catch(() => {});
+}
+
+/**
+ * Wait until Chrome reports a tab with the given title, which is what a reopened side panel shows.
+ * Gives up quietly after the timeout so the test's own checks report.
+ * @param {import('puppeteer-core').Page} page - A Sidecove extension page
+ * @param {string} title - The tab title to wait for
+ * @param {number} timeout - Milliseconds to wait at most
+ */
+export async function waitForTabTitle(page, title, timeout = 10000) {
+    await page
+        .waitForFunction(
+            async title => (await chrome.tabs.query({})).some(tab => tab.title === title),
+            { polling: 50, timeout },
+            title
+        )
+        .catch(() => {});
+}
+
+/**
+ * Wait until nothing has changed in the page, its tabs, its storage or its bookmarks for `quietMs`:
+ * the end of whatever a click or key press set off. Use where a test needs "the extension has finished
+ * reacting" and there is no single value to wait for.
+ * @param {import('puppeteer-core').Page} page - A Sidecove extension page
+ * @param {number} quietMs - How long everything must stay still
+ * @param {number} timeout - Milliseconds to wait at most
+ */
+export async function waitForQuiet(page, quietMs = 300, timeout = 10000) {
+    await page.evaluate(
+        (quietMs, timeout) =>
+            new Promise(resolve => {
+                const events = [
+                    chrome.tabs.onCreated,
+                    chrome.tabs.onUpdated,
+                    chrome.tabs.onRemoved,
+                    chrome.tabs.onMoved,
+                    chrome.tabs.onAttached,
+                    chrome.tabs.onDetached,
+                    chrome.storage.onChanged,
+                    chrome.bookmarks.onCreated,
+                    chrome.bookmarks.onRemoved,
+                    chrome.bookmarks.onChanged,
+                    chrome.bookmarks.onMoved
+                ];
+                const observer = new MutationObserver(() => poke());
+                let timer;
+                const finish = () => {
+                    events.forEach(event => event.removeListener(poke));
+                    observer.disconnect();
+                    clearTimeout(timer);
+                    clearTimeout(cap);
+                    resolve();
+                };
+                const poke = () => {
+                    clearTimeout(timer);
+                    timer = setTimeout(finish, quietMs);
+                };
+                const cap = setTimeout(finish, timeout);
+                events.forEach(event => event.addListener(poke));
+                observer.observe(document.documentElement, {
+                    childList: true,
+                    subtree: true,
+                    attributes: true,
+                    characterData: true
+                });
+                poke();
+            }),
+        quietMs,
+        timeout
+    );
+}
+
+/**
  * Generate random string
  * @param {number} length - Length of string
  * @returns {string}

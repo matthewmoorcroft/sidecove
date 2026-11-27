@@ -9,7 +9,13 @@ import {
     createSpace,
     waitForCondition
 } from './helpers/extension-helper.js';
-import { delay, takeScreenshotOnFailure, logTestStep, getElementCount } from './helpers/test-utils.js';
+import {
+    takeScreenshotOnFailure,
+    logTestStep,
+    getElementCount,
+    waitForNewestTabInSpace,
+    waitForQuiet
+} from './helpers/test-utils.js';
 
 async function getVisiblePinnedCount(sidebarPage) {
     return sidebarPage.evaluate(() => {
@@ -123,7 +129,7 @@ describe('Bookmarks and Pinned Tabs', () => {
                 // Open a test page
                 const testPage = await browser.newPage();
                 await testPage.goto('https://www.example.com', { waitUntil: 'domcontentloaded' });
-                await delay(1000);
+                await waitForNewestTabInSpace(sidebarPage);
 
                 // Close and reopen sidebar to pick up new tab
                 await sidebarPage.close();
@@ -162,7 +168,8 @@ describe('Bookmarks and Pinned Tabs', () => {
                     targetTab.dispatchEvent(event);
 
                     // Wait for context menu to appear
-                    await new Promise(r => setTimeout(r, 500));
+                    for (let i = 0; i < 200 && !document.querySelector('.context-menu-item'); i++)
+                        await new Promise(r => setTimeout(r, 25));
 
                     // Find and click "Pin Tab" option
                     const menuItems = document.querySelectorAll('.context-menu-item');
@@ -212,7 +219,7 @@ describe('Bookmarks and Pinned Tabs', () => {
                 // Open a test page
                 const testPage = await browser.newPage();
                 await testPage.goto('https://www.example.com', { waitUntil: 'domcontentloaded' });
-                await delay(1000);
+                await waitForNewestTabInSpace(sidebarPage);
 
                 // Close and reopen sidebar to pick up new tab
                 await sidebarPage.close();
@@ -242,7 +249,8 @@ describe('Bookmarks and Pinned Tabs', () => {
                             clientY: rect.y + 5
                         })
                     );
-                    await new Promise(r => setTimeout(r, 500));
+                    for (let i = 0; i < 200 && !document.querySelector('.context-menu-item'); i++)
+                        await new Promise(r => setTimeout(r, 25));
 
                     let pinClicked = false;
                     for (const item of document.querySelectorAll('.context-menu-item')) {
@@ -254,7 +262,9 @@ describe('Bookmarks and Pinned Tabs', () => {
                     }
                     if (!pinClicked) return { success: false, reason: 'Pin Tab not found' };
 
-                    await new Promise(r => setTimeout(r, 2000));
+                    // The pinned tab is drawn once the pin has been saved.
+                    for (let i = 0; i < 200 && !document.querySelector('[data-tab-type="pinned"] .tab'); i++)
+                        await new Promise(r => setTimeout(r, 25));
 
                     // Now find the pinned tab and unpin it
                     let pinnedTab = null;
@@ -279,7 +289,8 @@ describe('Bookmarks and Pinned Tabs', () => {
                             clientY: rect2.y + 5
                         })
                     );
-                    await new Promise(r => setTimeout(r, 500));
+                    for (let i = 0; i < 200 && !document.querySelector('.context-menu-item'); i++)
+                        await new Promise(r => setTimeout(r, 25));
 
                     for (const item of document.querySelectorAll('.context-menu-item')) {
                         if (item.textContent.trim() === 'Unpin Tab') {
@@ -290,7 +301,7 @@ describe('Bookmarks and Pinned Tabs', () => {
                     return { success: false, reason: 'Unpin Tab not found in context menu' };
                 });
 
-                await delay(2000);
+                await waitForQuiet(sidebarPage);
 
                 if (result.success) {
                     logTestStep('✓ Tab unpinned successfully');
@@ -310,14 +321,14 @@ describe('Bookmarks and Pinned Tabs', () => {
                 // Open a test page
                 const testPage = await browser.newPage();
                 await testPage.goto('https://www.example.com', { waitUntil: 'domcontentloaded' });
-                await delay(1000);
+                await waitForNewestTabInSpace(sidebarPage);
 
                 // Focus the test page and press Alt+D
                 await testPage.bringToFront();
                 await testPage.keyboard.down('Alt');
                 await testPage.keyboard.press('KeyD');
                 await testPage.keyboard.up('Alt');
-                await delay(1000);
+                await waitForQuiet(sidebarPage);
 
                 // Close and reopen sidebar to check if tab is pinned
                 await sidebarPage.close();
@@ -373,7 +384,7 @@ describe('Bookmarks and Pinned Tabs', () => {
                 // Open a test page to ensure at least one tab exists
                 const testPage = await browser.newPage();
                 await testPage.goto('https://www.example.com', { waitUntil: 'domcontentloaded' });
-                await delay(1000);
+                await waitForNewestTabInSpace(sidebarPage);
 
                 await sidebarPage.close();
                 sidebarPage = await openSidebar(browser, extensionId);
@@ -512,7 +523,7 @@ describe('Bookmarks and Pinned Tabs', () => {
                 el.dispatchEvent(new MouseEvent('auxclick', { bubbles: true, cancelable: true, button: 1 }));
                 el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, button: 1 }));
             });
-            await delay(500);
+            await waitForQuiet(sidebarPage, 500);
             expect(await sidebarPage.$(selector)).not.toBeNull();
             const exists = await sidebarPage.evaluate(async id => {
                 try {
@@ -576,7 +587,7 @@ describe('Bookmarks and Pinned Tabs', () => {
                 // Open a test page
                 const testPage = await browser.newPage();
                 await testPage.goto('https://www.example.com', { waitUntil: 'domcontentloaded' });
-                await delay(1000);
+                await waitForNewestTabInSpace(sidebarPage);
 
                 // Close and reopen sidebar to pick up the new tab
                 await sidebarPage.close();
@@ -628,7 +639,8 @@ describe('Bookmarks and Pinned Tabs', () => {
                             clientY: rect.y + rect.height / 2
                         })
                     );
-                    await new Promise(r => setTimeout(r, 500));
+                    for (let i = 0; i < 200 && !document.querySelector('.context-menu-item'); i++)
+                        await new Promise(r => setTimeout(r, 25));
 
                     for (const item of document.querySelectorAll('.context-menu-item')) {
                         if (item.textContent.trim() === 'Pin Tab') {
@@ -684,7 +696,8 @@ describe('Bookmarks and Pinned Tabs', () => {
                                         clientY: rect.y + 5
                                     })
                                 );
-                                await new Promise(r => setTimeout(r, 500));
+                                for (let i = 0; i < 200 && !document.querySelector('.context-menu-item'); i++)
+                                    await new Promise(r => setTimeout(r, 25));
 
                                 for (const item of document.querySelectorAll('.context-menu-item')) {
                                     if (item.textContent.trim() === 'Unpin Tab') {
@@ -747,12 +760,12 @@ describe('Bookmarks and Pinned Tabs', () => {
                 await testPage1.goto(`https://www.example.com/?sidecove-count=${runId}-1`, {
                     waitUntil: 'domcontentloaded'
                 });
-                await delay(500);
+                await waitForNewestTabInSpace(sidebarPage);
                 const testPage2 = await browser.newPage();
                 await testPage2.goto(`https://www.example.com/?sidecove-count=${runId}-2`, {
                     waitUntil: 'domcontentloaded'
                 });
-                await delay(1000);
+                await waitForNewestTabInSpace(sidebarPage);
 
                 // Close and reopen sidebar to pick up both tabs
                 await sidebarPage.close();
@@ -792,7 +805,8 @@ describe('Bookmarks and Pinned Tabs', () => {
                                     clientY: rect.y + 5
                                 })
                             );
-                            await new Promise(r => setTimeout(r, 500));
+                            for (let i = 0; i < 200 && !document.querySelector('.context-menu-item'); i++)
+                                await new Promise(r => setTimeout(r, 25));
 
                             for (const item of document.querySelectorAll('.context-menu-item')) {
                                 if (item.textContent.trim() === 'Pin Tab') {
@@ -847,7 +861,8 @@ describe('Bookmarks and Pinned Tabs', () => {
                                         clientY: rect.y + 5
                                     })
                                 );
-                                await new Promise(r => setTimeout(r, 500));
+                                for (let i = 0; i < 200 && !document.querySelector('.context-menu-item'); i++)
+                                    await new Promise(r => setTimeout(r, 25));
 
                                 for (const item of document.querySelectorAll('.context-menu-item')) {
                                     if (item.textContent.trim() === 'Pin Tab') {
@@ -970,7 +985,7 @@ describe('Bookmarks and Pinned Tabs', () => {
                 // Open a test page and pin it to ensure both sections have content
                 const testPage = await browser.newPage();
                 await testPage.goto('https://www.example.com', { waitUntil: 'domcontentloaded' });
-                await delay(1000);
+                await waitForNewestTabInSpace(sidebarPage);
 
                 await sidebarPage.close();
                 sidebarPage = await openSidebar(browser, extensionId);
@@ -995,7 +1010,8 @@ describe('Bookmarks and Pinned Tabs', () => {
                                     clientY: rect.y + 5
                                 })
                             );
-                            await new Promise(r => setTimeout(r, 500));
+                            for (let i = 0; i < 200 && !document.querySelector('.context-menu-item'); i++)
+                                await new Promise(r => setTimeout(r, 25));
 
                             for (const item of document.querySelectorAll('.context-menu-item')) {
                                 if (item.textContent.trim() === 'Pin Tab') {
@@ -1008,7 +1024,7 @@ describe('Bookmarks and Pinned Tabs', () => {
                     }
                 });
 
-                await delay(2000);
+                await waitForQuiet(sidebarPage);
 
                 await sidebarPage.close();
                 sidebarPage = await openSidebar(browser, extensionId);
@@ -1065,7 +1081,7 @@ describe('Bookmarks and Pinned Tabs', () => {
                 // Open a test page and pin it to ensure we have a pinned tab
                 const testPage = await browser.newPage();
                 await testPage.goto('https://www.example.com', { waitUntil: 'domcontentloaded' });
-                await delay(1000);
+                await waitForNewestTabInSpace(sidebarPage);
 
                 await sidebarPage.close();
                 sidebarPage = await openSidebar(browser, extensionId);
@@ -1090,7 +1106,8 @@ describe('Bookmarks and Pinned Tabs', () => {
                                     clientY: rect.y + 5
                                 })
                             );
-                            await new Promise(r => setTimeout(r, 500));
+                            for (let i = 0; i < 200 && !document.querySelector('.context-menu-item'); i++)
+                                await new Promise(r => setTimeout(r, 25));
 
                             for (const item of document.querySelectorAll('.context-menu-item')) {
                                 if (item.textContent.trim() === 'Pin Tab') {
@@ -1103,7 +1120,7 @@ describe('Bookmarks and Pinned Tabs', () => {
                     }
                 });
 
-                await delay(2000);
+                await waitForQuiet(sidebarPage);
 
                 // Perform 3 sidebar close/reopen cycles and compare counts
                 const counts = [];
@@ -1151,7 +1168,7 @@ describe('Bookmarks and Pinned Tabs', () => {
                 // Open a test page
                 const testPage = await browser.newPage();
                 await testPage.goto('https://www.example.com', { waitUntil: 'domcontentloaded' });
-                await delay(1000);
+                await waitForNewestTabInSpace(sidebarPage);
 
                 await sidebarPage.close();
                 sidebarPage = await openSidebar(browser, extensionId);
@@ -1243,17 +1260,17 @@ describe('Bookmarks and Pinned Tabs', () => {
                 await testPage1.goto(`https://www.example.com/?sidecove-multi=${runId}-1`, {
                     waitUntil: 'domcontentloaded'
                 });
-                await delay(500);
+                await waitForNewestTabInSpace(sidebarPage);
                 const testPage2 = await browser.newPage();
                 await testPage2.goto(`https://www.example.com/?sidecove-multi=${runId}-2`, {
                     waitUntil: 'domcontentloaded'
                 });
-                await delay(500);
+                await waitForNewestTabInSpace(sidebarPage);
                 const testPage3 = await browser.newPage();
                 await testPage3.goto(`https://www.example.com/?sidecove-multi=${runId}-3`, {
                     waitUntil: 'domcontentloaded'
                 });
-                await delay(1000);
+                await waitForNewestTabInSpace(sidebarPage);
 
                 // Close and reopen sidebar to pick up all tabs
                 await sidebarPage.close();
@@ -1295,7 +1312,8 @@ describe('Bookmarks and Pinned Tabs', () => {
                                         clientY: rect.y + 5
                                     })
                                 );
-                                await new Promise(r => setTimeout(r, 500));
+                                for (let i = 0; i < 200 && !document.querySelector('.context-menu-item'); i++)
+                                    await new Promise(r => setTimeout(r, 25));
 
                                 for (const item of document.querySelectorAll('.context-menu-item')) {
                                     if (item.textContent.trim() === 'Pin Tab') {
@@ -1352,10 +1370,10 @@ describe('Bookmarks and Pinned Tabs', () => {
                 // Open test pages
                 const testPage1 = await browser.newPage();
                 await testPage1.goto('https://www.example.com', { waitUntil: 'domcontentloaded' });
-                await delay(500);
+                await waitForNewestTabInSpace(sidebarPage);
                 const testPage2 = await browser.newPage();
                 await testPage2.goto('https://www.example.com?page=wiki', { waitUntil: 'domcontentloaded' });
-                await delay(1000);
+                await waitForNewestTabInSpace(sidebarPage);
 
                 await sidebarPage.close();
                 sidebarPage = await openSidebar(browser, extensionId);
@@ -1394,7 +1412,8 @@ describe('Bookmarks and Pinned Tabs', () => {
                                     clientY: rect.y + 5
                                 })
                             );
-                            await new Promise(r => setTimeout(r, 500));
+                            for (let i = 0; i < 200 && !document.querySelector('.context-menu-item'); i++)
+                                await new Promise(r => setTimeout(r, 25));
 
                             for (const item of document.querySelectorAll('.context-menu-item')) {
                                 if (item.textContent.trim() === 'Pin Tab') {
@@ -1408,7 +1427,7 @@ describe('Bookmarks and Pinned Tabs', () => {
                     return { success: false, reason: 'no visible space' };
                 });
 
-                await delay(2000);
+                await waitForQuiet(sidebarPage);
 
                 if (pinResult.success) {
                     // Reopen sidebar and check temporary count decreased
@@ -1447,7 +1466,7 @@ describe('Bookmarks and Pinned Tabs', () => {
                 // Open a test page to ensure tabs exist
                 const testPage = await browser.newPage();
                 await testPage.goto('https://www.example.com', { waitUntil: 'domcontentloaded' });
-                await delay(1000);
+                await waitForNewestTabInSpace(sidebarPage);
 
                 await sidebarPage.close();
                 sidebarPage = await openSidebar(browser, extensionId);
@@ -1501,7 +1520,7 @@ describe('Bookmarks and Pinned Tabs', () => {
                 // Open a test page
                 const testPage = await browser.newPage();
                 await testPage.goto('https://www.example.com', { waitUntil: 'domcontentloaded' });
-                await delay(1000);
+                await waitForNewestTabInSpace(sidebarPage);
 
                 await sidebarPage.close();
                 sidebarPage = await openSidebar(browser, extensionId);
