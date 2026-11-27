@@ -212,3 +212,125 @@ test('with the setting off after a restart, unpinning a saved favorite still rem
     await settle();
     assert.deepEqual(local.savedFavorites, []);
 });
+
+// Chrome pins a duplicate of a pinned tab, directly right of it. A window shows a favorite once, so
+// the copy is not a second favorite: it is unpinned before it is saved and is an ordinary tab.
+const duplicate = (live, chrome, source, id) => {
+    const copy = { ...live.get(source), id, index: live.get(source).index + 1, openerTabId: 99, incognito: false };
+    live.set(id, copy);
+    chrome.tabs.onCreated.listeners[0]({ ...copy });
+    return copy;
+};
+
+test('duplicating a favorite’s pinned tab gives an ordinary tab and no second favorite', async () => {
+    const { chrome, live, settle, local } = setup({ tabs: [pin(1, 1, 'https://a/')] });
+    await settle();
+    duplicate(live, chrome, 1, 2);
+    await settle();
+    assert.equal(live.get(2).pinned, false);
+    assert.equal(live.get(1).pinned, true);
+    const unpinned = { ...live.get(2) };
+    chrome.tabs.onUpdated.listeners[0](2, { pinned: false }, unpinned);
+    await settle();
+    assert.deepEqual(
+        local.savedFavorites.map(f => f.url),
+        ['https://a/']
+    );
+    assert.deepEqual(
+        local.favoriteTabs.map(r => r.tabId),
+        [1]
+    );
+    // Closing the copy changes nothing in the saved list.
+    live.delete(2);
+    chrome.tabs.onRemoved.listeners[0](2, { isWindowClosing: false });
+    await settle();
+    assert.deepEqual(
+        local.savedFavorites.map(f => f.id),
+        ['f1']
+    );
+    assert.deepEqual(local.favoriteRestore ?? [], []);
+});
+
+test('a copy pinned by hand afterwards is saved as a second favorite, on purpose', async () => {
+    const { chrome, live, settle, local } = setup({ tabs: [pin(1, 1, 'https://a/')] });
+    await settle();
+    duplicate(live, chrome, 1, 2);
+    await settle();
+    live.get(2).pinned = true;
+    chrome.tabs.onUpdated.listeners[0](2, { pinned: true }, live.get(2));
+    await settle();
+    assert.deepEqual(
+        local.savedFavorites.map(f => f.url),
+        ['https://a/', 'https://a/']
+    );
+});
+
+test('a pinned tab opened beside a favorite on another page, or in another window, stays pinned', async () => {
+    const { chrome, live, settle, local } = setup({ tabs: [pin(1, 1, 'https://a/')] });
+    await settle();
+    live.set(2, { ...pin(2, 1, 'https://b/'), index: 2 });
+    chrome.tabs.onCreated.listeners[0]({ ...live.get(2) });
+    live.set(3, { ...pin(3, 2, 'https://a/'), index: 0 });
+    chrome.tabs.onCreated.listeners[0]({ ...live.get(3) });
+    await settle();
+    assert.equal(live.get(2).pinned, true);
+    assert.equal(live.get(3).pinned, true);
+    assert.deepEqual(
+        local.savedFavorites.map(f => f.url),
+        ['https://a/', 'https://b/']
+    );
+});
+
+test('a favorite Sidecove opens beside another favorite on the same page is not taken for a copy', async () => {
+    // With separate favorites per space, one page can be a favorite in two spaces.
+    const { chrome, live, settle, send, local } = setup({
+        stored: {
+            savedFavorites: [
+                { id: 'f1', url: 'https://a/', title: 'A', spaceId: 'home' },
+                { id: 'f2', url: 'https://a/', title: 'A', spaceId: 'work' }
+            ],
+            favoriteTabs: [{ tabId: 1, favoriteId: 'f1', windowId: 1, url: 'https://a/' }]
+        },
+        tabs: [pin(1, 1, 'https://a/')],
+        spaces: [
+            { id: 'home', pinnedTabs: [1], spaceBookmarks: [], temporaryTabs: [] },
+            { id: 'work', pinnedTabs: [], spaceBookmarks: [], temporaryTabs: [] }
+        ]
+    });
+    await settle();
+    chrome.tabs.create = async props => {
+        const tab = {
+            id: 50,
+            windowId: props.windowId,
+            index: 1,
+            pinned: true,
+            incognito: false,
+            pendingUrl: props.url
+        };
+        live.set(50, tab);
+        chrome.tabs.onCreated.listeners[0]({ ...tab });
+        return tab;
+    };
+    await send({ type: 'savedFavorites', action: 'open', favoriteId: 'f2', windowId: 1 });
+    await settle();
+    assert.equal(live.get(50).pinned, true);
+    assert.ok(local.favoriteTabs.some(r => r.tabId === 50 && r.favoriteId === 'f2'));
+});
+
+test('with the setting off, a pinned copy stays pinned and nothing is saved', async () => {
+    const { chrome, live, settle, local } = setup({ allWindows: false, tabs: [pin(1, 1, 'https://a/')] });
+    await settle();
+    duplicate(live, chrome, 1, 2);
+    await settle();
+    assert.equal(live.get(2).pinned, true);
+    assert.equal('savedFavorites' in local, false);
+});
+
+test('a pinned tab with no opener beside a favorite on the same page is not a duplicate', async () => {
+    const { chrome, live, settle } = setup({ tabs: [pin(1, 1, 'https://a/')] });
+    await settle();
+    live.set(2, { ...pin(2, 1, 'https://a/'), index: 2 });
+    chrome.tabs.onCreated.listeners[0]({ ...live.get(2) });
+    await settle();
+    assert.equal(live.get(2).pinned, true);
+});

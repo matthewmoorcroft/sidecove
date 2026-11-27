@@ -1,18 +1,19 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { asFiled, copiedTab, fileCopy, filedAtStart } from '../../../src/shared/duplicate-tab.js';
+import { asFiled, copiedTab, fileCopy, filedAtStart, unpinnedCopyPlaced } from '../../../src/shared/duplicate-tab.js';
 
 const tab = (id, index, url, extra = {}) => ({ id, windowId: 1, index, pinned: false, url, ...extra });
 const strip = [tab(1, 0, 'https://a.test/'), tab(2, 1, 'https://b.test/'), tab(3, 2, 'https://c.test/')];
 
 test('a new tab right of a tab on the same address is its copy', () => {
     assert.equal(copiedTab(tab(9, 2, 'https://b.test/'), strip)?.id, 2);
-    assert.equal(copiedTab(tab(9, 2, undefined, { pendingUrl: 'https://b.test/' }), strip)?.id, 2);
     const pins = [tab(1, 0, 'https://p.test/', { pinned: true })];
     assert.equal(copiedTab(tab(9, 1, 'https://p.test/', { pinned: true }), pins)?.id, 1);
 });
 
 test('a link, or a new tab on another address, is not a copy', () => {
+    // A new link tab has only the address it is going to; a copy is already on its address.
+    assert.equal(copiedTab(tab(9, 2, undefined, { pendingUrl: 'https://b.test/', openerTabId: 1 }), strip), null);
     assert.equal(copiedTab(tab(9, 2, 'https://link.test/', { openerTabId: 2 }), strip), null);
     assert.equal(copiedTab(tab(9, 3, 'https://b.test/'), strip), null, 'not directly right of it');
     const pins = [tab(1, 0, 'https://p.test/', { pinned: true })];
@@ -81,4 +82,27 @@ test('a tab that cannot be a copy is filed without looking at its window', async
     const store = { copies: new Set() };
     for (const url of [undefined, 'about:blank', 'chrome://newtab/']) await asFiled(chromeApi, store, tab(9, 1, url));
     assert.equal(queried, 0);
+});
+
+test('a pinned copy, once unpinned, goes to the top of its space as a link from its source would', () => {
+    const pins = [tab(1, 0, 'https://p.test/', { pinned: true })];
+    const store = { copies: new Set(), pinnedCopies: new Map(), invertTabOrder: false };
+    fileCopy(store, tab(9, 1, 'https://p.test/', { pinned: true }), pins);
+    assert.deepEqual([...store.pinnedCopies], [[9, 1]]);
+    const space = { pinnedTabs: [1, 9], spaceBookmarks: [], temporaryTabs: [5, 6] };
+    assert.equal(unpinnedCopyPlaced(store, space, tab(9, 1, 'https://p.test/', { pinned: true })), false);
+    assert.equal(unpinnedCopyPlaced(store, space, tab(9, 1, 'https://p.test/')), true);
+    assert.deepEqual(space, { pinnedTabs: [1], spaceBookmarks: [], temporaryTabs: [9, 5, 6] });
+    // Drawn reversed, the top of the list is the end of the stored one.
+    const reversed = { ...store, invertTabOrder: true, pinnedCopies: new Map([[9, 1]]) };
+    const other = { pinnedTabs: [1, 9], spaceBookmarks: [], temporaryTabs: [5, 6] };
+    unpinnedCopyPlaced(reversed, other, tab(9, 1, 'https://p.test/'));
+    assert.deepEqual(other.temporaryTabs, [5, 6, 9]);
+});
+
+test('an unpinned tab that was not a pinned copy is left to the usual unpinning', () => {
+    const store = { copies: new Set(), pinnedCopies: new Map() };
+    const space = { pinnedTabs: [3], spaceBookmarks: [], temporaryTabs: [] };
+    assert.equal(unpinnedCopyPlaced(store, space, tab(3, 0, 'https://p.test/')), false);
+    assert.deepEqual(space.pinnedTabs, [3]);
 });

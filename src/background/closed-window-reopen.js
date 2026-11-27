@@ -1,4 +1,5 @@
 import {
+    batchReplacements,
     canTakeTabs,
     closedBatch,
     copyReplacedBy,
@@ -158,7 +159,7 @@ export function registerClosedWindowReopen({
             );
             // The last window closed, or Chrome is quitting: Chrome's own restore brings the tabs back.
             if (!target) return;
-            const reopened = await spaceStore.run(() => openTabs(batch, target.id, open));
+            const reopened = await spaceStore.run(() => openTabs(batch, target.id, open, windowId));
             for (const tabId of reopened) unloadOnceNamed(tabId);
         } catch (error) {
             Logger.error('Could not reopen the tabs of a closed window:', error);
@@ -166,7 +167,7 @@ export function registerClosedWindowReopen({
     }
 
     // Runs in the space store's queue, so each new tab is in its place before the panels hear of it.
-    async function openTabs(batch, targetId, open) {
+    async function openTabs(batch, targetId, open, closedId) {
         const openIds = new Set(open.map(win => win.id));
         const tabs = new Map(
             (await chromeApi.tabs.query({})).filter(tab => openIds.has(tab.windowId)).map(tab => [tab.id, tab])
@@ -183,7 +184,7 @@ export function registerClosedWindowReopen({
             try {
                 const tab = await chromeApi.tabs.create({ windowId: targetId, url, active: false });
                 newIds.set(tabId, tab.id);
-                copies.push({ copyId: tab.id, url, windowIds: [...openIds] });
+                copies.push({ copyId: tab.id, url, windowIds: [...openIds], batch: closedId });
             } catch (error) {
                 Logger.warn('Could not reopen a tab of a closed window:', error);
             }
@@ -211,8 +212,11 @@ export function registerClosedWindowReopen({
             .then(async () => {
                 if (!copies.length) return;
                 const win = await chromeApi.windows.get(tab.windowId).catch(() => null);
-                const copy = copyReplacedBy(copies, tab, win);
-                if (copy) return spaceStore.run(() => replaceCopy(copy, tab.id));
+                const windowTabs = await chromeApi.tabs.query({ windowId: tab.windowId }).catch(() => [tab]);
+                const copy = copyReplacedBy(copies, tab, win, windowTabs);
+                if (!copy) return;
+                for (const [replaced, restored] of batchReplacements(copies, copy, tab, windowTabs))
+                    await spaceStore.run(() => replaceCopy(replaced, restored));
             })
             .catch(error => Logger.warn('Could not tidy a reopened window:', error))
     );
@@ -238,8 +242,12 @@ export function registerClosedWindowReopen({
         })
     );
 
-    async function replaceCopy(copy, restoredId) {
+    async function replaceCopy(copy, restored) {
+        const restoredId = restored.id;
         copies = copies.filter(other => other !== copy);
+        // This window is the closed one back: the rest of its copies wait for this window only.
+        for (const other of copies)
+            if (copy.batch !== undefined && other.batch === copy.batch) other.restoredIn = restored.windowId;
         await save();
         const live = await chromeApi.tabs.get(copy.copyId).catch(() => null);
         if (!live) return;

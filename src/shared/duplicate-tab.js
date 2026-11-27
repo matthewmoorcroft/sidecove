@@ -4,14 +4,14 @@
 // goes directly beneath it in the list, as in Arc.
 
 import { isNewTabPage } from './new-tab-page.js';
+import { placeLinkTab } from './link-tab-placement.js';
 import { ownerOf } from './space-membership.js';
 
 const addressOf = tab => tab?.url || tab?.pendingUrl;
+// A copy brings the original's history, so Chrome reports it on its address already. A new link
+// tab has only the address it is going to (pendingUrl), even when it is the same link again.
 // Two blank tabs side by side share an address without one copying the other.
-const mayBeCopy = tab => {
-    const url = addressOf(tab);
-    return Boolean(url) && url !== 'about:blank' && !isNewTabPage(url);
-};
+const mayBeCopy = tab => Boolean(tab?.url) && tab.url !== 'about:blank' && !isNewTabPage(tab.url);
 
 /**
  * @param {chrome.tabs.Tab} tab a tab Chrome has just created
@@ -26,7 +26,7 @@ export function copiedTab(tab, windowTabs) {
     const left = windowTabs.find(
         other => other.id !== tab.id && other.windowId === tab.windowId && other.index === index - 1
     );
-    return left && Boolean(left.pinned) === Boolean(tab.pinned) && addressOf(left) === addressOf(tab) ? left : null;
+    return left && Boolean(left.pinned) === Boolean(tab.pinned) && addressOf(left) === tab.url ? left : null;
 }
 
 /**
@@ -38,6 +38,9 @@ export function fileCopy(store, tab, windowTabs) {
     const source = copiedTab(tab, windowTabs);
     if (!source) return tab;
     store.copies.add(tab.id);
+    // A copy of a pinned tab arrives pinned; the saved favorites may unpin it (see
+    // background/saved-favorites.js), and it then goes where a link from the pinned tab would.
+    if (tab.pinned) store.pinnedCopies.set(tab.id, source.id);
     return { ...tab, openerTabId: source.id, copyOf: source.id };
 }
 
@@ -55,4 +58,18 @@ export function filedAtStart(store, live) {
     return live.map(tab =>
         ownerOf(store.spaces, tab.id) || store.hidden.has(tab.id) ? tab : fileCopy(store, tab, live)
     );
+}
+
+/**
+ * A copy of a pinned tab that has just been unpinned goes to the top of the list, as a link from
+ * the pinned tab does, rather than to the bottom as an unpinned favorite would.
+ * @returns {boolean} whether the copy was placed
+ */
+export function unpinnedCopyPlaced(store, space, tab) {
+    const sourceId = store.pinnedCopies.get(tab.id);
+    if (tab.pinned || sourceId === undefined || !space.pinnedTabs.includes(tab.id)) return false;
+    store.pinnedCopies.delete(tab.id);
+    space.pinnedTabs = space.pinnedTabs.filter(id => id !== tab.id);
+    space.temporaryTabs = placeLinkTab(space.temporaryTabs, sourceId, tab.id, undefined, store.invertTabOrder);
+    return true;
 }

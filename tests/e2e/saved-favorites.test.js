@@ -269,3 +269,36 @@ test('turned off, each window’s bar is its own pins again, with nothing dimmed
     await setToggle('showTabsFromAllWindows', true);
     await shown(one, dimmed(await favoriteAt(one, 'only-there')));
 });
+
+// Chrome pins a duplicate of a pinned tab, which used to be saved as a second favorite that stayed,
+// dimmed, after the copy closed. A copy of a favorite is an ordinary tab.
+test('duplicating a favorite gives an ordinary tab, and closing it leaves the one favorite', async () => {
+    const original = await pinIn(win.one, 'notes');
+    const notes = await favoriteAt(one, 'notes');
+    await shown(one, live(original));
+    const copy = await one.evaluate(id => chrome.tabs.duplicate(id).then(tab => tab.id), original);
+    // The copy is unpinned once Chrome has made it, and listed in a space with the ordinary tabs.
+    await until(one, async id => !(await chrome.tabs.get(id)).pinned, copy);
+    const owner = await until(
+        one,
+        async id =>
+            (await chrome.runtime.sendMessage({ type: 'spaceStore', action: 'get' })).spaces.find(space =>
+                space.temporaryTabs.includes(id)
+            ),
+        copy
+    );
+    // Where a link from the favorite would go: the top of the list as drawn.
+    expect(owner.pinnedTabs).not.toContain(copy);
+    await switchSpace(one, owner.id);
+    const row = `.space.active .tab[data-tab-id="${copy}"]`;
+    await shown(one, row);
+    expect(await one.$eval('.space.active .tab', el => Number(el.dataset.tabId))).toBe(copy);
+    await gone(one, `#pinnedFavicons .pinned-favicon[data-tab-id="${copy}"]`);
+    expect((await saved(one)).filter(f => f.url === url('notes'))).toHaveLength(1);
+    await one.evaluate(id => chrome.tabs.remove(id), copy);
+    await gone(one, row);
+    await sleep(500);
+    expect((await saved(one)).filter(f => f.url === url('notes'))).toHaveLength(1);
+    expect(await one.$$(`#pinnedFavicons [data-favorite-id="${notes}"]`)).toHaveLength(1);
+    expect(await one.$(dimmed(notes))).toBeNull();
+});
