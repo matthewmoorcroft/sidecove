@@ -74,3 +74,21 @@ test('hidden tabs are the ones the service worker holds as hidden', async () => 
     assert.equal(await clearedTabs.isHidden(2), true);
     assert.equal(await clearedTabs.isHidden(1), false);
 });
+
+test("a tab Chrome swapped while hidden comes back under its new id, and the toast's Undo knows it", async () => {
+    const { clearedTabs, cleared, removed } = setUp({ restored: [11] });
+    clearedTabs.replaced(11, 1);
+    assert.equal(cleared.records[0].tabId, 11);
+    assert.deepEqual(await clearedTabs.restore(11), ['spaces']);
+    assert.deepEqual(removed, [['http://a/', 'home']]);
+    assert.deepEqual(
+        cleared.records.map(record => record.tabId),
+        [2]
+    );
+    // A swap of a tab Clear is not hiding changes nothing.
+    clearedTabs.replaced(30, 3);
+    assert.deepEqual(
+        cleared.records.map(record => record.tabId),
+        [2]
+    );
+});
