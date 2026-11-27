@@ -166,9 +166,14 @@ test("a tab that opens with a copy's page in a window that was not open then rep
     const normal = { id: 7, type: 'normal', alwaysOnTop: false, incognito: false };
     // Chrome brings the closed window back as window 7.
     assert.equal(copyReplacedBy(copies, { id: 200, windowId: 7, url: 'https://a.test/2' }, normal), copies[1]);
+    // A tab with only the address it is going to is a new link tab, not one Chrome brought back.
     assert.equal(
         copyReplacedBy(copies, { id: 201, windowId: 7, url: '', pendingUrl: 'https://a.test/1' }, normal),
-        copies[0]
+        null
+    );
+    assert.equal(
+        copyReplacedBy(copies, { id: 205, windowId: 7, url: 'https://a.test/1', openerTabId: 3 }, normal),
+        null
     );
     // A tab opened in a window that was already open, or another page, is just a tab.
     assert.equal(copyReplacedBy(copies, { id: 202, windowId: 1, url: 'https://a.test/1' }, { ...normal, id: 1 }), null);
@@ -176,6 +181,29 @@ test("a tab that opens with a copy's page in a window that was not open then rep
     assert.equal(copyReplacedBy(copies, { id: 204, windowId: 7, url: 'chrome://newtab/' }, normal), null);
     // The copy itself is not its own original.
     assert.equal(copyReplacedBy(copies, { id: 100, windowId: 9, url: 'https://a.test/1' }, { ...normal, id: 9 }), null);
+});
+
+test("a closed window's copies are replaced only when its window brings back two of its pages", () => {
+    const copies = [
+        { copyId: 100, url: 'https://a.test/1', windowIds: [1], batch: 2 },
+        { copyId: 101, url: 'https://a.test/2', windowIds: [1], batch: 2 },
+        { copyId: 102, url: 'https://b.test/', windowIds: [1], batch: 3 }
+    ];
+    const normal = { id: 7, type: 'normal', alwaysOnTop: false, incognito: false };
+    const tab = { id: 200, windowId: 7, url: 'https://a.test/1' };
+    assert.equal(copyReplacedBy(copies, tab, normal, [tab]), null, 'one of two pages');
+    assert.equal(copyReplacedBy(copies, tab, normal, [tab, { id: 201, windowId: 7, url: 'https://x.test/' }]), null);
+    const both = [tab, { id: 201, windowId: 7, url: 'https://a.test/2' }];
+    assert.equal(copyReplacedBy(copies, tab, normal, both), copies[0]);
+    // A window with one page to wait for needs only that page.
+    const single = { id: 202, windowId: 7, url: 'https://b.test/' };
+    assert.equal(copyReplacedBy(copies, single, normal, [single]), copies[2]);
+    // Once a window has brought a batch back, the rest of it is only replaced from that window.
+    const rest = [{ ...copies[1], restoredIn: 7 }];
+    const elsewhere = { id: 300, windowId: 8, url: 'https://a.test/2' };
+    assert.equal(copyReplacedBy(rest, elsewhere, { ...normal, id: 8 }, [elsewhere]), null);
+    const same = { id: 301, windowId: 7, url: 'https://a.test/2' };
+    assert.equal(copyReplacedBy(rest, same, normal, [same]), rest[0]);
 });
 
 test('a private tab, or one in a window that cannot take tabs, is never the original', () => {
