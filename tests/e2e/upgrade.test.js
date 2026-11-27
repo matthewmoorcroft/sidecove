@@ -130,7 +130,7 @@ test.each(cases)('a profile from %s keeps its spaces, favorites and settings aft
     });
     let page, before;
     try {
-        page = await openSidebar(browser, extensionId);
+        page = await openSidebar(browser, extensionId, { legacyBuild: Boolean(previous) });
         expect(await page.evaluate(() => chrome.runtime.getManifest().version)).toBe(previousVersion);
         await createWorkSpace(page);
         await page.evaluate(async () => {
@@ -208,7 +208,7 @@ describe('favorites saved on update', () => {
             userDataDir: profileDir
         });
         try {
-            const page = await openSidebar(browser, extensionId);
+            const page = await openSidebar(browser, extensionId, { legacyBuild: Boolean(previous) });
             await page.evaluate(
                 async (base, on) => {
                     if (!on) await chrome.storage.sync.set({ showTabsFromAllWindows: false });
@@ -287,7 +287,7 @@ describe('favorites saved on update', () => {
             });
             let before;
             try {
-                const page = await openSidebar(browser, extensionId);
+                const page = await openSidebar(browser, extensionId, { legacyBuild: Boolean(previous) });
                 await page.evaluate(async () => {
                     const { spaces } = await chrome.runtime.sendMessage({ type: 'spaceStore', action: 'get' });
                     await chrome.bookmarks.create({
@@ -352,7 +352,7 @@ describe('favorites saved on update', () => {
             });
             let ids;
             try {
-                const page = await openSidebar(browser, extensionId);
+                const page = await openSidebar(browser, extensionId, { legacyBuild: Boolean(previous) });
                 await createWorkSpace(page);
                 ids = await page.evaluate(async base => {
                     const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -384,8 +384,14 @@ describe('favorites saved on update', () => {
                     }
                     return ids;
                 }, base);
-                // Give Chrome a moment to write the session it restores.
-                await new Promise(resolve => setTimeout(resolve, 1500));
+                // Wait for the worker to save each tab's record, as it does a moment after each change.
+                await page.waitForFunction(
+                    async () =>
+                        ((await chrome.storage.local.get('spaceTabSnapshot')).spaceTabSnapshot || []).filter(record =>
+                            record.url.includes('/up-')
+                        ).length >= 4,
+                    { polling: 100, timeout: 15000 }
+                );
                 const saved = await page.evaluate(
                     async () => (await chrome.storage.local.get('spaceTabSnapshot')).spaceTabSnapshot
                 );

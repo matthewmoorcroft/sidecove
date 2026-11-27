@@ -741,6 +741,8 @@ async function initSidebar() {
     previousSpaceId = activeSpaceId;
     setupDOMElements(createNewSpace, () => spaces);
     sidebarReady = true;
+    // Lets the end-to-end tests wait for a finished start instead of a fixed pause.
+    document.documentElement.dataset.ready = 'true';
     refreshCoordinator.schedule();
     chrome.storage.onChanged.addListener((changes, area) => {
         if (area !== 'local' || !changes.spaces || !sidebarReady) return;
