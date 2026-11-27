@@ -13,6 +13,7 @@
  */
 
 import { Utils } from '../shared/utils.js';
+import { archiveTab, getArchivedTabs, restoreArchivedTab } from '../shared/archive-client.js';
 import { RESTORE_ICON } from './icons.js';
 import { Logger } from '../shared/logger.js';
 import { setSpaceColorVars } from './features/color-overrides/space-color-vars.js';
@@ -316,7 +317,7 @@ export function showTabContextMenu(
         archiveOption.className = 'context-menu-item';
         archiveOption.textContent = 'Archive Tab';
         archiveOption.addEventListener('click', async () => {
-            await Utils.archiveTab(tab.id); // Use the utility function
+            await archiveTab(tab.id);
             contextMenu.remove();
         });
         contextMenu.appendChild(archiveOption);
@@ -421,7 +422,7 @@ export async function showArchivedTabsPopup(activeSpaceId) {
 
     // Manual archives remain restorable even when automatic cleanup is off.
     message.style.display = 'block';
-    const allArchived = await Utils.getArchivedTabs();
+    const allArchived = await getArchivedTabs();
     if (allArchived.length === 0) {
         message.textContent = 'No archived tabs.';
         list.style.display = 'none';
@@ -453,7 +454,7 @@ export async function showArchivedTabsPopup(activeSpaceId) {
             restoreButton.style.marginLeft = 'auto';
             item.addEventListener('click', e => {
                 e.stopPropagation();
-                Utils.restoreArchivedTab(archivedTab);
+                restoreArchivedTab(archivedTab);
                 item.remove();
                 if (list.children.length === 0) {
                     message.textContent = 'No archived tabs.';

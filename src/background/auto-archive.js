@@ -9,8 +9,8 @@ export const AUTO_ARCHIVE_ALARM_NAME = 'autoArchiveTabsAlarm';
 export const TAB_ACTIVITY_STORAGE_KEY = 'tabLastActivity'; // Key to store timestamps
 
 // Archives tabs that stay idle past the user's threshold. The service worker calls this once,
-// with its space store, to register the alarm and the activity tracking it relies on.
-export function registerAutoArchive(spaceStore) {
+// with its space store and archive writer, to register the alarm and the activity tracking it relies on.
+export function registerAutoArchive(spaceStore, archive) {
     // --- Helper: Update Last Activity Timestamp ---
     async function updateTabLastActivity(tabId) {
         if (!tabId) return;
@@ -162,9 +162,9 @@ export function registerAutoArchive(spaceStore) {
                     continue;
                 }
                 const spaceId = ownerOf(spaces, tabId)?.id;
-                // Archive only tabs owned by an extension space.
+                // Archive only tabs owned by an extension space, and close one only once Archived can give it back.
                 if (!spaceId || !stillIdle(tab, fresh)) continue;
-                await Utils.addArchivedTab({ url: tab.url, name: tab.title || tab.url, spaceId });
+                if (!(await archive.add({ url: tab.url, name: tab.title || tab.url, spaceId })).archived) continue;
                 await chrome.tabs.remove(tabId);
                 await removeTabLastActivity(tabId);
             }

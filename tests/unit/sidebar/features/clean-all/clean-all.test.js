@@ -20,9 +20,10 @@ function fakes({ activeTabId = 99, openIds = [1, 2, 3, 98, 99], displayOrder = [
         api: {
             addArchivedTab: async entry => {
                 calls.push(['archive', entry.url, entry.name, entry.spaceId]);
-                if (archive.has(entry.url)) return false;
+                if (unarchivable.has(entry.url)) return { stored: false, archived: false };
+                if (archive.has(entry.url)) return { stored: false, archived: true };
                 archive.add(entry.url);
-                return true;
+                return { stored: true, archived: true };
             },
             activeTabId,
             displayOrder,
@@ -52,6 +53,7 @@ function fakes({ activeTabId = 99, openIds = [1, 2, 3, 98, 99], displayOrder = [
 }
 let restored = [];
 let startError = null;
+let unarchivable = new Set();
 
 const tabs = [
     { id: 1, url: 'https://a.example/', title: 'A' },
@@ -107,6 +109,28 @@ test('an entry archived before Clean All is not claimed by it', async () => {
         records.map(r => r.addedToArchive),
         [false]
     );
+});
+
+test('a tab Archived cannot keep is left open and listed, and the rest are cleared', async () => {
+    const { calls, api } = fakes();
+    unarchivable = new Set(['https://c.example/']);
+    try {
+        const result = await clearTabs(tabs, 'home', [98, 1, 2, 3], api);
+        assert.deepEqual(calls.at(-1), ['hide', { spaceId: 'home', tabIds: [1, 2], order: [98, 1, 2, 3] }]);
+        assert.deepEqual(
+            result.records.map(r => r.tabId),
+            [1, 2]
+        );
+        // Nothing Archived can keep: nothing is hidden at all.
+        calls.length = 0;
+        assert.equal(await clearTabs([tabs[2]], 'home', [98, 1, 2, 3], api), null);
+        assert.deepEqual(
+            calls.map(c => c[0]),
+            ['archive']
+        );
+    } finally {
+        unarchivable = new Set();
+    }
 });
 
 test('the tab being shown moves to the next one down the list before its row is hidden', async () => {
