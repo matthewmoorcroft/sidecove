@@ -4,7 +4,19 @@
  * color customization, persistence, and default space dropdown.
  */
 import { launchBrowserWithExtension, openOptionsPage } from './helpers/extension-helper.js';
-import { delay, takeScreenshotOnFailure, logTestStep } from './helpers/test-utils.js';
+import { takeScreenshotOnFailure, logTestStep } from './helpers/test-utils.js';
+
+// The page fills the space dropdown once it has read the saved settings; until then it says "Loading spaces...".
+const waitForRestored = page =>
+    page.waitForFunction(() => document.getElementById('defaultSpaceName')?.value, { polling: 50 });
+// A change is saved when the "Settings saved" toast appears (after the debounce and the storage write).
+const waitForSaved = page => page.waitForSelector('#saveToast.show', { timeout: 10000 });
+const waitForAdvanced = (page, open) =>
+    page.waitForFunction(
+        open => document.getElementById('advancedOptionsContent')?.style.display === (open ? 'block' : 'none'),
+        { polling: 50 },
+        open
+    );
 
 describe('Options Page', () => {
     let browser;
@@ -28,7 +40,7 @@ describe('Options Page', () => {
         logTestStep('Opening options page...');
         optionsPage = await openOptionsPage(browser, extensionId);
         // Allow options.js DOMContentLoaded + restoreOptions to finish
-        await delay(1500);
+        await waitForRestored(optionsPage);
     });
 
     afterEach(async () => {
@@ -194,7 +206,7 @@ describe('Options Page', () => {
 
                 // iOS-style toggles have hidden inputs; use evaluate to click
                 await optionsPage.evaluate(() => document.getElementById('autoArchiveEnabled').click());
-                await delay(800);
+                await waitForSaved(optionsPage);
 
                 const newState = await optionsPage.evaluate(() => {
                     return document.getElementById('autoArchiveEnabled').checked;
@@ -217,7 +229,7 @@ describe('Options Page', () => {
                 });
 
                 await optionsPage.evaluate(() => document.getElementById('invertTabOrder').click());
-                await delay(800);
+                await waitForSaved(optionsPage);
 
                 const newState = await optionsPage.evaluate(() => {
                     return document.getElementById('invertTabOrder').checked;
@@ -240,7 +252,7 @@ describe('Options Page', () => {
                 });
 
                 await optionsPage.evaluate(() => document.getElementById('showAllOpenTabsInCollapsedFolders').click());
-                await delay(800);
+                await waitForSaved(optionsPage);
 
                 const newState = await optionsPage.evaluate(() => {
                     return document.getElementById('showAllOpenTabsInCollapsedFolders').checked;
@@ -264,10 +276,10 @@ describe('Options Page', () => {
 
                 // debugLoggingEnabled is inside advanced options; expand first
                 await optionsPage.click('#advancedOptionsToggle');
-                await delay(500);
+                await waitForAdvanced(optionsPage, true);
 
                 await optionsPage.evaluate(() => document.getElementById('debugLoggingEnabled').click());
-                await delay(800);
+                await waitForSaved(optionsPage);
 
                 const newState = await optionsPage.evaluate(() => {
                     return document.getElementById('debugLoggingEnabled').checked;
@@ -296,7 +308,7 @@ describe('Options Page', () => {
                 });
                 if (isChecked) {
                     await optionsPage.evaluate(() => document.getElementById('autoArchiveEnabled').click());
-                    await delay(800);
+                    await waitForSaved(optionsPage);
                 }
 
                 const containerDisplay = await optionsPage.evaluate(() => {
@@ -322,7 +334,7 @@ describe('Options Page', () => {
                 });
                 if (!isChecked) {
                     await optionsPage.evaluate(() => document.getElementById('autoArchiveEnabled').click());
-                    await delay(800);
+                    await waitForSaved(optionsPage);
                 }
 
                 const containerDisplay = await optionsPage.evaluate(() => {
@@ -354,7 +366,7 @@ describe('Options Page', () => {
                 });
                 if (!isChecked) {
                     await optionsPage.evaluate(() => document.getElementById('autoArchiveEnabled').click());
-                    await delay(800);
+                    await waitForSaved(optionsPage);
                 }
 
                 // Clear and type a new value
@@ -363,7 +375,7 @@ describe('Options Page', () => {
                     input.value = '';
                 });
                 await optionsPage.type('#autoArchiveIdleMinutes', '120');
-                await delay(800);
+                await waitForSaved(optionsPage);
 
                 const newValue = await optionsPage.evaluate(() => {
                     return document.getElementById('autoArchiveIdleMinutes').value;
@@ -404,7 +416,7 @@ describe('Options Page', () => {
                 logTestStep('Clicking advanced options toggle to expand...');
 
                 await optionsPage.click('#advancedOptionsToggle');
-                await delay(500);
+                await waitForAdvanced(optionsPage, true);
 
                 const contentDisplay = await optionsPage.evaluate(() => {
                     const content = document.getElementById('advancedOptionsContent');
@@ -432,11 +444,11 @@ describe('Options Page', () => {
 
                 // First click to open
                 await optionsPage.click('#advancedOptionsToggle');
-                await delay(500);
+                await waitForAdvanced(optionsPage, true);
 
                 // Second click to close
                 await optionsPage.click('#advancedOptionsToggle');
-                await delay(500);
+                await waitForAdvanced(optionsPage, false);
 
                 const contentDisplay = await optionsPage.evaluate(() => {
                     const content = document.getElementById('advancedOptionsContent');
@@ -495,7 +507,7 @@ describe('Options Page', () => {
 
                 // Expand advanced options so color pickers are in view
                 await optionsPage.click('#advancedOptionsToggle');
-                await delay(500);
+                await waitForAdvanced(optionsPage, true);
 
                 const originalValue = await optionsPage.evaluate(() => {
                     return document.getElementById('colorBlue').value;
@@ -512,7 +524,7 @@ describe('Options Page', () => {
                     nativeInputValueSetter.call(picker, color);
                     picker.dispatchEvent(new Event('input', { bubbles: true }));
                 }, newColor);
-                await delay(800);
+                await waitForSaved(optionsPage);
 
                 const updatedValue = await optionsPage.evaluate(() => {
                     return document.getElementById('colorBlue').value;
@@ -562,7 +574,7 @@ describe('Options Page', () => {
 
                 // Expand advanced options
                 await optionsPage.click('#advancedOptionsToggle');
-                await delay(500);
+                await waitForAdvanced(optionsPage, true);
 
                 const defaultBlue = '#8bb3f3';
                 const customColor = '#123456';
@@ -577,7 +589,7 @@ describe('Options Page', () => {
                     nativeInputValueSetter.call(picker, color);
                     picker.dispatchEvent(new Event('input', { bubbles: true }));
                 }, customColor);
-                await delay(800);
+                await waitForSaved(optionsPage);
 
                 // Verify custom color is set
                 const afterCustom = await optionsPage.evaluate(() => {
@@ -586,11 +598,19 @@ describe('Options Page', () => {
                 expect(afterCustom).toBe(customColor);
 
                 // Click reset button for blue
-                await optionsPage.evaluate(() => {
-                    const resetBtn = document.querySelector('.color-reset-btn[data-color="blue"]');
-                    if (resetBtn) resetBtn.click();
-                });
-                await delay(800);
+                await optionsPage.evaluate(
+                    () =>
+                        new Promise(resolve => {
+                            const done = () => {
+                                chrome.storage.onChanged.removeListener(done);
+                                resolve();
+                            };
+                            chrome.storage.onChanged.addListener(done);
+                            setTimeout(done, 5000);
+                            const resetBtn = document.querySelector('.color-reset-btn[data-color="blue"]');
+                            if (resetBtn) resetBtn.click();
+                        })
+                );
 
                 const afterReset = await optionsPage.evaluate(() => {
                     return document.getElementById('colorBlue').value;
@@ -620,7 +640,7 @@ describe('Options Page', () => {
 
                 // Toggle it
                 await optionsPage.evaluate(() => document.getElementById('invertTabOrder').click());
-                await delay(1000);
+                await waitForSaved(optionsPage);
 
                 const toggledState = await optionsPage.evaluate(() => {
                     return document.getElementById('invertTabOrder').checked;
@@ -630,7 +650,7 @@ describe('Options Page', () => {
                 // Close and reopen options page
                 await optionsPage.close();
                 optionsPage = await openOptionsPage(browser, extensionId);
-                await delay(1500);
+                await waitForRestored(optionsPage);
 
                 const persistedState = await optionsPage.evaluate(() => {
                     return document.getElementById('invertTabOrder').checked;
@@ -642,7 +662,7 @@ describe('Options Page', () => {
                 // Reset to original state to avoid test pollution
                 if (persistedState !== initialState) {
                     await optionsPage.evaluate(() => document.getElementById('invertTabOrder').click());
-                    await delay(1000);
+                    await waitForSaved(optionsPage);
                 }
             } catch (error) {
                 await takeScreenshotOnFailure(optionsPage, 'persistence-failure');
@@ -656,7 +676,7 @@ describe('Options Page', () => {
 
                 // Toggle a checkbox to trigger save
                 await optionsPage.evaluate(() => document.getElementById('autoArchiveEnabled').click());
-                await delay(500);
+                await waitForSaved(optionsPage);
 
                 // Check for the toast with .show class
                 const toastVisible = await optionsPage.evaluate(() => {
@@ -668,7 +688,7 @@ describe('Options Page', () => {
                 logTestStep('Toast notification appeared after save');
 
                 // Wait for toast to disappear (2 seconds per the code)
-                await delay(2500);
+                await optionsPage.waitForSelector('#saveToast:not(.show)', { timeout: 10000 });
 
                 const toastHidden = await optionsPage.evaluate(() => {
                     const toast = document.getElementById('saveToast');

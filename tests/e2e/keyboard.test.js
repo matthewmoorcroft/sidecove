@@ -4,7 +4,32 @@
  * interactions, tab navigation, and keyboard accessibility
  */
 import { launchBrowserWithExtension, openSidebar, getSidebarTabs, createSpace } from './helpers/extension-helper.js';
-import { delay, takeScreenshotOnFailure, logTestStep, getElementCount } from './helpers/test-utils.js';
+import {
+    takeScreenshotOnFailure,
+    logTestStep,
+    getElementCount,
+    waitForNewestTabInSpace
+} from './helpers/test-utils.js';
+
+const countPinned = page =>
+    page.evaluate(async () => {
+        const { spaces = [] } = await chrome.runtime.sendMessage({ type: 'spaceStore', action: 'get' });
+        return spaces.reduce((total, space) => total + space.pinnedTabs.length, 0);
+    });
+
+// Press Alt+D on the page, then wait for the pinned count in the space store to change. In Puppeteer the
+// shortcut does not always reach the extension, so give up after 1.5 s and let the test report what it sees.
+async function pressAltD(testPage, sidebarPage) {
+    const before = await countPinned(sidebarPage);
+    await testPage.bringToFront();
+    await testPage.keyboard.down('Alt');
+    await testPage.keyboard.press('KeyD');
+    await testPage.keyboard.up('Alt');
+    const deadline = Date.now() + 1500;
+    while (Date.now() < deadline && (await countPinned(sidebarPage)) === before) {
+        await new Promise(resolve => setTimeout(resolve, 50));
+    }
+}
 
 describe('Keyboard Shortcuts', () => {
     let browser;
@@ -172,14 +197,10 @@ describe('Keyboard Shortcuts', () => {
                 // Open a test page
                 const testPage = await browser.newPage();
                 await testPage.goto('https://www.example.com', { waitUntil: 'domcontentloaded' });
-                await delay(1000);
+                await waitForNewestTabInSpace(sidebarPage);
 
                 // Focus the test page and press Alt+D
-                await testPage.bringToFront();
-                await testPage.keyboard.down('Alt');
-                await testPage.keyboard.press('KeyD');
-                await testPage.keyboard.up('Alt');
-                await delay(1500);
+                await pressAltD(testPage, sidebarPage);
 
                 // Close and reopen sidebar to check if tab state changed
                 await sidebarPage.close();
@@ -223,7 +244,7 @@ describe('Keyboard Shortcuts', () => {
                 // Open a test page
                 const testPage = await browser.newPage();
                 await testPage.goto('https://www.example.com', { waitUntil: 'domcontentloaded' });
-                await delay(1000);
+                await waitForNewestTabInSpace(sidebarPage);
 
                 // Close and reopen sidebar to establish baseline
                 await sidebarPage.close();
@@ -243,11 +264,7 @@ describe('Keyboard Shortcuts', () => {
                 logTestStep(`Initial pinned tabs: ${initialPinned}`);
 
                 // Focus the test page and press Alt+D
-                await testPage.bringToFront();
-                await testPage.keyboard.down('Alt');
-                await testPage.keyboard.press('KeyD');
-                await testPage.keyboard.up('Alt');
-                await delay(1500);
+                await pressAltD(testPage, sidebarPage);
 
                 // Close and reopen sidebar to see updated state
                 await sidebarPage.close();
@@ -285,7 +302,7 @@ describe('Keyboard Shortcuts', () => {
                 // Open a test page
                 const testPage = await browser.newPage();
                 await testPage.goto('https://www.example.com', { waitUntil: 'domcontentloaded' });
-                await delay(1000);
+                await waitForNewestTabInSpace(sidebarPage);
 
                 // Close and reopen sidebar to establish baseline
                 await sidebarPage.close();
@@ -304,11 +321,7 @@ describe('Keyboard Shortcuts', () => {
                 logTestStep(`Baseline pinned tabs: ${baselinePinned}`);
 
                 // First press: Alt+D to pin
-                await testPage.bringToFront();
-                await testPage.keyboard.down('Alt');
-                await testPage.keyboard.press('KeyD');
-                await testPage.keyboard.up('Alt');
-                await delay(1500);
+                await pressAltD(testPage, sidebarPage);
 
                 // Check state after first press
                 await sidebarPage.close();
@@ -327,11 +340,7 @@ describe('Keyboard Shortcuts', () => {
                 logTestStep(`Pinned tabs after first Alt+D: ${afterFirstPress}`);
 
                 // Second press: Alt+D to unpin
-                await testPage.bringToFront();
-                await testPage.keyboard.down('Alt');
-                await testPage.keyboard.press('KeyD');
-                await testPage.keyboard.up('Alt');
-                await delay(1500);
+                await pressAltD(testPage, sidebarPage);
 
                 // Check state after second press
                 await sidebarPage.close();
@@ -396,7 +405,6 @@ describe('Keyboard Shortcuts', () => {
 
                 // Send a key press to the sidebar page
                 await sidebarPage.keyboard.press('a');
-                await delay(500);
 
                 // The evaluate above returns a promise that resolves when keydown fires
                 // Since we pressed 'a' after setting up the listener, we need to
@@ -424,7 +432,7 @@ describe('Keyboard Shortcuts', () => {
 
                 // Press a key while the listener is active
                 await sidebarPage.keyboard.press('b');
-                await delay(2500);
+                await sidebarPage.waitForFunction(() => window._testKeyReceived, { timeout: 2500 }).catch(() => {});
 
                 // Check the result
                 const finalResult = await sidebarPage.evaluate(() => ({
@@ -472,11 +480,28 @@ describe('Keyboard Shortcuts', () => {
                 // Type a new name
                 const testName = 'Keyboard Rename Test';
                 await sidebarPage.keyboard.type(testName);
-                await delay(500);
+                await sidebarPage.waitForFunction(
+                    name => document.querySelector('.space-name:focus')?.value === name,
+                    { timeout: 2000 },
+                    testName
+                );
 
                 // Press Enter to confirm
                 await sidebarPage.keyboard.press('Enter');
-                await delay(1500);
+                // The rename is done once the space store has the new name
+                await sidebarPage
+                    .waitForFunction(
+                        async name => {
+                            const { spaces = [] } = await chrome.runtime.sendMessage({
+                                type: 'spaceStore',
+                                action: 'get'
+                            });
+                            return spaces.some(space => space.name === name);
+                        },
+                        { polling: 50, timeout: 5000 },
+                        testName
+                    )
+                    .catch(() => {});
 
                 // Verify the name was set
                 const spaceName = await sidebarPage.evaluate(() => {
@@ -520,7 +545,7 @@ describe('Keyboard Shortcuts', () => {
                 // Open a test page to ensure at least one tab exists
                 const testPage = await browser.newPage();
                 await testPage.goto('https://www.example.com', { waitUntil: 'domcontentloaded' });
-                await delay(1000);
+                await waitForNewestTabInSpace(sidebarPage);
 
                 // Close and reopen sidebar to pick up new tab
                 await sidebarPage.close();
@@ -547,7 +572,7 @@ describe('Keyboard Shortcuts', () => {
                     return;
                 }
 
-                await delay(500);
+                await sidebarPage.waitForSelector('.context-menu, [role="menu"]', { timeout: 2000 }).catch(() => {});
 
                 // Check if context menu appeared
                 const menuVisible = await sidebarPage.evaluate(() => {
@@ -560,7 +585,11 @@ describe('Keyboard Shortcuts', () => {
 
                     // Press Escape to dismiss
                     await sidebarPage.keyboard.press('Escape');
-                    await delay(500);
+                    await sidebarPage
+                        .waitForFunction(() => !document.querySelector('.context-menu, [role="menu"]'), {
+                            timeout: 500
+                        })
+                        .catch(() => {});
 
                     // Verify context menu was dismissed
                     const menuAfterEscape = await sidebarPage.evaluate(() => {
@@ -631,7 +660,7 @@ describe('Keyboard Shortcuts', () => {
                 // Open a test page to ensure tabs exist in sidebar
                 const testPage = await browser.newPage();
                 await testPage.goto('https://www.example.com', { waitUntil: 'domcontentloaded' });
-                await delay(1000);
+                await waitForNewestTabInSpace(sidebarPage);
 
                 // Close and reopen sidebar
                 await sidebarPage.close();
@@ -651,8 +680,11 @@ describe('Keyboard Shortcuts', () => {
                 // Press Tab multiple times and track focus changes
                 const focusSequence = [];
                 for (let i = 0; i < 5; i++) {
+                    await sidebarPage.evaluate(() => (window._previousFocus = document.activeElement));
                     await sidebarPage.keyboard.press('Tab');
-                    await delay(300);
+                    await sidebarPage
+                        .waitForFunction(() => document.activeElement !== window._previousFocus, { timeout: 1000 })
+                        .catch(() => {});
 
                     const focusInfo = await sidebarPage.evaluate(() => ({
                         tag: document.activeElement?.tagName || 'none',
@@ -697,7 +729,7 @@ describe('Keyboard Shortcuts', () => {
                 // Open a test page to ensure tabs exist
                 const testPage = await browser.newPage();
                 await testPage.goto('https://www.example.com', { waitUntil: 'domcontentloaded' });
-                await delay(1000);
+                await waitForNewestTabInSpace(sidebarPage);
 
                 // Close and reopen sidebar
                 await sidebarPage.close();
@@ -800,7 +832,11 @@ describe('Keyboard Shortcuts', () => {
                         const switcherBtn = document.querySelector('.space-switcher button, #spaceSwitcher button');
                         if (switcherBtn) switcherBtn.focus();
                     });
-                    await delay(300);
+                    await sidebarPage
+                        .waitForFunction(() => document.activeElement?.closest('.space-switcher, #spaceSwitcher'), {
+                            timeout: 1000
+                        })
+                        .catch(() => {});
 
                     const focused = await sidebarPage.evaluate(() => {
                         const active = document.activeElement;
@@ -830,7 +866,7 @@ describe('Keyboard Shortcuts', () => {
                 // Open a test page to ensure tabs exist
                 const testPage = await browser.newPage();
                 await testPage.goto('https://www.example.com', { waitUntil: 'domcontentloaded' });
-                await delay(1000);
+                await waitForNewestTabInSpace(sidebarPage);
 
                 // Close and reopen sidebar
                 await sidebarPage.close();
