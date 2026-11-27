@@ -42,6 +42,7 @@ FAVOURITES AND PINNED TABS
 - Pinned tabs belong to a single space. Each space keeps its own pinned tabs and nested folders (up to four levels deep), and a folder can have its own icon.
 - An open pinned tab shows a minus button that closes the tab and keeps the pin; a closed one opens in its own new tab.
 - Hold one tab over a pinned tab for a moment and drop it to make a folder of the two.
+- Duplicating a tab lists the copy directly below the original. Duplicating a favourite gives an ordinary tab, not a second favourite.
 - A link you open from a pinned tab opens at the top of the space's tab list. If you would rather keep it with the tab it came from, choose "Open as a new pinned tab" under "Links opened from a pinned tab" in Settings: it is pinned right under that tab, in the same folder. It is off until you turn it on.
 - Spaces, folders and pinned tabs are stored as ordinary Chrome bookmarks in a folder called "Sidecove". If you are signed in to Chrome with sync on, Chrome syncs them with your Google account, and you can see them in the bookmark manager.
 
@@ -52,7 +53,8 @@ BROWSING
 
 KEEPS TABS TIDY
 - Auto-archive is optional and off until you turn it on in Settings. It then closes tabs you have not used for the time you choose. Favourites and pinned tabs are never closed this way.
-- Archived tabs are listed so you can open them again.
+- Archived tabs are listed so you can open them again. The same page archived from two spaces is kept for each, and restoring one leaves the other.
+- Sidecove's own Settings page and setup guide show in the tab list like any other tab. Auto-archive, Clear and Clean All never close them.
 - Close a window and its pages move into the window that stays, as tabs in the same spaces and places, unloaded until you open them. A page already open there in the same space is left alone, and reopening the closed window with Cmd+Shift+T leaves each page open once.
 - "↓ Clear", on the divider above New Tab, closes a space's open tabs into the archive, and leaves untouched New Tabs open. Undo is on offer for 8 seconds and brings every tab back.
 - A New Tab you leave empty closes by itself when you switch to another tab. It is on by default and can be turned off in Settings.
