@@ -25,6 +25,8 @@ export function installSpaceStoreEvents(store) {
         handle(() => {
             store.linkTails.replaced(added, removed);
             store.linkPins.replaced(added, removed);
+            // A tab Clean All is hiding stays hidden under its new id.
+            if (store.hidden.delete(removed)) store.hidden.add(added);
             for (const space of store.spaces) {
                 for (const key of sections) space[key] = space[key].map(id => (id === removed ? added : id));
                 if (space.lastTab === removed) space.lastTab = added;

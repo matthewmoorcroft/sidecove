@@ -4,11 +4,18 @@ import { registerPendingClean, PENDING_CLEAN_KEY } from '../../../src/background
 import { PENDING_CLEAN_MESSAGE, UNDO_WINDOW_MS, CLOSE_GRACE_MS } from '../../../src/shared/pending-clean.js';
 
 let recordWhenClosing, archiveRemoved, tabs, session, dispatched, clock, timers, listener, removeError, hideError;
+let replaceListener, queryGate, removeGate;
 const DUE = UNDO_WINDOW_MS + CLOSE_GRACE_MS;
 
 const chromeApi = () => ({
     tabs: {
-        query: async () => tabs.map(t => ({ ...t, mutedInfo: { ...t.mutedInfo } })),
+        query: async () => {
+            const snapshot = tabs.map(t => ({ ...t, mutedInfo: { ...t.mutedInfo } }));
+            // A test can hold a read, to see what happens meanwhile.
+            if (queryGate) await queryGate.wait();
+            return snapshot;
+        },
+        onReplaced: { addListener: fn => (replaceListener = fn) },
         update: async (id, props) => {
             const tab = tabs.find(t => t.id === id);
             if (!tab) throw new Error(`No tab with id: ${id}.`);
@@ -16,6 +23,7 @@ const chromeApi = () => ({
         },
         remove: async ids => {
             recordWhenClosing = structuredClone(session[PENDING_CLEAN_KEY]);
+            if (removeGate) await removeGate.wait();
             if (removeError) throw removeError;
             tabs = tabs.filter(t => !ids.includes(t.id));
         }
@@ -81,7 +89,31 @@ beforeEach(() => {
     timers = [];
     removeError = undefined;
     hideError = undefined;
+    queryGate = undefined;
+    removeGate = undefined;
 });
+
+// Holds the next call that waits on it until `release`; `reached` resolves once one is waiting.
+function gate() {
+    let release, reached;
+    const opened = new Promise(resolve => (release = resolve));
+    const waiting = new Promise(resolve => (reached = resolve));
+    return {
+        wait: () => {
+            reached();
+            return opened;
+        },
+        reached: waiting,
+        release
+    };
+}
+const tick = () => new Promise(resolve => setImmediate(resolve));
+// Fires the batch's close timer without waiting for it.
+const fireTimer = () => {
+    const timer = timers.find(candidate => !candidate.cancelled && !candidate.done);
+    timer.done = true;
+    return timer.fn();
+};
 
 test('Clean All hides the tabs, mutes them, and keeps them open', async () => {
     await start();
@@ -296,4 +328,132 @@ test('the pending close is still on record while the tabs close, so a worker tha
     await advance(DUE);
     assert.equal(recordWhenClosing.length, 1);
     assert.deepEqual(session[PENDING_CLEAN_KEY], []);
+});
+
+test('Undo asked while the close is reading the open tabs wins: the tabs stay open and are shown', async () => {
+    await start();
+    const { batchId } = await clear([1, 2]);
+    queryGate = gate();
+    const closing = fireTimer();
+    await queryGate.reached;
+    const undo = send({ action: 'undo', batchId });
+    await tick();
+    queryGate.release();
+    queryGate = undefined;
+    const reply = await undo;
+    await closing;
+    assert.deepEqual(reply.restored, [1, 2]);
+    assert.deepEqual(
+        tabs.map(t => t.id),
+        [1, 2, 3, 4]
+    );
+    assert.deepEqual(dispatched.at(-1), { action: 'unhide', tabIds: [1, 2], spaceId: 'home', order: [1, 2, 3, 4] });
+    assert.deepEqual(session[PENDING_CLEAN_KEY], []);
+    await advance(DUE * 2);
+    assert.equal(tabs.length, 4);
+});
+
+test('Undo asked while Chrome is already closing the tabs reports none restored, so none is claimed back', async () => {
+    await start();
+    const { batchId } = await clear([1, 2]);
+    removeGate = gate();
+    const closing = fireTimer();
+    await removeGate.reached;
+    const undo = send({ action: 'undo', batchId });
+    await tick();
+    removeGate.release();
+    removeGate = undefined;
+    const reply = await undo;
+    await closing;
+    assert.deepEqual(reply.restored, []);
+    assert.deepEqual(
+        tabs.map(t => t.id),
+        [3, 4]
+    );
+});
+
+test('one tab brought back while the close is reading the open tabs stays open, and the rest close', async () => {
+    await start();
+    await clear([1, 2]);
+    queryGate = gate();
+    const closing = fireTimer();
+    await queryGate.reached;
+    const restore = send({ action: 'restoreTab', tabId: 1 });
+    await tick();
+    queryGate.release();
+    queryGate = undefined;
+    assert.deepEqual((await restore).restored, [1]);
+    await closing;
+    assert.deepEqual(
+        tabs.map(t => t.id),
+        [1, 3, 4]
+    );
+});
+
+test('a hidden tab Chrome swaps for a new one is the new one that closes at the end', async () => {
+    await start();
+    await clear([1, 2]);
+    tabs = tabs.map(t => (t.id === 2 ? { ...t, id: 12 } : t));
+    replaceListener(12, 2);
+    assert.deepEqual(
+        session[PENDING_CLEAN_KEY][0].tabs.map(tab => tab.tabId),
+        [1, 12]
+    );
+    await advance(DUE);
+    assert.deepEqual(
+        tabs.map(t => t.id),
+        [3, 4]
+    );
+});
+
+test('a hidden tab Chrome swaps for a new one is the new one that Undo shows, in its place', async () => {
+    await start();
+    const { batchId } = await clear([1, 2]);
+    tabs = tabs.map(t => (t.id === 2 ? { ...t, id: 12 } : t));
+    replaceListener(12, 2);
+    const reply = await send({ action: 'undo', batchId });
+    assert.deepEqual(reply.restored, [1, 12]);
+    assert.deepEqual(dispatched.at(-1), { action: 'unhide', tabIds: [1, 12], spaceId: 'home', order: [1, 12, 3, 4] });
+    assert.deepEqual((await send({ action: 'restoreTab', tabId: 12 })).restored, []);
+});
+
+test('a swap during the close, after the tabs were read, still closes the new tab', async () => {
+    await start();
+    await clear([1, 2]);
+    queryGate = gate();
+    const closing = fireTimer();
+    await queryGate.reached;
+    tabs = tabs.map(t => (t.id === 2 ? { ...t, id: 12 } : t));
+    replaceListener(12, 2);
+    queryGate.release();
+    queryGate = undefined;
+    await closing;
+    assert.deepEqual(
+        tabs.map(t => t.id),
+        [3, 4]
+    );
+});
+
+test('a swap a starting worker hears before it reads its record still closes the new tab', async () => {
+    await start();
+    await clear([2]);
+    const saved = structuredClone(session);
+    timers = [];
+    session = saved;
+    const api = registerPendingClean({
+        chromeApi: chromeApi(),
+        spaceStore: spaceStore(),
+        removeArchivedTab: async (url, spaceId) => archiveRemoved.push([url, spaceId]),
+        now: () => clock,
+        setTimer,
+        clearTimer
+    });
+    tabs = tabs.map(t => (t.id === 2 ? { ...t, id: 12 } : t));
+    replaceListener(12, 2);
+    await api.ready;
+    await advance(DUE);
+    assert.deepEqual(
+        tabs.map(t => t.id),
+        [1, 3, 4]
+    );
 });

@@ -24,6 +24,15 @@ export function createClearedTabs({
             for (const record of cleared) records.set(record.tabId, { record, list: cleared, closeAt });
         },
 
+        // Chrome swapped a tab for a new one: the records, and the toast's Undo, follow it.
+        replaced(added, removed) {
+            const entry = records.get(removed);
+            if (!entry) return;
+            records.delete(removed);
+            entry.record.tabId = added;
+            records.set(added, entry);
+        },
+
         // Is the tab one that Clear is hiding.
         async isHidden(tabId) {
             return (await readHiddenIds()).includes(tabId);
