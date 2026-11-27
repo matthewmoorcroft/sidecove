@@ -308,11 +308,6 @@
     color: #eceff1;
 }
 
-.custom-color-note {
-    font-size: 11px;
-    line-height: 1.35;
-}
-
 .custom-color-group {
     display: flex;
     align-items: center;

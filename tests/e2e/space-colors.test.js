@@ -178,13 +178,14 @@ test('a custom colour typed as hex is kept readable and shown in the Custom colo
         light: getComputedStyle(picker.querySelector('.preview-light')).backgroundColor,
         dark: getComputedStyle(picker.querySelector('.preview-dark')).backgroundColor,
         group: picker.querySelector('.custom-color-group-select').selectedOptions[0].textContent,
-        note: picker.querySelector('.custom-color-note').textContent
+        note: picker.querySelector('.custom-color-note')
     }));
     expect(preview).toEqual({
         light: rgb(readableSurface('#6a4c93', 'light')),
         dark: rgb(readableSurface('#6a4c93', 'dark')),
         group: 'Auto (Purple)',
-        note: expect.stringContaining('Light mode: lightened just enough for the text.')
+        // The Light and Dark swatches speak for themselves: no explanation is written under them.
+        note: null
     });
 
     // A tab group colour chosen by hand is kept.
