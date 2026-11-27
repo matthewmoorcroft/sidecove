@@ -571,6 +571,28 @@ test('reordering native pinned favicons updates Chrome and survives reload', asy
         url
     );
     await page.waitForSelector(`#pinnedFavicons [data-tab-id="${another}"]`);
+    // The bar is redrawn in tab-strip order on every update of a pinned tab. A redraw that lands while the
+    // drop is waiting on its reorder request puts the dragged icon back, so drop only once the new pin has
+    // finished loading and the bar has stopped being redrawn.
+    await page.waitForFunction(async id => (await chrome.tabs.get(id)).status === 'complete', { polling: 50 }, another);
+    await page.evaluate(
+        quietMs =>
+            new Promise(resolve => {
+                const bar = document.getElementById('pinnedFavicons');
+                let timer;
+                const observer = new MutationObserver(() => {
+                    clearTimeout(timer);
+                    timer = setTimeout(done, quietMs);
+                });
+                const done = () => {
+                    observer.disconnect();
+                    resolve();
+                };
+                observer.observe(bar, { childList: true, subtree: true, attributes: true });
+                timer = setTimeout(done, quietMs);
+            }),
+        300
+    );
     await page.$eval(`#pinnedFavicons [data-tab-id="${fixture.a}"]`, el => {
         el.classList.add('dragging');
         el.parentElement.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, clientX: 100000 }));
