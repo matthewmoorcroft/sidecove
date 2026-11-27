@@ -284,6 +284,20 @@ kbd {
     overflow-wrap: anywhere;
 }
 
+.arc-offer {
+    margin-top: 28px;
+    padding-top: 24px;
+    border-top: 1px solid #dfdce3;
+}
+.arc-offer h3 {
+    margin: 0 0 8px;
+    font-size: 1.05rem;
+}
+.arc-offer p {
+    max-width: 72ch;
+    margin: 0 0 14px;
+}
+
 .setup-steps ol {
     list-style: none;
     padding: 0;

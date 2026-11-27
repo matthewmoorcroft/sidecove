@@ -141,7 +141,8 @@ of this folder fix passed.
 ## Outstanding manual coverage
 
 - Import from Arc with a real `StorableSidebar.json` on a Mac with Arc installed: in the
-  picker, Command-Shift-G with the path the panel shows reaches the file, the space list
+  picker, Command-Shift-G with the path the panel shows reaches the file (the panel shows only
+  the Mac steps on a Mac, only the Windows steps on Windows), the space list
   matches Arc's, and the imported spaces show their pinned tabs and folders. The automated
   test uses a made-up file with Arc's structure.
 - Sidebar drag reorder, space reorder, and folder drag/drop. Native drag attempts

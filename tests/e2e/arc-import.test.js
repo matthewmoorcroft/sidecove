@@ -9,7 +9,7 @@ import { launchBrowserWithExtension, openSidebar } from './helpers/extension-hel
 const ARC_FILE = fileURLToPath(new URL('./fixtures/arc/StorableSidebar.json', import.meta.url));
 const NOT_ARC_FILE = fileURLToPath(new URL('./fixtures/window-helper/manifest.json', import.meta.url));
 
-let browser, page;
+let browser, page, extensionId;
 
 const request = action =>
     page.evaluate(async action => {
@@ -35,6 +35,7 @@ async function openImport() {
 beforeAll(async () => {
     const result = await launchBrowserWithExtension();
     browser = result.browser;
+    extensionId = result.extensionId;
     page = await openSidebar(browser, result.extensionId);
     // A space of the user's own that shares a name with one in the Arc file.
     await page.evaluate(async () => {
@@ -50,16 +51,41 @@ afterAll(async () => {
     await browser?.close();
 });
 
-test('the space menu opens the import, which says where Arc keeps its file', async () => {
+test('the space menu opens the import, which says where Arc keeps its file for this system only', async () => {
     await openImport();
+    const os = await page.evaluate(async () => (await chrome.runtime.getPlatformInfo()).os);
+    // The steps are filled in for the system once it is read.
+    await page.waitForFunction(
+        os => (os === 'mac' || os === 'win' ? document.querySelectorAll('.arc-import-path').length === 1 : true),
+        {},
+        os
+    );
     const text = await page.$eval('.arc-import', el => el.textContent);
-    expect(text).toContain('~/Library/Application Support/Arc/StorableSidebar.json');
-    expect(text).toContain('Command-Shift-G');
-    expect(text).toContain('%LOCALAPPDATA%\\Packages');
-    // Mac first, then Windows.
-    expect(text.indexOf('On a Mac')).toBeLessThan(text.indexOf('On Windows'));
+    const mac = text.includes('~/Library/Application Support/Arc/StorableSidebar.json');
+    const windows = text.includes('%LOCALAPPDATA%\\Packages');
+    expect({ mac, windows }).toEqual({ mac: os !== 'win', windows: os !== 'mac' });
+    if (mac) expect(text).toContain('Command-Shift-G');
+    // Both show, Mac first, with their names, when the system is neither.
+    if (mac && windows) expect(text.indexOf('On a Mac')).toBeLessThan(text.indexOf('On Windows'));
+    else expect(text).not.toMatch(/On a Mac|On Windows/);
     await page.$$eval('.arc-import-actions button', buttons => buttons.at(-1).click());
     expect(await page.$('.arc-import')).toBeNull();
+});
+
+test('the setup guide’s Import from Arc button opens the import in the sidebar', async () => {
+    const onboarding = await browser.newPage();
+    await onboarding.goto(`chrome-extension://${extensionId}/installation-onboarding.html`);
+    await onboarding.waitForSelector('#import-arc');
+    expect(await onboarding.$eval('#step-bookmarks', el => el.textContent)).toContain('Coming from Arc?');
+    await onboarding.click('#import-arc');
+    await page.bringToFront();
+    await page.waitForSelector('.arc-import h2');
+    // The note is taken, so a reload does not open it again.
+    expect(
+        await page.evaluate(async () => (await chrome.storage.local.get('arcImportRequested')).arcImportRequested)
+    ).toBe(undefined);
+    await page.$$eval('.arc-import-actions button', buttons => buttons.at(-1).click());
+    await onboarding.close();
 });
 
 test('a file that is not Arc’s is refused with a clear message and changes nothing', async () => {
@@ -152,8 +178,8 @@ test('a second import of the same file offers only what is not in Sidecove yet',
         { checked: true, disabled: false }
     ]);
     const text = await page.$eval('.arc-import', el => el.textContent);
-    expect(text).toContain('Spaces you imported before are marked and are not imported again.');
-    expect(text).toContain('Your Arc favorites are already in Sidecove');
+    expect(text).toContain('Spaces you imported before are marked and skipped.');
+    expect(text).toContain('Your Arc favorites are already in Sidecove.');
     const before = await sidecoveTree();
     await page.$eval('.arc-import .arc-import-primary', el => el.click());
     await page.waitForSelector('.arc-import .arc-import-done', { timeout: 15000 });
@@ -168,7 +194,7 @@ test('a second import of the same file offers only what is not in Sidecove yet',
     // Now everything in the file is here, and there is nothing to import.
     expect((await pick()).every(box => box.disabled && !box.checked)).toBe(true);
     expect(await page.$eval('.arc-import', el => el.textContent)).toContain(
-        'Every space in this file is already in Sidecove from an earlier import.'
+        'Every space in this file is already in Sidecove.'
     );
     expect(await page.$eval('.arc-import .arc-import-primary', el => el.disabled)).toBe(true);
     await page.$$eval('.arc-import-actions button', buttons => buttons.at(-1).click());

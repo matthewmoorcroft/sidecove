@@ -14,8 +14,8 @@ import { earlierImports } from '../../../shared/import-spaces.js';
 import { NotArcFileError, readArcSidebar } from './arc-sidebar.js';
 import { arcSource, planArcImport } from './arc-import-plan.js';
 import { describeArcSpace, describeImport } from './arc-import-summary.js';
+import { locationSteps } from './arc-file-location.js';
 
-export const MAC_PATH = '~/Library/Application Support/Arc/StorableSidebar.json';
 // Arc's file is a few megabytes at most; this only stops a wrong pick from tying up the panel.
 const MAX_FILE_BYTES = 100 * 1024 * 1024;
 const NOT_ARC = "This file is not Arc's sidebar file. Choose StorableSidebar.json from Arc's folder.";
@@ -48,24 +48,19 @@ async function readEarlierImports() {
 const button = (label, onClick, className = '') =>
     el('button', { type: 'button', textContent: label, className, onclick: onClick });
 
-function whereToFind() {
-    return el('div', { className: 'arc-import-where' }, [
-        el('p', {}, [
-            el('strong', { textContent: 'On a Mac: ' }),
-            'in the file window, press Command-Shift-G, paste this and press Return.'
-        ]),
-        el('code', { className: 'arc-import-path', textContent: MAC_PATH }),
-        el('p', {
-            className: 'arc-import-small',
-            textContent:
-                'Finder hides the Library folder; that shortcut goes straight to it. Command-Shift-period shows hidden folders too.'
-        }),
-        el('p', {}, [
-            el('strong', { textContent: 'On Windows: ' }),
-            'paste %LOCALAPPDATA%\\Packages in the file window’s address bar, open the folder that starts with ' +
-                'TheBrowserCompany.Arc, then LocalCache\\Local\\Arc, and choose StorableSidebar.json.'
+// Only the steps for the system in use (see arc-file-location.js).
+function whereToFind(os) {
+    const steps = locationSteps(os);
+    const labelled = steps.length > 1;
+    return el(
+        'div',
+        { className: 'arc-import-where' },
+        steps.flatMap(step => [
+            el('p', {}, [...(labelled ? [el('strong', { textContent: `${step.label}: ` })] : []), step.intro]),
+            el('code', { className: 'arc-import-path', textContent: step.path }),
+            ...(step.after ? [el('p', { textContent: step.after })] : [])
         ])
-    ]);
+    );
 }
 
 /**
@@ -89,16 +84,25 @@ export function openArcImport({ container, adoptSpaces, showSpace, whenSaved = a
         panel.replaceChildren(picker, el('h2', { textContent: 'Import from Arc', tabIndex: -1 }), ...children);
         panel.querySelector('h2').focus();
     };
+    // The system, once known; until then (and where it cannot be read) both sets of steps show.
+    let os;
+    chrome.runtime
+        .getPlatformInfo()
+        .then(info => {
+            os = info.os;
+            panel.querySelector('.arc-import-where')?.replaceWith(whereToFind(os));
+        })
+        .catch(() => {});
     const alertLine = message => el('p', { className: 'arc-import-error', role: 'alert', textContent: message });
 
     const intro = (error = '') =>
         show(
             el('p', {
                 textContent:
-                    "Copy your Arc spaces, pinned tabs and folders into Sidecove. Choose Arc's sidebar file: " +
-                    'Sidecove reads it here in Chrome and sends it nowhere.'
+                    'Bring your Arc spaces, pinned tabs and folders across. Choose Arc’s file, StorableSidebar.json: ' +
+                    'Sidecove reads it in Chrome and sends it nowhere.'
             }),
-            whereToFind(),
+            whereToFind(os),
             ...(error ? [alertLine(error)] : []),
             el('div', { className: 'arc-import-actions' }, [
                 button('Choose Arc’s file…', () => picker.click(), 'arc-import-primary'),
@@ -145,16 +149,16 @@ export function openArcImport({ container, adoptSpaces, showSpace, whenSaved = a
         show(
             el('p', {
                 textContent:
-                    'Each space you choose becomes a new space after yours, with its pinned tabs and folders. ' +
-                    'Your own spaces stay as they are; a name you already use gets “(Arc)” after it.'
+                    'Each space you choose is added after yours, with its pinned tabs and folders. ' +
+                    'Your own spaces are untouched; a name you already use gets “(Arc)” after it.'
             }),
             ...(done.some(Boolean)
                 ? [
                       el('p', {
                           className: 'arc-import-already',
                           textContent: allDone
-                              ? 'Every space in this file is already in Sidecove from an earlier import. To import one again, delete that space first.'
-                              : 'Spaces you imported before are marked and are not imported again. To import one again, delete that space first.'
+                              ? 'Every space in this file is already in Sidecove. To import one again, delete it first.'
+                              : 'Spaces you imported before are marked and skipped. To import one again, delete it first.'
                       })
                   ]
                 : []),
@@ -163,15 +167,14 @@ export function openArcImport({ container, adoptSpaces, showSpace, whenSaved = a
                 ? [
                       el('p', {
                           textContent: earlier.favorites
-                              ? 'Your Arc favorites are already in Sidecove from an earlier import, so they are not imported again.'
-                              : `Your ${arc.favorites.length} Arc favorites go in a folder at the top of the first space you import.`
+                              ? 'Your Arc favorites are already in Sidecove.'
+                              : `Your ${arc.favorites.length} Arc favorites go in a folder in the first space you import.`
                       })
                   ]
                 : []),
             el('p', {
                 className: 'arc-import-small',
-                textContent:
-                    'Today tabs are left out, as Arc keeps them open rather than saved, and so is Arc’s archive, which is in another file.'
+                textContent: 'Today tabs and Arc’s archive are left out.'
             }),
             el('div', { className: 'arc-import-actions' }, [start, button('Cancel', close)])
         );

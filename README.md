@@ -16,7 +16,7 @@ Sidecove is an independent project, not affiliated with or endorsed by The Brows
 
 ## Features
 
-- Vertical tabs in Chrome's side panel, organised into spaces with their own colour and icon. Pick one of 11 colours, or any colour at all with the **Custom color** circle beside them; Sidecove keeps the text readable on it in light and dark mode
+- Vertical tabs in Chrome's side panel, organised into spaces with their own colour and icon. Pick one of 11 colours, or any colour at all with the **Custom color** circle beside them, in the space menu, the New Space form and the space button's **Theme Color**; Sidecove keeps the text readable on it in light and dark mode
 - Pinned tabs, favorites and nested folders, stored as ordinary Chrome bookmarks
 - A top icon bar of Chrome-pinned favorites, shared across spaces in this Chrome profile by default. Enable **Settings → Separate favorites for each space** for a different top bar in each space. Switching this setting keeps your pins and their space assignments. Chrome still shows all native pins in its own tab strip.
 - Drag tabs, favorites and folders between sections, folders and spaces; drop one tab on a favorite to make a folder
@@ -136,9 +136,10 @@ leaves those groups alone. Import copies group names, colors, and current member
 
 ### Import from Arc
 
-Open a space's options menu (the ⋯ next to its name) and choose **Import from Arc…**. An
-extension cannot open your files by itself, so you pick Arc's sidebar file,
-`StorableSidebar.json`, with the file picker:
+Open a space's options menu (the ⋯ next to its name) and choose **Import from Arc…**, or use
+**Import from Arc** on the first step of the setup guide. An extension cannot open your files
+by itself, so you pick Arc's sidebar file, `StorableSidebar.json`, with the file picker. The
+panel shows the steps for the system you are on (both, on Linux):
 
 - **On a Mac** it is `~/Library/Application Support/Arc/StorableSidebar.json`. Finder hides the
   Library folder: in the file window, press Command-Shift-G, paste that path and press Return

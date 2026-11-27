@@ -26,10 +26,35 @@
     background: none;
 }
 
-/* The new space form has the width of the panel: one row. */
+/* Theme Color on a space button: the same swatches in a small popover at the pointer. */
+.space-color-popover {
+    position: fixed;
+    z-index: 1002;
+    padding: 4px;
+    border-radius: 10px;
+    background: #fff;
+    color: #333;
+    box-shadow:
+        0 8px 28px rgba(0, 0, 0, 0.18),
+        0 0 0 1px rgba(0, 0, 0, 0.06);
+    animation: sidecove-pop-in 0.14s ease-out;
+}
+
+.space-color-popover .color-picker-grid {
+    grid-template-columns: repeat(6, 24px);
+    gap: 6px;
+    justify-content: center;
+    background: none;
+}
+
+.space-color-popover:focus {
+    outline: none;
+}
+
+/* The new space form has the width of the panel: one row of the eleven colours and the wheel. */
 .create-space-picker {
     width: 100%;
-    grid-template-columns: repeat(11, 1fr);
+    grid-template-columns: repeat(12, 1fr);
     justify-items: center;
     gap: 6px 2px;
     padding: 0 4px;
@@ -133,8 +158,8 @@
     z-index: 1;
 }
 
-/* The picker replaces the menu's contents while it is open. */
-.space-options-dropdown.picking > :not(.custom-color-picker) {
+/* The picker replaces the contents of the menu, popover or form it opens in. */
+.color-chooser.picking > :not(.custom-color-picker) {
     display: none;
 }
 
@@ -146,8 +171,13 @@
     padding: 2px 4px 4px;
 }
 
-.space-options-dropdown.picking .custom-color-picker {
+.color-chooser.picking .custom-color-picker {
     display: flex;
+}
+
+/* In the form the picker is as wide as the form, centred. The form grows to hold it. */
+.add-space-input-container.color-chooser.picking {
+    height: auto;
 }
 
 .custom-color-head {
@@ -158,7 +188,20 @@
     font-weight: 600;
 }
 
-.space-options-dropdown .custom-color-back {
+.custom-color-back {
+    background: none;
+    border: none;
+    border-radius: 6px;
+    color: inherit;
+    cursor: pointer;
+}
+
+.custom-color-back:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+.space-options-dropdown .custom-color-back,
+.space-color-popover .custom-color-back {
     padding: 2px 8px;
     font-size: 16px;
     line-height: 1;
@@ -301,6 +344,18 @@
 
     .color-swatch.selected {
         border-color: rgba(255, 255, 255, 0.5);
+    }
+
+    .space-color-popover {
+        background: #2a2a2a;
+        color: #eceff1;
+        box-shadow:
+            0 8px 28px rgba(0, 0, 0, 0.5),
+            0 0 0 1px rgba(255, 255, 255, 0.08);
+    }
+
+    .custom-color-back:hover {
+        background-color: rgba(255, 255, 255, 0.1);
     }
 
     .custom-color-swatch {
