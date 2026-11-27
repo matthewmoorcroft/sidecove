@@ -466,6 +466,30 @@ describe('multi-select and folders', () => {
         );
     const selectedIds = () =>
         page.$$eval('.space.active .tab.selected', rows => rows.map(r => Number(r.dataset.tabId)));
+    // Resolves once nothing in the active space has been added or removed for `quietMs`.
+    const listIsStill = (quietMs = 600) =>
+        page.evaluate(
+            quietMs =>
+                new Promise((resolve, reject) => {
+                    const root = document.querySelector('.space.active');
+                    let quiet = setTimeout(done, quietMs);
+                    const watch = new MutationObserver(() => {
+                        clearTimeout(quiet);
+                        quiet = setTimeout(done, quietMs);
+                    });
+                    const giveUp = setTimeout(() => {
+                        watch.disconnect();
+                        reject(new Error('the list never settled'));
+                    }, 15000);
+                    function done() {
+                        watch.disconnect();
+                        clearTimeout(giveUp);
+                        resolve();
+                    }
+                    watch.observe(root, { childList: true, subtree: true });
+                }),
+            quietMs
+        );
     async function bulk(selector, label) {
         await page.$eval(selector, el => {
             const r = el.getBoundingClientRect();
@@ -577,6 +601,9 @@ describe('multi-select and folders', () => {
         const target = `.space.active .tab.bookmark-only[data-bookmark-id="${favorite}"]`;
         await page.waitForSelector(target);
         const [tab] = await openTabs(['merge-tab']);
+        // The hold counts only while the pointer stays on one element, so the row must not be drawn
+        // again between the two dragovers: wait until the list has been still for a moment.
+        await listIsStill();
         await page.evaluate(
             ({ source, target }) => {
                 const from = document.querySelector(source),

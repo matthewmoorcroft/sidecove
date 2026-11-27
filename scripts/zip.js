@@ -1,4 +1,4 @@
-import archiver from 'archiver';
+import { ZipArchive } from 'archiver';
 import fs from 'fs-extra';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -24,7 +24,7 @@ async function createZip() {
 
     // Create a file to stream archive data to
     const output = fs.createWriteStream(zipPath);
-    const archive = archiver('zip', {
+    const archive = new ZipArchive({
         zlib: { level: 9 } // Maximum compression
     });
 
