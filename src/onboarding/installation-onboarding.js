@@ -1,4 +1,5 @@
 import { TOUR_KEY, tourAction } from '../shared/tour-state.js';
+import { requestArcImport } from '../shared/arc-import-request.js';
 import { readBookmarkSpaces } from './onboarding-bookmarks.js';
 const $ = id => document.getElementById(id);
 let bookmarkFolderId;
@@ -72,6 +73,17 @@ $('start').addEventListener('click', async () => {
         const opening = chrome.sidePanel.open({ windowId });
         await opening;
         render(await tourAction({ action: 'start', windowId, runId: crypto.randomUUID(), step: 0 }));
+    } catch (error) {
+        showError(error);
+    }
+});
+$('import-arc').addEventListener('click', async () => {
+    $('error').hidden = true;
+    try {
+        // sidePanel.open must run directly within the click gesture, before anything is awaited.
+        const opening = chrome.sidePanel.open({ windowId });
+        await requestArcImport();
+        await opening;
     } catch (error) {
         showError(error);
     }

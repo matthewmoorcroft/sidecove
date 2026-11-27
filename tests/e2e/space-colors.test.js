@@ -178,13 +178,14 @@ test('a custom colour typed as hex is kept readable and shown in the Custom colo
         light: getComputedStyle(picker.querySelector('.preview-light')).backgroundColor,
         dark: getComputedStyle(picker.querySelector('.preview-dark')).backgroundColor,
         group: picker.querySelector('.custom-color-group-select').selectedOptions[0].textContent,
-        note: picker.querySelector('.custom-color-note').textContent
+        note: picker.querySelector('.custom-color-note')
     }));
     expect(preview).toEqual({
         light: rgb(readableSurface('#6a4c93', 'light')),
         dark: rgb(readableSurface('#6a4c93', 'dark')),
         group: 'Auto (Purple)',
-        note: expect.stringContaining('Light mode: lightened just enough for the text.')
+        // The Light and Dark swatches speak for themselves: no explanation is written under them.
+        note: null
     });
 
     // A tab group colour chosen by hand is kept.
@@ -323,7 +324,10 @@ test('a space imported from an orange tab group is painted orange', async () => 
     await closeMenu();
 });
 
-test('the space chip’s Theme Color menu offers the same colours', async () => {
+// Theme Color on the space button opens the same colours in a popover at the pointer.
+const POPOVER = '#spaceColorPopover';
+
+async function openThemeColor() {
     await page.evaluate(() => chrome.storage.sync.set({ spaceSwitcherStyle: 'names' }));
     await page.waitForSelector('#spaceSwitcher:not(.icons-only) button.active');
     await page.$eval('#spaceSwitcher button.active', el => {
@@ -331,19 +335,128 @@ test('the space chip’s Theme Color menu offers the same colours', async () => 
         el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: r.left + 10, clientY: r.top + 5 }));
     });
     await page.waitForSelector('.context-menu', { visible: true });
-    const labels = await page.$$eval('.context-menu .context-menu-item.with-submenu', items => {
-        const theme = items.find(item => item.textContent.startsWith('Theme Color'));
-        return [...theme.querySelectorAll('.context-menu.submenu .context-menu-item')].map(i => i.textContent);
-    });
-    expect(labels).toEqual(PALETTE.map(c => c.label));
-    await page.$$eval('.context-menu .context-menu-item.with-submenu', items => {
-        const theme = items.find(item => item.textContent.startsWith('Theme Color'));
-        [...theme.querySelectorAll('.context-menu.submenu .context-menu-item')]
-            .find(i => i.textContent === 'Indigo')
-            .click();
-    });
-    await waitForStored('blue', 'indigo');
-    await panelBackground(rgb('#acb3f6'));
+    await page.$$eval('.context-menu .context-menu-item', items =>
+        items.find(item => item.textContent.startsWith('Theme Color')).click()
+    );
+    await page.waitForSelector(POPOVER, { visible: true });
+}
+
+const closePopover = async () => {
+    await page.mouse.click(5, 790);
+    await page.waitForSelector(POPOVER, { hidden: true });
     await page.evaluate(() => chrome.storage.sync.set({ spaceSwitcherStyle: 'icons' }));
     await sleep(200);
+};
+
+test('the space button’s Theme Color opens the same circles, wheel and picker', async () => {
+    await openThemeColor();
+    const swatches = await page.$$eval(`${POPOVER} .color-swatch`, els => els.map(el => el.dataset.color));
+    expect(swatches).toEqual([...PALETTE.map(c => c.name), 'custom']);
+    expect(await page.$eval(POPOVER, el => el.getAttribute('aria-label'))).toBe('Theme Color');
+
+    await page.click(`${POPOVER} .color-swatch[data-color="indigo"]`);
+    await waitForStored('blue', 'indigo');
+    await panelBackground(rgb('#acb3f6'));
+    expect(await page.$$eval(`${POPOVER} .color-swatch.selected`, els => els.map(el => el.dataset.color))).toEqual([
+        'indigo'
+    ]);
+
+    // The wheel opens the picker in the popover, which stays inside the panel.
+    await page.click(`${POPOVER} .custom-color-swatch`);
+    await page.waitForSelector(`${POPOVER} .custom-color-picker`, { visible: true });
+    await page.click(`${POPOVER} .custom-color-hex`, { clickCount: 3 });
+    await page.keyboard.type('#6A4C93');
+    await waitForStored('purple', '#6a4c93');
+    await panelBackground(rgb(readableSurface('#6a4c93', 'light')));
+    await sleep(100);
+    const box = await page.$eval(POPOVER, el => {
+        const r = el.getBoundingClientRect();
+        return { left: r.left, right: r.right, bottom: r.bottom, width: innerWidth, height: innerHeight };
+    });
+    expect(box.left).toBeGreaterThanOrEqual(0);
+    expect(box.right).toBeLessThanOrEqual(box.width);
+    expect(box.bottom).toBeLessThanOrEqual(box.height);
+
+    // Back shows the circles again, with the wheel ticked; the space's own menu agrees.
+    await page.click(`${POPOVER} .custom-color-back`);
+    await page.waitForSelector(`${POPOVER} .color-picker-grid`, { visible: true });
+    expect(await page.$eval(`${POPOVER} .custom-color-swatch`, el => el.classList.contains('selected'))).toBe(true);
+    await closePopover();
+    await openMenu();
+    expect(await page.$eval(CUSTOM, el => el.classList.contains('selected'))).toBe(true);
+    await closeMenu();
+});
+
+test('Escape closes the Theme Color popover, and so does a click outside it', async () => {
+    await openThemeColor();
+    await page.keyboard.press('Escape');
+    await page.waitForSelector(POPOVER, { hidden: true });
+    await openThemeColor();
+    await closePopover();
+});
+
+// The New Space form: the same circles, wheel and picker, above the name field.
+const FORM = '#addSpaceInputContainer';
+
+async function openForm() {
+    if (!(await page.$(`${FORM}.visible`))) await page.click('#addSpaceBtn');
+    await page.waitForSelector(`${FORM}.visible`, { visible: true });
+}
+
+// The new space becomes the active one, so waitForStored reads it.
+async function createSpace(name) {
+    await page.type('#newSpaceName', name);
+    await page.click('#createSpaceBtn');
+}
+
+test('the New Space form offers the 11 colours and the wheel, and creates the space in the one chosen', async () => {
+    await openForm();
+    const swatches = await page.$$eval(`${FORM} .color-swatch`, els => els.map(el => el.dataset.color));
+    expect(swatches).toEqual([...PALETTE.map(c => c.name), 'custom']);
+    // One row, inside the panel.
+    const row = await page.$$eval(`${FORM} .color-swatch`, els => ({
+        tops: new Set(els.map(el => el.offsetTop)).size,
+        right: Math.max(...els.map(el => el.getBoundingClientRect().right)),
+        width: innerWidth
+    }));
+    expect(row.tops).toBe(1);
+    expect(row.right).toBeLessThanOrEqual(row.width);
+
+    await page.click(`${FORM} .color-swatch[data-color="mint"]`);
+    expect(await page.$$eval(`${FORM} .color-swatch.selected`, els => els.map(el => el.dataset.color))).toEqual([
+        'mint'
+    ]);
+    await createSpace('Mint test');
+    await waitForStored('green', 'mint');
+    await panelBackground(rgb('#a9e7c8'));
+});
+
+test('the New Space form’s wheel opens the picker, and a custom colour is kept in the new space', async () => {
+    await openForm();
+    const closedHeight = await page.$eval(FORM, el => el.getBoundingClientRect().height);
+    await page.click(`${FORM} .custom-color-swatch`);
+    await page.waitForSelector(`${FORM} .custom-color-picker`, { visible: true });
+    // Only the picker shows while it is open; the form grows to hold it.
+    expect(await page.$eval(`${FORM} .create-space-container`, el => getComputedStyle(el).display)).toBe('none');
+    expect(await page.$eval(FORM, el => el.getBoundingClientRect().height)).toBeGreaterThan(closedHeight);
+    await page.click(`${FORM} .custom-color-hex`, { clickCount: 3 });
+    await page.keyboard.type('#6A4C93');
+    await page.click(`${FORM} .custom-color-back`);
+    await page.waitForSelector(`${FORM} .create-space-container`, { visible: true });
+    expect(await page.$eval(`${FORM} .custom-color-swatch`, el => el.classList.contains('selected'))).toBe(true);
+    await createSpace('Custom test');
+    await waitForStored('purple', '#6a4c93');
+    await panelBackground(rgb(readableSurface('#6a4c93', 'light')));
+});
+
+test('the New Space form starts on a colour no space uses, and closing the picker returns to the colours', async () => {
+    await openForm();
+    const start = await page.$$eval(`${FORM} .color-swatch.selected`, els => els.map(el => el.dataset.color));
+    expect(start).toHaveLength(1);
+    expect(start[0]).not.toBe('custom');
+    await page.click(`${FORM} .custom-color-swatch`);
+    await page.waitForSelector(`${FORM} .custom-color-picker`, { visible: true });
+    await page.keyboard.press('Escape');
+    await page.waitForSelector(`${FORM} .color-picker-grid`, { visible: true });
+    expect(await page.$(`${FORM}.picking`)).toBeNull();
 });

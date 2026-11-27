@@ -41,8 +41,11 @@ import { initSidebarTour } from './tour/sidebar-tour.js';
 import { ChromeHelper } from './chrome-helper.js';
 import { paintSpaceColor, setSpaceColorVars } from './features/color-overrides/space-color-vars.js';
 import { setupSpaceColorMenu } from './features/space-colors/space-color-menu.js';
+import { showSpaceColorPopover } from './features/space-colors/space-color-popover.js';
+import { newSpaceChoice } from './features/space-colors/new-space-colors.js';
 import { applySpaceColor } from './features/space-colors/apply-space-color.js';
-import { PALETTE, paletteChoice, spaceLook } from './features/space-colors/space-palette.js';
+import { watchArcImportRequests } from '../shared/arc-import-request.js';
+import { spaceLook } from './features/space-colors/space-palette.js';
 import {
     applyColorOverrides as applyColorOverridesFrom,
     colorOverridesChanged
@@ -747,6 +750,8 @@ async function initSidebar() {
         scheduleStoredSpacesRefresh();
     });
     await offerTabGroupImport();
+    // The setup guide's Import from Arc button.
+    await watchArcImportRequests(showArcImport);
 }
 function scheduleStoredSpacesRefresh() {
     refreshCoordinator.invalidateSpaces();
@@ -799,6 +804,14 @@ async function getListedTabs(spaceId) {
         orderIds: ids => inListedOrder(ids, space, tabs, currentWindow, allWindows)
     };
 }
+
+const showArcImport = () =>
+    openArcImport({
+        container: document.getElementById('sidebar-container'),
+        adoptSpaces: next => adoptStoredSpaces(next),
+        showSpace: id => setActiveSpace(id),
+        whenSaved: () => pendingSpaceSaves
+    });
 
 function createSpaceElement(space) {
     Logger.log('Creating space element for:', space.id);
@@ -928,13 +941,7 @@ function createSpaceElement(space) {
         newFolder: () => createNewFolder(spaceContainer),
         getSpaceBookmarkFolder,
         deleteSpace,
-        importFromArc: () =>
-            openArcImport({
-                container: document.getElementById('sidebar-container'),
-                adoptSpaces: next => adoptStoredSpaces(next),
-                showSpace: id => setActiveSpace(id),
-                whenSaved: () => pendingSpaceSaves
-            })
+        importFromArc: showArcImport
     });
 
     // Load tabs
@@ -1198,12 +1205,6 @@ function showSpaceChipMenu(space, chip, x, y) {
         if (space.id !== activeSpaceId) await setActiveSpace(space.id);
         action(spaceElement());
     };
-    const setColor = color => {
-        const select = spaceElement()?.querySelector('.space-color-select');
-        if (!select) return;
-        select.value = color;
-        select.dispatchEvent(new Event('change'));
-    };
     showMenu(
         x,
         y,
@@ -1213,10 +1214,7 @@ function showSpaceChipMenu(space, chip, x, y) {
                 label: 'Rename Space…',
                 action: () => inSpace(element => element?.querySelector('.space-name')?.select())
             },
-            {
-                label: 'Theme Color',
-                submenu: PALETTE.map(colour => ({ label: colour.label, action: () => setColor(colour.name) }))
-            },
+            { label: 'Theme Color', action: () => showSpaceColorPopover(space, x, y) },
             'separator',
             { label: 'New Folder', action: () => inSpace(element => element && createNewFolder(element)) },
             'separator',
@@ -4007,7 +4005,7 @@ async function createNewSpace() {
         const spaceNameInput = document.getElementById('newSpaceName');
         const spaceColorSelect = document.getElementById('spaceColor');
         const spaceName = spaceNameInput.value.trim();
-        const { color: spaceColor, shade } = paletteChoice(spaceColorSelect.value) ?? paletteChoice('grey');
+        const { color: spaceColor, shade } = newSpaceChoice(spaceColorSelect);
 
         if (!spaceName || spaces.some(space => space.name.toLowerCase() === spaceName.toLowerCase())) {
             const errorPopup = document.createElement('div');

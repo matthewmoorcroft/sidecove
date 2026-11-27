@@ -1009,6 +1009,11 @@ describe('space icons and the chip strip', () => {
                         .click(),
                 label
             );
+        // Theme Color opens the colour circles in a small panel at the pointer.
+        const pickColor = async name => {
+            await pick('Theme Color');
+            await page.$eval(`#spaceColorPopover .color-swatch[data-color="${name}"]`, el => el.click());
+        };
         await chipOf('Home');
         await page.waitForSelector('#tab-context-menu');
         expect(
@@ -1026,7 +1031,7 @@ describe('space icons and the chip strip', () => {
         await page.evaluate(() => document.activeElement.blur());
         await chipOf('Home');
         await page.waitForSelector('#tab-context-menu');
-        await pick('Blue');
+        await pickColor('blue');
         await page.waitForFunction(
             async () =>
                 (await chrome.storage.local.get('spaces')).spaces.find(s => s.name === 'Home')?.color === 'blue',
@@ -1042,7 +1047,7 @@ describe('space icons and the chip strip', () => {
         const homeColor = await sidebarColor();
         await chipOf('Music');
         await page.waitForSelector('#tab-context-menu');
-        await pick('Red');
+        await pickColor('red');
         await page.waitForFunction(
             async () =>
                 (await chrome.storage.local.get('spaces')).spaces.find(s => s.name === 'Music')?.color === 'red',

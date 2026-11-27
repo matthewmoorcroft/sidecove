@@ -1,20 +1,8 @@
-import { hexToHsv, hexToRgb, hsvToHex, luminance, normalizeHex } from './color-math.js';
+import { hexToHsv, hsvToHex, normalizeHex } from './color-math.js';
 import { nearestChromeColor, readableSurface, textContrast } from './readable-surface.js';
 import { CHROME_COLOR_NAMES, chromeColorLabel } from './space-palette.js';
 
 const html = (tag, className, attrs = {}) => Object.assign(document.createElement(tag), { className }, attrs);
-
-// What the picker says about the surfaces it will paint for a colour.
-export function surfaceNote(seed, light, dark) {
-    const parts = [];
-    if (light === seed) parts.push('Light mode uses your color exactly.');
-    else if (luminance(hexToRgb(light)) > luminance(hexToRgb(seed)))
-        parts.push('Light mode: lightened just enough for the text.');
-    else parts.push('Light mode: toned down a little so all text stays readable.');
-    if (dark === seed) parts.push('Dark mode uses it exactly.');
-    else parts.push('Dark mode: a deep version of the same hue, as every Sidecove color is.');
-    return parts.join(' ');
-}
 
 // Any colour: a saturation and brightness square, a hue slider and a hex field, with how the
 // space will look in light and dark mode. `onChange(hex, group, { save })` reports each change;
@@ -50,14 +38,13 @@ export function createCustomColorPicker({ onChange, onBack }) {
     const light = html('div', 'preview-light');
     const dark = html('div', 'preview-dark');
     preview.append(light, dark);
-    const note = html('div', 'custom-color-note');
 
     const groupRow = html('label', 'custom-color-group');
     const group = html('select', 'custom-color-group-select');
     group.append(new Option('Auto', 'auto'), ...CHROME_COLOR_NAMES.map(n => new Option(chromeColorLabel(n), n)));
     groupRow.append(html('span', '', { textContent: 'Tab group' }), group);
 
-    root.append(head, square, hue, hexRow, preview, note, groupRow);
+    root.append(head, square, hue, hexRow, preview, groupRow);
 
     const state = { seed: '#cccccc', hsv: hexToHsv('#cccccc'), group: 'auto' };
     const chosenGroup = () => (state.group === 'auto' ? null : state.group);
@@ -83,7 +70,6 @@ export function createCustomColorPicker({ onChange, onBack }) {
             html('b', '', { textContent: 'Dark' }),
             html('span', '', { textContent: `${textContrast('dark', surfaces.dark).toFixed(1)}:1` })
         );
-        note.textContent = surfaceNote(state.seed, surfaces.light, surfaces.dark);
         group.options[0].textContent = `Auto (${chromeColorLabel(nearestChromeColor(state.seed))})`;
         group.value = state.group;
     }

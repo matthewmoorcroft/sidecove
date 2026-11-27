@@ -69,6 +69,7 @@ export function setupDOMElements(createNewSpace, getSpaces = () => []) {
     );
 
     const newSpaceColors = setupNewSpaceColors(
+        document.getElementById('addSpaceInputContainer'),
         document.getElementById('createSpaceColorSwatch'),
         document.getElementById('spaceColor')
     );
